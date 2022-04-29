@@ -1,0 +1,39 @@
+# Tomcat
+server:
+  port: 7202
+
+# Spring
+spring:
+  application:
+    # 应用名称
+    name: wms-business-delivery
+  profiles:
+    # 环境配置
+    active: dev
+
+com:
+  szmsd:
+    # ck1接口api配置
+    ck1:
+      values:
+        create: "/v1/outboundOrders"
+        create_status: "/v1/outboundOrders/{0}/status"
+        finished: "/v1/outboundOrders/{0}/finished"
+        cancel: "/v1/outboundOrders/{0}/cancelState"
+    # ty接口api配置
+    ty:
+      values:
+        shipments:
+          url: "/tracking/v1/shipments"
+          httpMethod: POST
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,env,prometheus,metrics,httptrace,threaddump,heapdump,springmetrics
+    jmx:
+      exposure:
+        include: '*'
+    shutdown:
+      enabled: false

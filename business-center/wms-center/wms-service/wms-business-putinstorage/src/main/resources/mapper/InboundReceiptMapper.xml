@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.szmsd.putinstorage.mapper.InboundReceiptMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="InboundReceiptVO" type="com.szmsd.putinstorage.domain.vo.InboundReceiptVO">
+        <id column="id" property="id"/>
+        <result column="warehouse_no" property="warehouseNo"/>
+        <result column="order_no" property="orderNo"/>
+        <result column="status" property="status"/>
+        <result column="status_name" property="statusName"/>
+        <result column="delivery_way_name" property="deliveryWayName"/>
+        <result column="warehouse_code" property="warehouseCode"/>
+        <result column="warehouse_name" property="warehouseName"/>
+        <result column="warehouse_method_name" property="warehouseMethodName"/>
+        <result column="total_declare_qty" property="totalDeclareQty"/>
+        <result column="total_put_qty" property="totalPutQty"/>
+        <result column="source_type" property="sourceType"/>
+        <result column="cus_code" property="cusCode"/>
+    </resultMap>
+
+    <resultMap id="InboundReceiptInfoVO" type="com.szmsd.putinstorage.domain.vo.InboundReceiptInfoVO">
+        <id column="id" property="id"/>
+        <result column="warehouse_no" property="warehouseNo"/>
+        <result column="order_no" property="orderNo"/>
+        <result column="cus_code" property="cusCode"/>
+        <result column="order_type" property="orderType"/>
+        <result column="warehouse_code" property="warehouseCode"/>
+        <result column="warehouse_method_code" property="warehouseMethodCode"/>
+        <result column="warehouse_category_code" property="warehouseCategoryCode"/>
+        <result column="vat" property="vat"/>
+        <result column="delivery_way_code" property="deliveryWayCode"/>
+        <result column="delivery_no" property="deliveryNo"/>
+        <result column="total_declare_qty" property="totalDeclareQty"/>
+        <result column="total_put_qty" property="totalPutQty"/>
+        <result column="goods_source_code" property="goodsSourceCode"/>
+        <result column="tracking_number" property="trackingNumber"/>
+        <result column="status" property="status"/>
+        <result column="remark" property="remark"/>
+        <result column="source_type" property="sourceType"/>
+
+        <!-- 多语言字段 -->
+        <result column="cus_name" property="cusName"/>
+        <result column="warehouse_name" property="warehouseName"/>
+        <result column="warehouse_method_name" property="warehouseMethodName"/>
+        <result column="warehouse_category_name" property="warehouseCategoryName"/>
+        <result column="delivery_way_name" property="deliveryWayName"/>
+        <result column="goods_source_name" property="goodsSourceName"/>
+    </resultMap>
+
+    <resultMap id="InboundReceiptExportVO" type="com.szmsd.putinstorage.domain.vo.InboundReceiptExportVO">
+        <result column="warehouse_no" property="warehouseNo"/>
+        <result column="order_no" property="orderNo"/>
+        <result column="delivery_way_code" property="deliveryWayCode"/>
+        <result column="delivery_way_name" property="deliveryWayName"/>
+        <result column="delivery_no" property="deliveryNo"/>
+        <result column="status" property="status"/>
+        <result column="status_name" property="statusName"/>
+        <result column="warehouse_code" property="warehouseCode"/>
+        <result column="warehouse_name" property="warehouseName"/>
+        <result column="warehouse_method_code" property="warehouseMethodCode"/>
+        <result column="warehouse_method_name" property="warehouseMethodName"/>
+        <result column="sku" property="sku"/>
+        <result column="declare_qty" property="declareQty"/>
+        <result column="put_qty" property="putQty"/>
+        <result column="origin_code" property="originCode"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="review_remark" property="reviewRemark"/>
+        <result column="remark" property="remark"/>
+        <result column="vat" property="vat"/>
+    </resultMap>
+
+    <resultMap id="InboundCountVO" type="com.szmsd.putinstorage.domain.vo.InboundCountVO">
+        <result column="cus_code" property="cusCode"/>
+        <result column="group_by" property="groupBy"/>
+        <result column="count" property="count"/>
+        <result column="count2" property="count2"/>
+    </resultMap>
+
+    <sql id="Column_List_VO">
+        t.id,
+        t.warehouse_no,
+        t.order_no,
+        t.status,
+        t.status status_name,
+        t.delivery_way_code delivery_way_name,
+        t.warehouse_code warehouse_code,
+        t.warehouse_code warehouse_name,
+        t.warehouse_method_code warehouse_method_name,
+        t.total_declare_qty,
+        t.total_put_qty,
+        t.cus_code,
+        t.create_time
+    </sql>
+
+    <sql id="Column_List_INFO_VO">
+        t.id,
+        t.warehouse_no,
+        t.order_no,
+        t.cus_code,
+        t.order_type,
+        t.warehouse_code,
+        t.warehouse_method_code,
+        t.warehouse_category_code,
+        t.vat,
+        t.delivery_way_code,
+        t.delivery_no,
+        t.total_declare_qty,
+        t.total_put_qty,
+        t.goods_source_code,
+        t.tracking_number,
+        t.status,
+        t.remark,
+        t.collection_no,
+
+        -- 多语言字段
+        t.cus_code cus_name,
+        t.warehouse_code warehouse_name,
+        t.warehouse_method_code warehouse_method_name,
+        t.warehouse_category_code warehouse_category_name,
+        t.delivery_way_code delivery_way_name,
+        t.goods_source_code goods_source_name
+    </sql>
+    <sql id="Column_List_Export_VO">
+        DISTINCT
+        IFNULL(t.warehouse_no, '') warehouse_no,
+        IFNULL(t.order_no, '') order_no,
+        IFNULL(t.delivery_way_code, '') delivery_way_code,
+        IFNULL(t.delivery_way_code, '') delivery_way_name,
+        IFNULL(t.delivery_no, '') delivery_no,
+        IFNULL(t.status, '') status,
+        IFNULL(t.status, '') status_name,
+        IFNULL(t.warehouse_code, '') warehouse_code,
+        IFNULL(t.warehouse_code, '') warehouse_name,
+        IFNULL(t.warehouse_method_code, '') warehouse_method_code,
+        IFNULL(t.warehouse_method_code, '') warehouse_method_name,
+        IFNULL(t2.sku, '') sku,
+        IFNULL(t2.declare_qty, '') declare_qty,
+        IFNULL(t2.put_qty, '') put_qty,
+        IFNULL(t2.origin_code, '') origin_code,
+        IFNULL(t2.create_time, '') create_time,
+        IFNULL(t2.update_time, '') update_time,
+        IFNULL(t.review_remark, '') review_remark,
+        IFNULL(t.remark, '') remark,
+        IFNULL(t.vat, '') vat
+    </sql>
+    <select id="selectListByCondiction" parameterType="com.szmsd.putinstorage.domain.dto.InboundReceiptQueryDTO" resultType="com.szmsd.putinstorage.domain.vo.InboundReceiptVO">
+        SELECT <include refid="Column_List_VO"/>
+        FROM inbound_receipt t
+        <where><include refid="selectListWhere"/></where>
+        ORDER BY t.create_time DESC
+    </select>
+    <select id="selectInfo" resultMap="InboundReceiptInfoVO">
+        SELECT <include refid="Column_List_INFO_VO"/>
+        FROM inbound_receipt t
+        <where>
+            <if test="id != null and id != ''">AND t.id = #{id}</if>
+            <if test="warehouseNo != null and warehouseNo != ''">AND t.warehouse_no = #{warehouseNo}</if>
+            <if test="(id == null or id == ''.toString()) and (warehouseNo == null and warehouseNo == ''.toString())"><![CDATA[AND 1 <> 1]]></if>
+        </where>
+    </select>
+    <select id="selectExport" parameterType="com.szmsd.putinstorage.domain.dto.InboundReceiptQueryDTO" resultMap="InboundReceiptExportVO">
+        SELECT <include refid="Column_List_Export_VO"/>
+        FROM inbound_receipt t , inbound_receipt_detail t2 WHERE t.warehouse_no = t2.warehouse_no
+        <include refid="selectListWhere"/>
+        ORDER BY t.`status`
+    </select>
+    <select id="statistics" parameterType="com.szmsd.putinstorage.domain.dto.InboundReceiptQueryDTO" resultMap="InboundCountVO">
+        SELECT t.cus_code, DATE_FORMAT(t.create_time, '%Y-%m-%d') group_by, COUNT(1) count, COUNT(total_put_qty) count2 FROM inbound_receipt t
+        <where><include refid="selectListWhere"/></where>
+        GROUP BY t.cus_code, DATE_FORMAT(t.create_time, '%Y-%m-%d')
+        ORDER BY create_time;
+    </select>
+
+    <sql id="selectListWhere">
+        <if test="warehouseNoList != null and warehouseNoList.size() > 0">
+            AND t.warehouse_no IN
+            <foreach collection="warehouseNoList" open="(" separator="," close=")" item="warehouseNo">
+                #{warehouseNo}
+            </foreach>
+        </if>
+        <if test="deliveryNoList != null and deliveryNoList.size() > 0">
+            AND  CONCAT( ',', t.delivery_no, ',' ) REGEXP ( SELECT CONCAT( ',', REPLACE (#{deliveryNo}, ',', ',|,' ), ',' ))
+        </if>
+        <if test="orderNoList != null and orderNoList.size() > 0">
+            AND t.order_no IN
+            <foreach collection="orderNoList" open="(" separator="," close=")" item="orderNo">
+                #{orderNo}
+            </foreach>
+        </if>
+        <if test="warehouseCode != null and warehouseCode != ''">AND t.warehouse_code = #{warehouseCode}</if>
+        <if test="orderType != null and orderType != ''">AND t.order_type = #{orderType}</if>
+        <if test="cusCode != null and cusCode != ''">AND t.cus_code = #{cusCode}</if>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        <if test="statusList != null and statusList.size() > 0">
+            AND t.status IN
+            <foreach collection="statusList" item="status" open="(" separator="," close=")">
+                #{status}
+            </foreach>
+        </if>
+        <if test="deliveryWayCode != null and deliveryWayCode != ''">AND t.delivery_way_code = #{deliveryWayCode}</if>
+        <if test="startTime != null and startTime != '' and timeType != null"><![CDATA[ AND ${timeType.field} >= #{startTime} ]]></if>
+        <if test="endTime != null and endTime != '' and timeType != null"><![CDATA[ AND ${timeType.field} <= #{endTime} ]]></if>
+        <if test="warehouseMethodCode != null and warehouseMethodCode != ''">AND t.warehouse_method_code = #{warehouseMethodCode}</if>
+    </sql>
+
+</mapper>

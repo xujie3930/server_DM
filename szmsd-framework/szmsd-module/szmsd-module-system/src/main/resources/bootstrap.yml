@@ -1,0 +1,15 @@
+# Tomcat
+server:
+  port: 9201
+
+# Spring
+spring:
+  application:
+    # 应用名称
+    name: szmsd-system
+  profiles:
+    # 环境配置
+    active: dev
+
+i18nStatus: true # 多语言开关，true 是启用，false 是关闭
+logging.level.com.szmsd.system.mapper: debug

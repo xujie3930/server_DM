@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.szmsd.bas.dao.BasCommonMapper">
+
+
+    <select id="getCustomer" resultType="java.util.Map">
+        select
+        bc.cus_code as code,
+        bc.cus_abbverviation as jdName,
+        bc.cus_name as zhName,
+        bc.cus_name_en as enName,
+        bc.cus_name_ar as arName
+        from bas_customer bc
+    </select>
+
+    <select id="getBasEmployees" resultType="java.util.Map">
+        select
+        be.emp_code as code,
+        be.emp_name as zhName,
+        be.emp_name_en as enName,
+        be.emp_name_ar as arName
+        from bas_employees be
+    </select>
+
+    <select id="getBasProductType" resultType="java.util.Map">
+         select
+        bpt.product_type_code as code,
+        bpt.product_type_name as zhName,
+        bpt.product_type_name_en as enName,
+        bpt.product_type_name_ar as arName
+        from bas_product_type bpt
+    </select>
+
+    <select id="getRegion" resultType="java.util.Map">
+        select
+        bc.address_code as code,
+        bc.name as zhName,
+        bc.en_name as enName,
+        '' as arName
+        from bas_region bc
+    </select>
+    <select id="getBasSub" resultType="java.util.Map">
+         select
+        bs.sub_code as code,
+        bs.sub_name as zhName,
+        bs.sub_name_en as enName,
+        bs.sub_name_ar as arName
+        from bas_sub bs
+    </select>
+</mapper>

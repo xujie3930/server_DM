@@ -1,0 +1,12 @@
+# Tomcat
+server: 
+  port: 9200
+
+# Spring
+spring: 
+  application:
+    # 应用名称
+    name: szmsd-auth
+  profiles:
+    # 环境配置
+    active: dev

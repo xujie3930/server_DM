@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.szmsd.bas.mapper.BasePackingMapper">
+
+        <!-- 通用查询映射结果 -->
+        <resultMap id="BaseResultMap" type="com.szmsd.bas.domain.BasePacking">
+                    <id column="id" property="id"/>
+                    <result column="create_by_name" property="createByName"/>
+                    <result column="create_time" property="createTime"/>
+                    <result column="update_by_name" property="updateByName"/>
+                    <result column="update_time" property="updateTime"/>
+                    <result column="remark" property="remark"/>
+                    <result column="create_by" property="createBy"/>
+                    <result column="update_by" property="updateBy"/>
+                    <result column="del_flag" property="delFlag"/>
+                    <result column="name" property="name"/>
+                    <result column="code" property="code"/>
+                    <result column="seller_code" property="sellerCode"/>
+                    <result column="category" property="category"/>
+                    <result column="price" property="price"/>
+                    <result column="priority_level" property="priorityLevel"/>
+                    <result column="category_name" property="categoryName"/>
+                    <result column="describe" property="describe"/>
+        </resultMap>
+
+        <!-- 通用查询结果列 -->
+        <sql id="Base_Column_List">
+                create_by_name,
+                create_time,
+                update_by_name,
+                update_time,
+                remark,
+            id, create_by, update_by, del_flag, name, code, seller_code, category, price, priority_level, category_name, describe
+        </sql>
+    <select id="selectBasePackingGroup" resultType="com.szmsd.bas.dto.BasePackingDto">
+    select CONCAT(min(price),"-",max(price)) as priceRange,packing_material_type,package_material_code,package_material_name from base_packing
+    where
+    price is not null
+    and currency is not null
+    and is_active = 1
+    <if test="packingMaterialType !=null and packingMaterialType != '' ">
+            and packing_material_type =#{packingMaterialType}
+        </if>
+    group by warehouse_code, packing_material_type
+    </select>
+
+    <select id="selectBasePacking" resultType="com.szmsd.bas.dto.BasePackingDto">
+        select CONCAT(min(price),"-",max(price)) as priceRange,packing_material_type,package_material_code,package_material_name,warehouse_code from base_packing
+        where
+        price is not null
+        and currency is not null
+        and is_active = 1
+        <if test="cm.warehouseCode != null and cm.warehouseCode != ''">
+            AND warehouse_code = #{cm.warehouseCode}
+        </if>
+        group by warehouse_code, packing_material_type
+    </select>
+</mapper>

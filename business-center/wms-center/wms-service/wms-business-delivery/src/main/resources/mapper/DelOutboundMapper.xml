@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.szmsd.delivery.mapper.DelOutboundMapper">
+
+    <resultMap id="outboundDetailsListMap" type="com.szmsd.delivery.vo.DelOutboundDetailListVO">
+        <result property="createTime" column="create_time" />
+        <result property="updateTime" column="update_time" />
+        <result property="remark" column="remark" />
+        <result property="orderNo" column="order_no" />
+        <result property="warehouseCode" column="warehouse_code" />
+        <result property="orderType" column="order_type" />
+        <result property="sellerCode" column="seller_code" />
+        <result property="trackingNo" column="tracking_no" />
+        <result property="shipmentRule" column="shipment_rule" />
+        <result property="customCode" column="custom_code" />
+        <result property="state" column="state" />
+        <collection property="details" column="id" javaType="java.util.List" resultMap="outboundDetailsMap"/>
+    </resultMap>
+
+    <resultMap id="outboundDetailsMap" type="com.szmsd.delivery.dto.DelOutboundDetailDto">
+        <result property="sku" column="sku" />
+        <result property="qty" column="qty" />
+    </resultMap>
+
+    <select id="pageList" resultType="com.szmsd.delivery.vo.DelOutboundListVO">
+        SELECT
+            o.id,
+            o.order_no,
+            o.purchase_no,
+            o.order_type,
+            o.state,
+            o.warehouse_code,
+            o.shipment_rule,
+            o.tracking_no,
+            o.specifications,
+            o.weight,
+            o.calc_weight,
+            o.calc_weight_unit,
+            o.amount,
+            o.currency_code,
+            o.exception_message,
+            o.custom_code,
+            o.create_by_name,
+            o.create_time,
+            o.remark,
+            a.consignee,
+            a.phone_no,
+            a.email,
+            a.street1,
+            a.street2,
+            a.street3,
+            a.city,
+            a.state_or_province,
+            a.country_code,
+            a.country,
+            a.post_code,
+            o.is_print,
+            o.is_label_box,
+            o.tracking_status,
+            o.tracking_description,
+            o.cod_amount,
+            o.ref_no
+        FROM del_outbound o
+        LEFT JOIN del_outbound_address a ON a.order_no = o.order_no
+        ${ew.customSqlSegment}
+    </select>
+
+    <select id="getDelOutboundAndDetailsList" resultMap="outboundDetailsListMap">
+        SELECT
+            a.`create_time`,
+            a.`remark`,
+            a.`order_no`,
+            a.`warehouse_code`,
+            a.`order_type`,
+            a.`seller_code`,
+            a.`tracking_no`,
+            a.`shipment_rule`,
+            a.`custom_code`,
+            a.`state`,
+            a.`update_time`,
+            b.`sku`,
+            b.`qty`
+        FROM
+            del_outbound a
+        INNER JOIN
+            del_outbound_detail b
+        ON a.order_no = b.order_no
+        ${ew.customSqlSegment}
+    </select>
+
+    <select id="selectDelOutboundList" resultType="com.szmsd.finance.vo.QueryChargeVO" parameterType="com.szmsd.finance.dto.QueryChargeDto">
+        SELECT
+            t.id,
+            t.order_no,
+            t.create_time,
+            t.custom_code,
+            (SELECT a.country_code as country FROM del_outbound_address a WHERE a.order_no = t.order_no LIMIT 1) AS country,
+            t.shipment_rule,
+            t.tracking_no,
+            t.weight,
+            t.amount,
+            t.state,
+            t.remark
+        FROM
+            del_outbound t
+        <where>
+            <if test="no != null and no != ''">
+                AND (t.order_no = #{no} or t.tracking_no = #{no})
+            </if>
+            <if test="shipmentRule != null and shipmentRule != ''">
+                AND t.shipment_rule = #{shipmentRule}
+            </if>
+            <if test="customCode != null and customCode != ''">
+                AND t.custom_code = #{customCode}
+            </if>
+            <if test="orderTimeStart != null and orderTimeStart != ''">
+                AND t.create_time >= #{orderTimeStart}
+            </if>
+            <if test="orderTimeEnd != null and orderTimeEnd != ''">
+                AND t.create_time &lt;= #{orderTimeEnd}
+            </if>
+        </where>
+        ORDER BY t.create_time DESC
+    </select>
+
+    <select id="exportList" resultType="com.szmsd.delivery.dto.DelOutboundExportListDto">
+        SELECT
+            o.state,
+            o.order_no,
+            o.tracking_no,
+            o.seller_code,
+            o.warehouse_code,
+            o.ref_no,
+            o.order_type,
+            o.shipment_rule,
+            a.consignee,
+            a.street1,
+            a.street2,
+            a.state_or_province,
+            a.city,
+            a.post_code,
+            a.country_code,
+            a.country,
+            a.phone_no,
+            a.email,
+            o.weight,
+            o.calc_weight,
+            o.specifications,
+            o.bring_verify_time,
+            o.shipments_time,
+            o.exception_state,
+            o.exception_message,
+            o.cod_amount,
+            o.remark,
+            o.ioss
+        FROM del_outbound o
+        LEFT JOIN del_outbound_address a ON a.order_no = o.order_no
+        ${ew.customSqlSegment}
+    </select>
+
+    <select id="reassignExportList" resultType="com.szmsd.delivery.dto.DelOutboundReassignExportListDto">
+        SELECT
+            o.ref_no,
+            o.seller_code,
+            o.order_no,
+            o.tracking_no,
+            o.warehouse_code,
+            o.order_type,
+            o.state,
+            o.shipment_rule,
+            a.consignee,
+            a.street1,
+            a.street2,
+            a.state_or_province,
+            a.city,
+            a.post_code,
+            a.country_code,
+            a.country,
+            a.phone_no,
+            a.email,
+            o.cod_amount,
+            o.remark,
+            o.tracking_status,
+            o.tracking_description,
+            o.create_time
+        FROM del_outbound o
+        LEFT JOIN del_outbound_address a ON a.order_no = o.order_no
+        ${ew.customSqlSegment}
+    </select>
+
+    <update id="updateTrackingNo">
+        update del_outbound set tracking_no = #{trackingNo} where order_no = #{orderNo}
+    </update>
+
+    <select id="exceptionMessageList" resultType="com.szmsd.delivery.vo.DelOutboundListExceptionMessageVO">
+        select id, order_no, exception_message from del_outbound where order_no in
+        <foreach  collection="orderNos" item="orderNo" open="(" separator="," close=")">
+            #{orderNo}
+        </foreach>
+    </select>
+
+    <select id="exceptionMessageExportList" resultType="com.szmsd.delivery.vo.DelOutboundListExceptionMessageExportVO">
+        SELECT
+            o.id, o.order_no, o.exception_message, o.shipment_rule,
+            a.consignee, a.street1, a.street2, a.city, a.state_or_province, a.country, a.post_code, a.phone_no, a.email
+        FROM del_outbound o
+        INNER JOIN del_outbound_address a ON a.order_no = o.order_no
+        where o.order_no in
+        <foreach  collection="orderNos" item="orderNo" open="(" separator="," close=")">
+            #{orderNo}
+        </foreach>
+    </select>
+
+    <select id="queryFinishList" resultType="com.szmsd.inventory.domain.vo.QueryFinishListVO">
+        SELECT order_no as no,create_time FROM `del_outbound` WHERE state = 'COMPLETED'
+        <if test = "noList !=null and noList.size() > 0">
+            AND order_no IN
+            <foreach  collection="noList" item="orderNo" open="(" separator="," close=")">
+                #{orderNo}
+            </foreach>
+        </if>
+        <if test="cusCode !=null and cusCode != ''">
+            AND seller_code = #{cusCode,jdbcType=VARCHAR}
+        </if>
+    </select>
+</mapper>
