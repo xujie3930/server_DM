@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.szmsd.inventory.mapper.InventoryMapper">
+    <!-- 通用查询映射结果 -->
+    <resultMap id="InventorySkuVO" type="com.szmsd.inventory.domain.vo.InventorySkuVO">
+        <id column="id" property="id"/>
+        <result column="sku" property="sku"/>
+        <result column="sku_name" property="skuName"/>
+        <result column="sku_category_name" property="skuCategoryName"/>
+        <result column="warehouse_code" property="warehouseCode"/>
+        <result column="warehouse_name" property="warehouseName"/>
+        <result column="total_inventory" property="totalInventory"/>
+        <result column="available_inventory" property="availableInventory"/>
+        <result column="freeze_inventory" property="freezeInventory"/>
+        <result column="total_inbound" property="totalInbound"/>
+        <result column="total_outbound" property="totalOutbound"/>
+        <result column="sku_weight" property="skuWeight"/>
+        <result column="sku_length" property="skuLength"/>
+        <result column="sku_width" property="skuWidth"/>
+        <result column="sku_height" property="skuHeight"/>
+        <result column="sku_property_name" property="skuPropertyName"/>
+        <result column="sku_declared_value" property="skuDeclaredValue"/>
+        <result column="sku_declared_name" property="skuDeclaredName"/>
+        <result column="remark" property="remark"/>
+        <result column="cus_code" property="cusCode"/>
+        <result column="last_inbound_time" property="lastInboundTime"/>
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Column_List_VO">
+        t.id,
+        t.sku,
+        sku.product_name sku_name,
+        sku.category sku_category_name,
+        t.warehouse_code,
+        t.warehouse_code warehouse_name,
+        t.total_inventory,
+        t.available_inventory,
+        t.freeze_inventory,
+        t.total_inbound,
+        t.total_outbound,
+        sku.weight sku_weight,
+        sku.length sku_length,
+        sku.width sku_width,
+        sku.height sku_height,
+        sku.product_attribute_name sku_property_name,
+        sku.declared_value sku_declared_value,
+        sku.product_name_chinese sku_declared_name,
+        t.remark,
+        t.cus_code,
+        t.last_inbound_time
+    </sql>
+
+    <select id="selectListVO" parameterType="com.szmsd.inventory.domain.dto.InventorySkuQueryDTO"
+            resultMap="InventorySkuVO">
+        SELECT
+        <include refid="Column_List_VO"/>
+        FROM inventory t LEFT JOIN base_product sku ON t.sku = sku.code
+        <where>
+            <if test="id != null and id != ''">
+                AND t.id = #{id}
+            </if>
+            <if test="ids != null and ids.size() > 0">
+                AND t.id IN
+                <foreach collection="ids" item="id" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </if>
+            <if test="warehouseCode != null and warehouseCode != ''">
+                AND t.warehouse_code = #{warehouseCode}
+            </if>
+            <if test="skuList != null and skuList.size() > 0">
+                AND t.sku IN
+                <foreach collection="skuList" item="sku" open="(" separator="," close=")">
+                    #{sku}
+                </foreach>
+            </if>
+            <if test="cusCode != null and cusCode != ''">
+                AND t.cus_code = #{cusCode}
+            </if>
+            <if test="skuPropertyCode != null and skuPropertyCode != ''">
+                AND sku.product_attribute = #{skuPropertyCode}
+            </if>
+            <if test="skuDeclaredName != null and skuDeclaredName != ''">
+                AND sku.product_name_chinese LIKE CONCAT(#{skuDeclaredName}, '%')
+            </if>
+        </where>
+        ORDER BY t.last_inbound_time DESC
+    </select>
+
+    <select id="queryAvailableList" resultType="com.szmsd.inventory.domain.vo.InventoryAvailableListVO">
+        SELECT t.cus_code,
+               t.warehouse_code,
+               t.sku,
+               t.total_inventory,
+               t.available_inventory,
+               sku.product_name,
+               sku.`code`,
+               sku.init_weight,
+               sku.init_length,
+               sku.init_width,
+               sku.init_height,
+               sku.init_volume,
+               sku.weight,
+               sku.length,
+               sku.width,
+               sku.height,
+               sku.volume,
+               sku.bind_code,
+               sku.bind_code_name,
+               sku.product_name_chinese,
+               sku.declared_value,
+               sku.product_description,
+               sku.product_attribute,
+               sku.product_attribute_name,
+               sku.electrified_mode,
+               sku.electrified_mode_name,
+               sku.battery_packaging,
+               sku.battery_packaging_name
+        FROM inventory t
+                     LEFT JOIN base_product sku ON t.sku = sku.`code`
+                ${ew.customSqlSegment}
+    </select>
+
+    <select id="queryOnlyAvailable" resultType="com.szmsd.inventory.domain.vo.InventoryAvailableListVO">
+        select warehouse_code, sku, total_inventory, available_inventory
+        from inventory ${ew.customSqlSegment}
+    </select>
+
+    <select id="querySku" resultType="com.szmsd.inventory.domain.vo.InventoryVO">
+        select warehouse_code, sku, total_inventory, available_inventory
+        from inventory ${ew.customSqlSegment}
+    </select>
+
+    <select id="queryOnlySku" resultType="com.szmsd.inventory.domain.vo.InventoryVO">
+        select warehouse_code, sku, total_inventory, available_inventory
+        from inventory ${ew.customSqlSegment}
+    </select>
+
+    <select id="queryFinishList" resultType="com.szmsd.inventory.domain.vo.QueryFinishListVO">
+        SELECT warehouse_no as no,create_time FROM `inbound_receipt` WHERE `status` = 5
+        <if test="cusCode !=null and cusCode != ''">
+            AND cus_code = #{cusCode,jdbcType=VARCHAR}
+        </if>
+        <if test="noList !=null and noList.size() > 0">
+            AND warehouse_no IN
+            <foreach collection="noList" item="orderNo" open="(" separator="," close=")">
+                #{orderNo}
+            </foreach>
+        </if>
+    </select>
+</mapper>

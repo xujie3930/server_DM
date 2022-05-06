@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.szmsd.inventory.mapper.InventoryCheckMapper">
+
+    <resultMap id="InventoryCheckMap" type="com.szmsd.inventory.domain.vo.InventoryCheckVo">
+        <result column="id" property="id" />
+        <result column="create_time" property="createTime" />
+        <result column="order_no" property="orderNo" />
+        <result column="custom_code" property="customCode" />
+        <result column="warehouse_code" property="warehouseCode" />
+        <result column="status" property="status" />
+        <result column="reason" property="reason" />
+        <result column="remark" property="remark" />
+        <collection property="list" javaType="java.util.List" select="selectInventoryCheckDetails" column="order_no" />
+    </resultMap>
+
+    <select id="selectInventoryCheckDetails" resultType="com.szmsd.inventory.domain.InventoryCheckDetails">
+        select b.sku, b.system_qty, b.counting_qty, b.diff_qty, b.check_time from inventory_check a
+        left join inventory_check_details b on a.order_no = b.order_no where b.order_no = #{orderNo}
+    </select>
+
+     <select id="findList" resultMap="InventoryCheckMap">
+        select
+        a.id,
+        a.create_time,
+        a.order_no,
+        a.custom_code,
+        a.warehouse_code,
+        a.status,
+        a.reason,
+        a.remark
+        from
+        inventory_check a
+        <where>
+            <if test="customCode != null and customCode != ''">
+                AND a.custom_code = #{customCode}
+            </if>
+            <if test="warehouseCode != null and warehouseCode != ''">
+                AND a.warehouse_code = #{warehouseCode}
+            </if>
+            <if test="orderNoList != null and orderNoList.size() > 0">
+                AND a.order_no IN
+                <foreach collection="orderNoList" item="orderNo" open="(" separator="," close=")">
+                    #{orderNo}
+                </foreach>
+            </if>
+            <if test="createTimeStart != null and createTimeEnd != null and createTimeStart != '' and createTimeEnd != ''">
+                AND DATE_FORMAT(a.create_time,'%Y-%m-%d') >= #{createTimeStart} and DATE_FORMAT(a.create_time,'%Y-%m-%d') &lt;= #{createTimeEnd}
+            </if>
+        </where>
+         order by a.status DESC,a.create_time DESC
+    </select>
+
+    <resultMap id="InventoryCheckDetailsMap" type="com.szmsd.inventory.domain.InventoryCheckDetails">
+        <result column="sku" property="sku" />
+        <result column="system_qty" property="systemQty" />
+        <result column="counting_qty" property="countingQty" />
+        <result column="diff_qty" property="diffQty" />
+    </resultMap>
+
+    <select id="findDetails" parameterType="Integer" resultMap="InventoryCheckMap">
+        select
+            a.id,
+            a.create_time,
+            a.order_no,
+            a.custom_code,
+            a.warehouse_code,
+            a.status,
+            a.reason,
+            a.remark
+        from
+            inventory_check a
+        <where>
+            id = #{id}
+        </where>
+    </select>
+
+</mapper>

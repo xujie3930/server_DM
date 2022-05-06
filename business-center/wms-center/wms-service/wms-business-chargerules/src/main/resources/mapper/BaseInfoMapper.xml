@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.szmsd.chargerules.mapper.BaseInfoMapper">
+
+    <sql id="basSpecialOperationSql">
+        a.id,
+            a.operator,
+            a.operate_on,
+            a.warehouse_code,
+            a.transaction_id,
+            a.operation_order_no,
+            a.order_no,
+            a.order_type,
+            b.operation_type,
+            a.qty,
+            a.coefficient,
+            a.custom_code,
+            b.unit,
+            a.oms_remark,
+            a.status,
+            a.create_by,
+            a.update_by,
+            a.create_by_name,
+            a.create_time,
+            a.update_by_name,
+            a.update_time,
+            a.remark,
+            a.reason,
+            b.first_price,
+            b.next_price
+    </sql>
+
+    <select id="selectDetailsById" resultType="com.szmsd.chargerules.vo.BasSpecialOperationVo">
+        SELECT
+            <include refid="basSpecialOperationSql"/>
+        FROM
+            bas_special_operation a,cha_special_operation b
+        WHERE a.id = #{id} and a.operation_type = b.id
+    </select>
+
+    <select id="selectPageList" resultType="com.szmsd.chargerules.vo.BasSpecialOperationVo">
+        SELECT
+            <include refid="basSpecialOperationSql"/>
+        FROM
+            bas_special_operation a
+        INNER join
+            cha_special_operation b
+        ON a.operation_type = b.id
+        <where>
+            ${ew.sqlSegment}
+        </where>
+        order by status DESC,create_time DESC
+    </select>
+
+</mapper>

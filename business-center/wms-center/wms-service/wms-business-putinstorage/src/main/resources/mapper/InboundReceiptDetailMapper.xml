@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.szmsd.putinstorage.mapper.InboundReceiptDetailMapper">
+    <!-- 通用查询映射结果 -->
+    <resultMap id="ReceiptDetailVO" type="com.szmsd.putinstorage.domain.vo.InboundReceiptDetailVO">
+        <id column="id" property="id"/>
+        <result column="warehouse_no" property="warehouseNo"/>
+        <result column="sku" property="sku"/>
+        <result column="sku_name" property="skuName"/>
+        <result column="declare_qty" property="declareQty"/>
+        <result column="put_qty" property="putQty"/>
+        <result column="origin_code" property="originCode"/>
+        <result column="delivery_no" property="deliveryNo"/>
+        <result column="remark" property="remark"/>
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Column_List_VO">
+        t.id,
+        t.warehouse_no,
+        t.sku,
+        t.sku_name,
+        t.declare_qty,
+        t.put_qty,
+        t.origin_code,
+        t.delivery_no,
+        t.remark
+    </sql>
+    <delete id="deleteByWarehouseNo">
+        DELETE
+        FROM inbound_receipt_detail
+        WHERE warehouse_no = #{warehouseNo}
+    </delete>
+    <select id="selectList" parameterType="com.szmsd.putinstorage.domain.dto.InboundReceiptDetailQueryDTO"
+            resultMap="ReceiptDetailVO">
+        SELECT
+        <include refid="Column_List_VO"/>
+        FROM inbound_receipt_detail t
+        <where>
+            <if test="id != null and id != ''">
+                AND t.id = #{id}
+            </if>
+            <if test="warehouseNo != null and warehouseNo != ''">
+                AND t.warehouse_no = #{warehouseNo}
+            </if>
+            <if test="sku != null and sku != ''">
+                AND t.sku = #{sku}
+            </if>
+        </where>
+    </select>
+
+    <select id="querySkuStockByRange" parameterType="com.szmsd.putinstorage.domain.dto.InventoryStockByRangeDTO"
+            resultType="com.szmsd.putinstorage.domain.vo.SkuInventoryStockRangeVo">
+        SELECT
+        sku,
+        sku_name,
+        SUM( declare_qty ) AS forecastTotal,
+        SUM( put_qty ) actualOnShelvesTotal,
+        SUM( inTransitTotal ) inTransitTotal
+        FROM
+        (
+        SELECT sku, sku_name,
+        IF (`status` = 5 OR `status` = 0 , 0 , declare_qty) as declare_qty,
+        put_qty, `status`,
+        IF ( `status` = 5 OR `status` = 0, 0, IF (( declare_qty - put_qty ) > 0,( declare_qty - put_qty ), 0)) AS inTransitTotal
+        FROM
+        `inbound_receipt_detail` ird
+        LEFT JOIN inbound_receipt ir ON ir.warehouse_no = ird.warehouse_no
+        <where>
+            <if test="cm.timeStart != null and cm.timeEnd != null">
+                AND ird.create_time >= #{cm.timeStart} AND ird.create_time &lt;= #{cm.timeEnd}
+            </if>
+            <if test="cm.skuList != null and cm.skuList.size > 0">
+                AND ird.sku IN
+                <foreach collection="cm.skuList" item="item" open="(" separator="," close=")">
+                    #{item}
+                </foreach>
+            </if>
+            <if test="sellerCode != null and sellerCode != ''">
+                AND ir.cus_code = #{sellerCode}
+            </if>
+           AND status in (0,3,4,5)
+        </where>
+        ) temp
+        GROUP BY sku
+    </select>
+
+    <select id="checkPackageTransfer" resultType="int">
+        SELECT COUNT(1) FROM inbound_receipt ir RIGHT JOIN (
+                SELECT warehouse_no FROM inbound_receipt_detail WHERE delivery_no = #{deliveryNo}
+                ) temp ON temp.warehouse_no = ir.warehouse_no  WHERE ir.`status`  != 0
+    </select>
+</mapper>
