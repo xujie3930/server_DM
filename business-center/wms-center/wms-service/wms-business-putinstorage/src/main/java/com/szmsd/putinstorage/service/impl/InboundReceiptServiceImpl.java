@@ -744,7 +744,7 @@ public class InboundReceiptServiceImpl extends ServiceImpl<InboundReceiptMapper,
                     remoteComponent.createTracking(createInboundReceiptDTO);
                 }
                 this.updateByWarehouseNo(inboundReceipt);
-                this.inbound(inboundReceiptInfoVO);
+//                this.inbound(inboundReceiptInfoVO);
             } catch (Exception e) {
                 log.error(e.getMessage());
                 sb.append(e.getMessage().replace("运行时异常", warehouseNo));
@@ -752,27 +752,6 @@ public class InboundReceiptServiceImpl extends ServiceImpl<InboundReceiptMapper,
             }
         });
         AssertUtil.isTrue(sb.length() == 0, sb::toString);
-    }
-
-    /**
-     * 入库单审核 根据客户配置的验货状态生成验货单
-     *
-     * @param inboundReceiptInfoVO inboundReceiptInfoVO
-     */
-    private void inbound(InboundReceiptInfoVO inboundReceiptInfoVO) {
-        // 集运入库不验货
-        if (!StringUtils.equals("Collection", inboundReceiptInfoVO.getOrderType())) {
-            List<InboundReceiptDetailVO> inboundReceiptDetails = inboundReceiptInfoVO.getInboundReceiptDetails();
-            if (inboundReceiptDetails != null && inboundReceiptDetails.size() > 0) {
-                InboundInventoryInspectionDTO dto = new InboundInventoryInspectionDTO();
-                dto.setCusCode(inboundReceiptInfoVO.getCusCode());
-                dto.setWarehouseCode(inboundReceiptInfoVO.getWarehouseCode());
-                dto.setWarehouseNo(inboundReceiptInfoVO.getWarehouseNo());
-                List<String> collect = inboundReceiptInfoVO.getInboundReceiptDetails().stream().map(InboundReceiptDetailVO::getSku).collect(Collectors.toList());
-                dto.setSkus(collect);
-                inventoryInspectionFeignService.inbound(dto);
-            }
-        }
     }
 
     /**
@@ -812,8 +791,9 @@ public class InboundReceiptServiceImpl extends ServiceImpl<InboundReceiptMapper,
             queryDTO.setWarehouseNoList(Stream.of(warehouseNoSplit, warehouseNoList).flatMap(Collection::stream).distinct().collect(Collectors.toList()));
         }
         List<InboundReceiptExportVO> inboundReceiptExportVOS = baseMapper.selectExport(queryDTO);
-        List<InboundReceiptExportVO> serialize = ObjectMapperUtils.serialize(inboundReceiptExportVOS);
-        return BeanMapperUtil.mapList(serialize, InboundReceiptExportVO.class);
+        return inboundReceiptExportVOS;
+        /*List<InboundReceiptExportVO> serialize = ObjectMapperUtils.serialize(inboundReceiptExportVOS);
+        return BeanMapperUtil.mapList(serialize, InboundReceiptExportVO.class);*/
     }
 
     /**

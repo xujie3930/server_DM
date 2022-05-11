@@ -20,6 +20,7 @@ import com.szmsd.delivery.dto.TrackAnalysisRequestDto;
 import com.szmsd.delivery.dto.TrackingYeeTraceDto;
 import com.szmsd.delivery.mapper.DelOutboundMapper;
 import com.szmsd.delivery.mapper.DelTrackMapper;
+import com.szmsd.delivery.service.IDelTrackRemarkService;
 import com.szmsd.delivery.service.IDelTrackService;
 import com.szmsd.http.api.service.IHtpPricedProductClientService;
 import com.szmsd.http.dto.PricedProductInServiceCriteria;
@@ -31,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,6 +65,12 @@ public class DelTrackServiceImpl extends ServiceImpl<DelTrackMapper, DelTrack> i
 
     @Autowired
     private PackageCollectionFeignService packageCollectionFeignService;
+
+    @Autowired
+    private IDelTrackRemarkService trackRemarkService;
+
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     /**
      * 查询模块
@@ -336,7 +344,25 @@ public class DelTrackServiceImpl extends ServiceImpl<DelTrackMapper, DelTrack> i
         List<PricedProduct> products = htpPricedProductClientService.inService(serviceCriteria);
         Map<String, String> subList = basSubClientService.getSubListByLang("099", requestDto.getLang());
         List<TrackAnalysisExportDto> exportData = baseMapper.getAnalysisExportData(queryWrapper(requestDto).ne("a.order_no", ""));
+        Date now = new Date();
         exportData.forEach(data -> {
+            // 发货天数（导出当天-发货时间的天数）、轨迹天数（导出当天-最新轨迹时间的天数）
+            Date shipmentsTime = data.getShipmentsTime();
+            if (shipmentsTime != null) {
+                data.setShipmentsDays(DateUtil.betweenDay(shipmentsTime, now, true));
+            }
+
+            Date latestTrackTime = data.getLatestTrackTime();
+            if (latestTrackTime != null) {
+                data.setTrackDays(DateUtil.betweenDay(latestTrackTime,now,  true));
+            }
+
+            // 设置轨迹备注  直接读取redis缓存
+            Object remarkObj = redisTemplate.opsForHash().get(DelTrackRemarkServiceImpl.TRACK_REMARK_KEY, data.getLatestTrackInfo());
+            if (remarkObj != null) {
+                data.setTrackRemark((String)remarkObj);
+            }
+
             // 设置物流状态中文
             subList.forEach((k, v) -> {
                 if (v.equalsIgnoreCase(data.getTrackingStatus())) {
@@ -362,9 +388,12 @@ public class DelTrackServiceImpl extends ServiceImpl<DelTrackMapper, DelTrack> i
             if (requestDto.getDateType() == 1) {
                 wrapper.ge(StringUtils.isNotBlank(requestDto.getStartTime()), "a.create_time", DateUtils.parseDate(requestDto.getStartTime()));
                 wrapper.le(StringUtils.isNotBlank(requestDto.getEndTime()), "a.create_time", DateUtils.parseDate(requestDto.getEndTime()));
-            } else {
+            } else if (requestDto.getDateType() == 2) {
                 wrapper.ge(StringUtils.isNotBlank(requestDto.getStartTime()), "a.shipments_time", DateUtils.parseDate(requestDto.getStartTime()));
                 wrapper.le(StringUtils.isNotBlank(requestDto.getEndTime()), "a.shipments_time", DateUtils.parseDate(requestDto.getEndTime()));
+            } else if (requestDto.getDateType() == 3) {
+                wrapper.ge(StringUtils.isNotBlank(requestDto.getStartTime()), "b.tracking_time", DateUtils.parseDate(requestDto.getStartTime()));
+                wrapper.le(StringUtils.isNotBlank(requestDto.getEndTime()), "b.tracking_time", DateUtils.parseDate(requestDto.getEndTime()));
             }
         }
         LoginUser loginUser = SecurityUtils.getLoginUser();

@@ -247,6 +247,23 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
     }
 
     /**
+     * 查询并设置refNo
+     *
+     * @param returnExpressAddDTO
+     */
+    public void setRefNoByOrderNo(ReturnExpressAddDTO returnExpressAddDTO) {
+        if (StringUtils.isNotBlank(returnExpressAddDTO.getRefNo())) return;
+        DelOutboundListQueryDto delOutboundListQueryDto = new DelOutboundListQueryDto();
+        delOutboundListQueryDto.setOrderNo(returnExpressAddDTO.getFromOrderNo());
+        TableDataInfo<DelOutboundListVO> page = delOutboundFeignService.page(delOutboundListQueryDto);
+        List<DelOutboundListVO> rows = page.getRows();
+        if (CollectionUtils.isNotEmpty(rows)) {
+            DelOutboundListVO delOutboundListVO = rows.get(0);
+            returnExpressAddDTO.setRefNo(delOutboundListVO.getRefNo());
+        }
+    }
+
+    /**
      * 新建退件单
      *
      * @param returnExpressAddDTO 新增
@@ -267,6 +284,7 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
             }
         }
         handleExpectedCreate(returnExpressAddDTO);
+        this.setRefNoByOrderNo(returnExpressAddDTO);
         return saveReturnExpressDetail(returnExpressAddDTO.convertThis(ReturnExpressDetail.class));
     }
 
