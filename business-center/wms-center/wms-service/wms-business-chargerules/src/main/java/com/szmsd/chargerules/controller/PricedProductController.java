@@ -144,7 +144,8 @@ public class PricedProductController extends BaseController {
         List<PricedServiceListVO> cacheService = CACHE_SERVICE.get("CACHE_SERVICE");
         if (CollectionUtils.isNotEmpty(cacheService)) return R.ok(cacheService);
 
-        String requestUrl = "https://dmsrm-api.dsloco.com/api/services/list";
+//        String requestUrl = "https://dmsrm-api.dsloco.com/api/services/list";
+        String requestUrl = "https://srm-api.dmfcn.net/api/services/list";
         HttpResponseBody responseBody = HttpClientHelper.httpGet(requestUrl, null, new HashMap<String, String>());
         String body = responseBody.getBody();
         JSONObject resultObj = JSONObject.parseObject(body);
@@ -163,7 +164,8 @@ public class PricedProductController extends BaseController {
         List<PricedServiceListVO> cacheService = CACHE_SERVICE.get("CACHE_ROUTES");
         if (CollectionUtils.isNotEmpty(cacheService)) return R.ok(cacheService);
 
-        String requestUrl = "https://dmsrm-api.dsloco.com/api/routes";
+//        String requestUrl = "https://dmsrm-api.dsloco.com/api/routes";
+        String requestUrl = "https://srm-api.dmfcn.net/api/routes";
         HttpResponseBody responseBody = HttpClientHelper.httpGet(requestUrl, null, new HashMap<String, String>());
         String body = responseBody.getBody();
         JSONObject resultObj = JSONObject.parseObject(body);
