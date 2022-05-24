@@ -705,6 +705,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         DelOutboundServiceImplUtil.thawOperationThrowCommonException(ur);
     }
 
+    @Transactional
     @Override
     public List<DelOutboundAddResponse> insertDelOutbounds(List<DelOutboundDto> dtoList) {
         List<DelOutboundAddResponse> result = new ArrayList<>();
@@ -725,8 +726,6 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             delOutbound.setIndex(index);
             result.add(delOutbound);
             index++;
-
-
         }
         return result;
     }
