@@ -866,6 +866,7 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
 //                InputStream inputStream1 = multipartFile.getInputStream();
                 InputStream inputStream2 = multipartFile.getInputStream();
         ) {
+            log.info("【退件导入】:1 解析---");
             StopWatch importWatch = new StopWatch("导入解析");
             importWatch.start("解析");
             CompletableFuture<List<ReturnExpressClientImportBaseDTO>> baseInfoListFuture = CompletableFuture.supplyAsync(() -> EasyExcel.read(inputStream, ReturnExpressClientImportBaseDTO.class, new SyncReadListener()).headRowNumber(2).sheet(0).doReadSync());
@@ -873,6 +874,7 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
             CompletableFuture<List<ReturnExpressClientImportDelOutboundDto>> reassignListFuture = CompletableFuture.supplyAsync(() -> EasyExcel.read(inputStream2, ReturnExpressClientImportDelOutboundDto.class, new SyncReadListener()).headRowNumber(2).sheet(1).doReadSync());
             CompletableFuture.allOf(reassignListFuture,/* skuListFuture,*/ baseInfoListFuture).get();
             importWatch.stop();
+            log.info("【退件导入】:2 获取转换map---");
             importWatch.start("获取转换map");
             List<ReturnExpressClientImportBaseDTO> baseInfoList = baseInfoListFuture.get();
             Map<String, ReturnExpressClientImportBaseDTO> baseInfoListMap = baseInfoList.parallelStream().collect(Collectors.toMap(ReturnExpressClientImportBaseDTO::getExpectedNo, x -> x, (x1, x2) -> x1));
@@ -886,6 +888,7 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
             Map<String, ReturnExpressClientImportDelOutboundDto> reassignListMap = reassignList.stream().collect(Collectors.toMap(ReturnExpressClientImportDelOutboundDto::getExpectedNo, x -> x, (x1, x2) -> x1));
             reassignList.clear();
             importWatch.stop();
+            log.info("【退件导入】:3 组装参数---");
             importWatch.start("组装参数");
             // 组装参数
             List<ReturnExpressClientImportBO> importBOList = new ArrayList<>(skuList.size());
@@ -898,6 +901,7 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
                 importBOList.add(returnExpressClientImportBO);
             });
             importWatch.stop();
+            log.info("【退件导入】:4 组装参数完成---");
             return execute(importBOList);
         } catch (IOException e) {
             throw new RuntimeException("文件读取异常");
@@ -917,6 +921,7 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
         int segments = size / count;
         segments = size % count == 0 ? segments : segments + 1;
         List<CompletableFuture<List<String>>> errorMsgList = new ArrayList<>();
+        log.info("【退件导入】:5 开始执行--- {}", importBOList.size());
         for (int i = 0; i < segments; i++) {
             List<ReturnExpressClientImportBO> importBOS;
             if (i == segments - 1) {
@@ -926,6 +931,7 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
             }
             errorMsgList.add(executeReal(importBOS));
         }
+
         CompletableFuture.allOf(errorMsgList.toArray(new CompletableFuture[0])).get();
         List<String> resultMsg = new ArrayList<>(importBOList.size());
         errorMsgList.forEach(x -> {
@@ -935,6 +941,7 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
                 e.printStackTrace();
             }
         });
+        log.info("【退件导入】:5 执行完成---");
         return resultMsg;
     }
 
@@ -957,9 +964,11 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
     private static final String EMPTY_STR = "\\";
 
     private String executeReal(ReturnExpressClientImportBO returnExpressClientImportBO) {
+        log.info("【退件导入】:6 异步实际执行--- {}", returnExpressClientImportBO);
         // 查询
         String expectedNo = returnExpressClientImportBO.getExpectedNo();
         ReturnExpressVO infoByNo = getInfo(expectedNo);
+        log.info("【退件导入】:7 预报单校验完成--- {}", infoByNo);
         if (infoByNo == null) return "预报单：" + expectedNo + "已提交过处理方式，请勿再次提交";
 
         ReturnExpressClientImportBaseDTO baseDTO = returnExpressClientImportBO.getBaseDTO();
@@ -980,9 +989,13 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
         }
         String errorMsg = "";
         if ("重派".equals(processTypeStr)) {
+            log.info("【退件导入】:8 重派开始执行--- {}", infoByNo);
             errorMsg = reassign(returnExpressClientImportBO, infoByNo);
+            log.info("【退件导入】:14 重派数据 完成 --- {}", errorMsg);
         } else {
+            log.info("【退件导入】:8-1 销毁开始执行--- {}", infoByNo);
             errorMsg = updateThis(returnExpressClientImportBO, infoByNo);
+            log.info("【退件导入】:9-1 销毁开始执行--- {}", infoByNo);
         }
         return errorMsg;
     }
@@ -1013,8 +1026,9 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
      */
     private String updateThis(ReturnExpressServiceAddDTO returnExpressAddDTO) {
         try {
-            log.info("更新退件信息:{}", JSONObject.toJSONString(returnExpressAddDTO));
+            log.info("【退件】 更新退件信息:{}", JSONObject.toJSONString(returnExpressAddDTO));
             this.updateExpressInfo(returnExpressAddDTO);
+            log.info("【退件】 更新退件信息完成:{}", JSONObject.toJSONString(returnExpressAddDTO));
         } catch (Exception e) {
             e.printStackTrace();
             return e.getMessage();
@@ -1037,6 +1051,7 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
         String fromOrderNo = infoByNo.getFromOrderNo();
         // 查询出库单信息
         R<DelOutboundVO> delOutboundVOR = delOutboundFeignService.getInfoByOrderNo(fromOrderNo);
+        log.info("【退件导入】:9 校验出库单--- {} - {}", infoByNo, delOutboundVOR);
         if ((delOutboundVOR == null || delOutboundVOR.getCode() != HttpStatus.SUCCESS || delOutboundVOR.getData() == null)) {
             return "预报单：" + expectedNo + "关联的出库单" + fromOrderNo + "不存在" + Optional.ofNullable(delOutboundVOR).map(R::getMsg).orElse("");
         }
@@ -1079,9 +1094,10 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
         addressDTO.setPostCode(getStrOrDefault(importReassignDTO.getPostCode(), addressVO.getPostCode()));
         addressDTO.setPhoneNo(getStrOrDefault(importReassignDTO.getPhoneNo(), addressVO.getPhoneNo()));
         addressDTO.setEmail(getStrOrDefault(importReassignDTO.getEmail(), addressVO.getEmail()));
-
+        log.info("【退件导入】:10 重派信息推送 开始调用出库重派--- {}", delOutboundDto);
         log.info("重派信息推送：" + JSONObject.toJSONString(delOutboundDto));
         R<DelOutboundAddResponse> reassignR = delOutboundFeignService.reassign(delOutboundDto);
+        log.info("【退件导入】:11 重派信息推送 调用出库重派完成--- {}", reassignR);
         if ((reassignR == null || reassignR.getCode() != HttpStatus.SUCCESS || reassignR.getData() == null)) {
             return "预报单：" + expectedNo + "重派异常:" + Optional.ofNullable(reassignR).map(R::getMsg).orElse("");
         }
@@ -1090,7 +1106,9 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
         infoByNo.setFromOrderNoNew(orderNoNew);
         ReturnExpressServiceAddDTO returnExpressAddDTO = new ReturnExpressServiceAddDTO();
         BeanUtils.copyProperties(infoByNo, returnExpressAddDTO);
+        log.info("【退件导入】:12 更新重派数据 开始 --- {}", returnExpressAddDTO);
         String s = this.updateThis(returnExpressAddDTO);
+        log.info("【退件导入】:13 更新重派数据 完成 --- {}", s);
         if (StringUtils.isNotBlank(s)) return s;
         return null;
     }
