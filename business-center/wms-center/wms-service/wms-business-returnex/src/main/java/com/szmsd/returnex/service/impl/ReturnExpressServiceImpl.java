@@ -14,6 +14,7 @@ import com.szmsd.bas.dto.BaseProductConditionQueryDto;
 import com.szmsd.common.core.constant.HttpStatus;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.exception.com.AssertUtil;
+import com.szmsd.common.core.exception.com.CommonException;
 import com.szmsd.common.core.exception.web.BaseException;
 import com.szmsd.common.core.web.domain.BaseEntity;
 import com.szmsd.common.core.web.page.TableDataInfo;
@@ -255,6 +256,7 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
         if (StringUtils.isNotBlank(returnExpressAddDTO.getRefNo())) return;
         DelOutboundListQueryDto delOutboundListQueryDto = new DelOutboundListQueryDto();
         delOutboundListQueryDto.setOrderNo(returnExpressAddDTO.getFromOrderNo());
+        delOutboundListQueryDto.setQueryAll(true);
         TableDataInfo<DelOutboundListVO> page = delOutboundFeignService.page(delOutboundListQueryDto);
         List<DelOutboundListVO> rows = page.getRows();
         if (CollectionUtils.isNotEmpty(rows)) {
@@ -324,10 +326,10 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
                     if (StringUtils.isBlank(returnExpressAddDTO.getScanCode()))
                         returnExpressAddDTO.setScanCode(delOutboundListVO.getTrackingNo());
                 } else {
-                    throw new BaseException("该原出库单号不存在!");
+                    throw new RuntimeException("该原出库单号不存在!");
                 }
             } else {
-                throw new BaseException("获取原出库单信息失败,请重试!");
+                throw new RuntimeException("获取原出库单信息失败,请重试!");
             }
         }
         String returnSource = returnExpressAddDTO.getReturnSource();
