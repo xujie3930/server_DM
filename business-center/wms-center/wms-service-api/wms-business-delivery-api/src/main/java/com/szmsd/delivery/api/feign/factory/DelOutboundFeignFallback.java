@@ -63,6 +63,11 @@ public class DelOutboundFeignFallback implements FallbackFactory<DelOutboundFeig
             }
 
             @Override
+            public R<DelOutboundThirdPartyVO> getInfoForThirdParty(DelOutboundVO vo) {
+                return R.convertResultJson(throwable);
+            }
+
+            @Override
             public R<TableDataInfo<QueryChargeVO>> getDelOutboundCharge(QueryChargeDto queryDto) {
                 return R.convertResultJson(throwable);
             }
