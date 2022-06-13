@@ -60,6 +60,11 @@ public class DelOutboundClientServiceImpl implements DelOutboundClientService {
     }
 
     @Override
+    public DelOutboundThirdPartyVO getInfoForThirdParty(DelOutboundVO vo) {
+        return R.getDataAndException(this.delOutboundFeignService.getInfoForThirdParty(vo));
+    }
+
+    @Override
     public List<PricedProduct> inService(DelOutboundOtherInServiceDto dto) {
         return R.getDataAndException(this.delOutboundFeignService.inService(dto));
     }

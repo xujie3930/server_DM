@@ -34,7 +34,6 @@ import com.szmsd.delivery.exported.DelOutboundExportContext;
 import com.szmsd.delivery.exported.DelOutboundExportItemQueryPage;
 import com.szmsd.delivery.exported.DelOutboundExportQueryPage;
 import com.szmsd.delivery.imported.*;
-import com.szmsd.delivery.service.IDelOutboundBringVerifyAsyncService;
 import com.szmsd.delivery.service.IDelOutboundCompletedService;
 import com.szmsd.delivery.service.IDelOutboundDetailService;
 import com.szmsd.delivery.service.IDelOutboundService;
@@ -100,8 +99,6 @@ public class DelOutboundController extends BaseController {
     @Autowired
     private BaseProductClientService baseProductClientService;
     @Autowired
-    private IDelOutboundBringVerifyAsyncService delOutboundBringVerifyAsyncService;
-    @Autowired
     private IDelOutboundCompletedService delOutboundCompletedService;
 
     @PreAuthorize("@ss.hasPermi('DelOutbound:DelOutbound:list')")
@@ -136,6 +133,14 @@ public class DelOutboundController extends BaseController {
     @AutoValue
     public R<DelOutboundVO> getInfoByOrderNo(@PathVariable("orderNo") String orderNo) {
         return R.ok(delOutboundService.selectDelOutboundByOrderNo(orderNo));
+    }
+
+    @PreAuthorize("@ss.hasPermi('DelOutbound:DelOutbound:getInfoForThirdParty')")
+    @PostMapping(value = "getInfoForThirdParty")
+    @ApiOperation(value = "出库管理 - 第三方订单查看专用接口", position = 201)
+    @AutoValue
+    public R<DelOutboundThirdPartyVO> getInfoForThirdParty(@RequestBody DelOutboundVO vo) {
+        return R.ok(delOutboundService.getInfoForThirdParty(vo));
     }
 
     /**

@@ -94,6 +94,8 @@ public interface DelOutboundFeignService {
     @PostMapping("/api/outbound/getDelOutboundDetailsList")
     R<List<DelOutboundDetailListVO>> getDelOutboundDetailsList(@RequestBody DelOutboundListQueryDto queryDto);
 
+    @PostMapping(value = "/api/outbound/getInfoForThirdParty")
+    R<DelOutboundThirdPartyVO> getInfoForThirdParty(@RequestBody DelOutboundVO vo);
     /**
      * 出库费用查询
      *
