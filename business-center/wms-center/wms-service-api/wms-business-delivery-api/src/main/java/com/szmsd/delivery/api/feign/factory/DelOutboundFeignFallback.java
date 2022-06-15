@@ -173,6 +173,11 @@ public class DelOutboundFeignFallback implements FallbackFactory<DelOutboundFeig
             }
 
             @Override
+            public R<DelOutboundVO> getStatusByOrderNo(String orderNo) {
+                return R.convertResultJson(throwable);
+            }
+
+            @Override
             public TableDataInfo<QueryFinishListVO> queryFinishList(QueryFinishListDTO queryFinishListDTO) {
                 throw new RuntimeException(throwable.getMessage());
             }
@@ -180,6 +185,11 @@ public class DelOutboundFeignFallback implements FallbackFactory<DelOutboundFeig
             @Override
             public R<DelOutboundAddResponse> reassign(DelOutboundDto dto) {
                 throw new RuntimeException(throwable.getMessage());
+            }
+
+            @Override
+            public R<DelOutboundAddResponse> addShopify(DelOutboundDto dto) {
+                return R.convertResultJson(throwable);
             }
         };
     }
