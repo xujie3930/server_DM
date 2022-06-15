@@ -27,3 +27,5 @@ ADD COLUMN `ref_no` varchar(200) DEFAULT NULL COMMENT 'refno(来自出库单)';
             pickup-package-services: /api/v1/carrierService/pickupPackage/services
             pickup-package-create: /api/v1/carrierService/pickupPackage/create
 ```
+## V22-06-15 UPDATE
+轨迹
