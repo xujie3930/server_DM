@@ -1,39 +1,52 @@
 package com.szmsd.delivery.controller;
 
-import com.alibaba.fastjson.JSON;
+import cn.hutool.core.io.IoUtil;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.serializer.SerializerFeature;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.szmsd.common.core.utils.DateUtils;
-import com.szmsd.common.core.utils.StringUtils;
-import com.szmsd.common.plugin.annotation.AutoValue;
-import com.szmsd.delivery.dto.*;
-import com.szmsd.delivery.util.SHA256Util;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.server.ServletServerHttpRequest;
-import org.springframework.security.access.prepost.PreAuthorize;
 import com.szmsd.common.core.domain.R;
-import org.springframework.web.bind.annotation.*;
-import com.szmsd.delivery.service.IDelTrackService;
-import com.szmsd.delivery.domain.DelTrack;
-import com.szmsd.common.log.annotation.Log;
+import com.szmsd.common.core.exception.com.AssertUtil;
+import com.szmsd.common.core.exception.com.CommonException;
+import com.szmsd.common.core.utils.SpringUtils;
+import com.szmsd.common.core.utils.StringUtils;
+import com.szmsd.common.core.utils.bean.BeanMapperUtil;
+import com.szmsd.common.core.utils.poi.ExcelUtil;
+import com.szmsd.common.core.web.controller.BaseController;
 import com.szmsd.common.core.web.page.TableDataInfo;
+import com.szmsd.common.log.annotation.Log;
+import com.szmsd.common.log.enums.BusinessType;
+import com.szmsd.common.plugin.annotation.AutoValue;
+import com.szmsd.delivery.domain.DelTrack;
+import com.szmsd.delivery.dto.ImportTrackDto;
+import com.szmsd.delivery.dto.TrackAnalysisExportDto;
+import com.szmsd.delivery.dto.TrackAnalysisRequestDto;
+import com.szmsd.delivery.dto.TrackingYeeTraceDto;
+import com.szmsd.delivery.event.ChangeDelOutboundLatestTrackEvent;
+import com.szmsd.delivery.imported.DefaultAnalysisEventListener;
+import com.szmsd.delivery.imported.EasyExcelFactoryUtil;
+import com.szmsd.delivery.imported.ImportMessage;
+import com.szmsd.delivery.imported.ImportResult;
+import com.szmsd.delivery.service.IDelTrackService;
+import com.szmsd.delivery.util.SHA256Util;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.io.IOUtils;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
+import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletResponse;
-
-import com.szmsd.common.core.utils.poi.ExcelUtil;
-import com.szmsd.common.log.enums.BusinessType;
-import io.swagger.annotations.Api;
-
-import java.util.LinkedHashMap;
+import java.io.*;
+import java.net.URLEncoder;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
-import java.io.IOException;
-
-import org.springframework.web.bind.annotation.RestController;
-import io.swagger.annotations.ApiOperation;
-import com.szmsd.common.core.web.controller.BaseController;
 
 
 /**
@@ -45,7 +58,7 @@ import com.szmsd.common.core.web.controller.BaseController;
  * @since 2022-02-10
  */
 
-
+@Slf4j
 @Api(tags = {""})
 @RestController
 @RequestMapping("/del-track")
@@ -56,6 +69,9 @@ public class DelTrackController extends BaseController {
 
     @Value("${webhook.secret}")
     private String webhookSecret;
+
+    @Resource
+    private ApplicationContext applicationContext;
 
     /**
      * 查询模块列表
@@ -82,6 +98,73 @@ public class DelTrackController extends BaseController {
         ExcelUtil<DelTrack> util = new ExcelUtil<DelTrack>(DelTrack.class);
         util.exportExcel(response, list, "DelTrack");
 
+    }
+
+    @PreAuthorize("@ss.hasPermi('DelTrack:DelTrack:importTrackExcelTemplate')")
+    @GetMapping("/importTrackExcelTemplate")
+    @ApiOperation(value = "下载导入模板", position = 100)
+    public void collectionExportTemplate(HttpServletResponse response) {
+        String filePath = "/template/DM_track.xlsx";
+        String fileName = "轨迹导入";
+        this.downloadTemplate(response, filePath, fileName, "xlsx");
+    }
+
+    @Log(title = "模块", businessType = BusinessType.IMPORT)
+    @ApiOperation(value = "导入", notes = "导入")
+    @PostMapping("/importTrack")
+    public R<ImportResult> importTrack(MultipartFile file){
+        AssertUtil.notNull(file, "上传文件不存在");
+        try {
+            byte[] byteArray = IOUtils.toByteArray(file.getInputStream());
+            DefaultAnalysisEventListener<ImportTrackDto> defaultAnalysisEventListener = EasyExcelFactoryUtil.read(new ByteArrayInputStream(byteArray), ImportTrackDto.class, 0, 1);
+            if (defaultAnalysisEventListener.isError()) {
+                return R.ok(ImportResult.buildFail(defaultAnalysisEventListener.getMessageList()));
+            }
+            List<ImportTrackDto> dataList = defaultAnalysisEventListener.getList();
+            if (CollectionUtils.isEmpty(dataList)) {
+                return R.ok(ImportResult.buildFail(ImportMessage.build("导入数据不能为空")));
+            }
+            List<ImportMessage> messageList = new ArrayList<>();
+            List<DelTrack> tracks = BeanMapperUtil.mapList(dataList, DelTrack.class);
+            int i = 1;
+            for(ImportTrackDto track : dataList){
+                if (StringUtils.isBlank(track.getOrderNo())){
+                    messageList.add(new ImportMessage(i, 1, null ,"订单号不能为空" ));
+                }
+                if (StringUtils.isBlank(track.getTrackingNo())){
+                    messageList.add(new ImportMessage(i, 2, null ,"物流跟踪号不能为空" ));
+                }
+                if (StringUtils.isBlank(track.getTrackingStatus())){
+                    messageList.add(new ImportMessage(i, 1, null ,"轨迹状态不能为空" ));
+                }
+                i++;
+
+            }
+            if (CollectionUtils.isNotEmpty(messageList)) {
+                return R.ok(ImportResult.buildFail(messageList));
+            }
+            tracks.forEach(track -> {
+                track.setSource("2");
+                track.setTrackingTime(new Date());
+                applicationContext.publishEvent(new ChangeDelOutboundLatestTrackEvent(track));
+            });
+            delTrackService.saveBatch(tracks);
+            return R.ok();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return R.ok(ImportResult.buildFail(ImportMessage.build(e.getMessage())));
+        }
+    }
+
+    @PreAuthorize("@ss.hasPermi('DelTrack:DelTrack:addOrUpdate')")
+    @Log(title = "模块", businessType = BusinessType.INSERT)
+    @PostMapping("addOrUpdate")
+    public R addOrUpdate(@RequestBody DelTrack delTrack){
+        delTrack.setSource("2"); // 手动新增
+        delTrack.setTrackingTime(new Date());
+        delTrackService.saveOrUpdate(delTrack);
+        applicationContext.publishEvent(new ChangeDelOutboundLatestTrackEvent(delTrack));
+        return R.ok();
     }
 
     /**
@@ -146,5 +229,49 @@ public class DelTrackController extends BaseController {
         List<TrackAnalysisExportDto> list = delTrackService.getAnalysisExportData(requestDto);
         ExcelUtil<TrackAnalysisExportDto> util = new ExcelUtil<TrackAnalysisExportDto>(TrackAnalysisExportDto.class);
         util.exportExcel(response, list, "TrackAnalysis");
+    }
+
+    /**
+     * 下载模板
+     *
+     * @param response response
+     * @param filePath 文件存放路径，${server.tomcat.basedir}配置的目录和resources目录下
+     * @param fileName 文件名称
+     * @param ext      扩展名
+     */
+    private void downloadTemplate(HttpServletResponse response, String filePath, String fileName, String ext) {
+        // 先去模板目录中获取模板
+        // 模板目录中没有模板再从项目中获取模板
+        String basedir = SpringUtils.getProperty("server.tomcat.basedir", "/u01/www/ck1/delivery");
+        File file = new File(basedir + "/" + filePath);
+        InputStream inputStream = null;
+        ServletOutputStream outputStream = null;
+        try {
+            if (file.exists()) {
+                inputStream = new FileInputStream(file);
+                response.setHeader("File-Source", "local");
+            } else {
+                org.springframework.core.io.Resource resource = new ClassPathResource(filePath);
+                inputStream = resource.getInputStream();
+                response.setHeader("File-Source", "resource");
+            }
+            outputStream = response.getOutputStream();
+            //response为HttpServletResponse对象
+            response.setContentType("application/vnd.ms-excel;charset=utf-8");
+            //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
+            String efn = URLEncoder.encode(fileName, "utf-8");
+            response.setHeader("Content-Disposition", "attachment;filename=" + efn + "." + ext);
+            IOUtils.copy(inputStream, outputStream);
+        } catch (FileNotFoundException e) {
+            log.error(e.getMessage(), e);
+            throw new CommonException("400", "文件不存在，" + e.getMessage());
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new CommonException("500", "文件流处理失败，" + e.getMessage());
+        } finally {
+            IoUtil.flush(outputStream);
+            IoUtil.close(outputStream);
+            IoUtil.close(inputStream);
+        }
     }
 }

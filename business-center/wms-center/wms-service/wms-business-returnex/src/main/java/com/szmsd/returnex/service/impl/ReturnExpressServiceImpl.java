@@ -3,6 +3,7 @@ package com.szmsd.returnex.service.impl;
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.event.SyncReadListener;
 import com.alibaba.fastjson.JSONObject;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.szmsd.bas.api.domain.BasCodeDto;
@@ -59,6 +60,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -122,6 +124,9 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
     @Resource
     private IRemoteApi iRemoteApi;
 
+    @Resource
+    private ThreadPoolTaskExecutor returnThreadTaskPool;
+
     /**
      * 获取用户sellerCode
      *
@@ -139,12 +144,12 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
     public String genNo() {
         String code = ReturnExpressConstant.GENERATE_CODE;
         String appId = ReturnExpressConstant.GENERATE_APP_ID;
-        log.info("调用自动生成单号：code={}", code);
+//        log.info("调用自动生成单号：code={}", code);
         R<List<String>> r = basFeignService.create(new BasCodeDto().setAppId(appId).setCode(code));
         AssertUtil.notNull(r, "单号生成失败");
         AssertUtil.isTrue(r.getCode() == HttpStatus.SUCCESS, code + "单号生成失败：" + r.getMsg());
         String s = r.getData().get(0);
-        log.info("调用自动生成单号：调用完成, {}-{}", code, s);
+//        log.info("调用自动生成单号：调用完成, {}-{}", code, s);
         return s;
     }
 
@@ -761,11 +766,18 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
         if (StringUtils.isBlank(expectedNo))
             return null;
         String sellerCode = Optional.ofNullable(SecurityUtils.getLoginUser()).map(LoginUser::getSellerCode).orElse("");
+
         ReturnExpressDetail returnExpressDetail = returnExpressMapper.selectOne(Wrappers.<ReturnExpressDetail>lambdaQuery()
-                .eq(ReturnExpressDetail::getExpectedNo, expectedNo)
-                .eq(ReturnExpressDetail::getDealStatus, configStatus.getDealStatus().getWaitCustomerDeal())
                 .eq(StringUtils.isNotBlank(sellerCode), ReturnExpressDetail::getSellerCode, sellerCode)
-                .last("LIMIT 1"));
+                .eq(ReturnExpressDetail::getDealStatus, configStatus.getDealStatus().getWaitCustomerDeal())
+                .and(query ->
+                        query.eq(ReturnExpressDetail::getExpectedNo, expectedNo)
+                                .or().eq(ReturnExpressDetail::getFromOrderNo, expectedNo)
+                                .or().eq(ReturnExpressDetail::getScanCode, expectedNo)
+                                .or().eq(ReturnExpressDetail::getRefNo, expectedNo)
+
+
+                ).last("LIMIT 1"));
         if (Objects.isNull(returnExpressDetail))
             return null;
         return getReturnExpressVO(returnExpressDetail);
@@ -967,7 +979,7 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
                     errorMsgList.add(errorMsg);
             });
             return errorMsgList;
-        });
+        }, returnThreadTaskPool);
     }
 
     private static final String EMPTY_STR = "\\";
@@ -1082,6 +1094,9 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
         //地址信息
         DelOutboundAddressDto delOutboundAddressDto = Optional.ofNullable(delOutboundDto.getAddress()).orElse(new DelOutboundAddressDto());
         delOutboundDto.setAddress(delOutboundAddressDto);
+        if (null != delOutboundVO.getCalcWeight()) {
+            delOutboundDto.setWeight(delOutboundVO.getCalcWeight().doubleValue());
+        }
         DelOutboundAddressDto addressDTO = delOutboundDto.getAddress();
         DelOutboundAddressVO addressVO = Optional.ofNullable(delOutboundVO.getAddress()).orElse(new DelOutboundAddressVO());
         addressDTO.setConsignee(getStrOrDefault(importReassignDTO.getConsignee(), addressVO.getConsignee()));

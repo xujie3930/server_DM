@@ -94,6 +94,7 @@ public class DelTrackServiceImpl extends ServiceImpl<DelTrackMapper, DelTrack> i
         LambdaQueryWrapper<DelTrack> delTrackLambdaQueryWrapper = Wrappers.lambdaQuery();
         boolean orderNoNotEmpty = StringUtils.isNotEmpty(delTrack.getOrderNo());
         delTrackLambdaQueryWrapper.eq(orderNoNotEmpty, DelTrack::getOrderNo, delTrack.getOrderNo());
+        delTrackLambdaQueryWrapper.eq(StringUtils.isNotBlank(delTrack.getSource()), DelTrack::getSource, delTrack.getSource());
         List<DelTrack> selectList = baseMapper.selectList(delTrackLambdaQueryWrapper);
         if (CollectionUtils.isNotEmpty(selectList) && orderNoNotEmpty) {
             String carrierCode = "";
@@ -283,6 +284,9 @@ public class DelTrackServiceImpl extends ServiceImpl<DelTrackMapper, DelTrack> i
                     DelOutbound updateDelOutbound = new DelOutbound();
                     updateDelOutbound.setId(delOutbound.getId());
                     updateDelOutbound.setTrackingStatus(trackingYeeTraceDto.getTrackingStatus());
+                    // 最新时间
+                    Date latestDate = trackList.stream().map(DelTrack::getTrackingTime).max((d1, d2) -> d1.compareTo(d2)).orElse(null);
+                    updateDelOutbound.setTrackingTime(latestDate);
                     updateDelOutbound.setTrackingDescription(delTrack.getDescription() + " (" + DateUtil.format(delTrack.getTrackingTime(), DateUtils.YYYY_MM_DD_HH_MM_SS) + ")");
                     delOutboundMapper.updateById(updateDelOutbound);
                 }
@@ -292,7 +296,7 @@ public class DelTrackServiceImpl extends ServiceImpl<DelTrackMapper, DelTrack> i
 
     @Override
     public List<TrackAnalysisDto> getTrackAnalysis(TrackAnalysisRequestDto requestDto) {
-        List<TrackAnalysisDto> trackAnalysis = baseMapper.getTrackAnalysis(queryWrapper(requestDto));
+        List<TrackAnalysisDto> trackAnalysis = baseMapper.getTrackAnalysis(queryWrapper(requestDto).eq(StringUtils.isNotBlank(requestDto.getCountryCode()), "b.country_code", requestDto.getCountryCode()));
         List<TrackAnalysisDto> trackAnalysisResult = new ArrayList<>();
         Map<String, String> subList = basSubClientService.getSubListByLang("099", requestDto.getLang()); // 099为轨迹状态
         subList.forEach((k, v) -> {
@@ -318,7 +322,7 @@ public class DelTrackServiceImpl extends ServiceImpl<DelTrackMapper, DelTrack> i
         }
         List<TrackAnalysisDto> trackAnalysisResult = new ArrayList<>();
         List<PricedProduct> products = htpPricedProductClientService.inService(serviceCriteria);
-        List<TrackAnalysisDto> serviceAnalysis = baseMapper.getProductServiceAnalysis(queryWrapper(requestDto));
+        List<TrackAnalysisDto> serviceAnalysis = baseMapper.getProductServiceAnalysis(queryWrapper(requestDto).eq(StringUtils.isNotBlank(requestDto.getCountryCode()), "b.country_code", requestDto.getCountryCode()));
         products.forEach(p -> {
             TrackAnalysisDto analysisDto = new TrackAnalysisDto();
             analysisDto.setKeyName(p.getName());
@@ -343,7 +347,15 @@ public class DelTrackServiceImpl extends ServiceImpl<DelTrackMapper, DelTrack> i
         List<TrackAnalysisDto> trackAnalysisResult = new ArrayList<>();
         List<PricedProduct> products = htpPricedProductClientService.inService(serviceCriteria);
         Map<String, String> subList = basSubClientService.getSubListByLang("099", requestDto.getLang());
-        List<TrackAnalysisExportDto> exportData = baseMapper.getAnalysisExportData(queryWrapper(requestDto).ne("a.order_no", ""));
+
+        QueryWrapper<TrackAnalysisRequestDto> wrapper = queryWrapper(requestDto)
+                .ne("a.order_no", "");
+        if (requestDto.getDateType() != null && requestDto.getDateType() == 3) {
+            wrapper.ge(StringUtils.isNotBlank(requestDto.getStartTime()), "b.tracking_time", DateUtils.parseDate(requestDto.getStartTime()));
+            wrapper.le(StringUtils.isNotBlank(requestDto.getEndTime()), "b.tracking_time", DateUtils.parseDate(requestDto.getEndTime()));
+        }
+        wrapper.eq(StringUtils.isNotBlank(requestDto.getCountryCode()), "c.country_code", requestDto.getCountryCode());
+        List<TrackAnalysisExportDto> exportData = baseMapper.getAnalysisExportData(wrapper);
         Date now = new Date();
         exportData.forEach(data -> {
             // 发货天数（导出当天-发货时间的天数）、轨迹天数（导出当天-最新轨迹时间的天数）

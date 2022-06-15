@@ -238,6 +238,9 @@ public class DelOutbound extends BaseEntity {
     @ApiModelProperty(value = "轨迹信息描述")
     private String trackingDescription;
 
+    @ApiModelProperty(value = "最新轨迹时间")
+    private Date trackingTime;
+
     @ApiModelProperty(value = "供应商计价类型")
     private String supplierCalcType;
 
@@ -246,6 +249,12 @@ public class DelOutbound extends BaseEntity {
 
     @ApiModelProperty(value = "邮箱")
     private String email;
+
+    @ApiModelProperty(value = "shopify订单号")
+    private String shopifyOrderNo;
+
+    @ApiModelProperty(value = "伙伴编码")
+    private String partnerCode;
 
     @ApiModelProperty(value = "临时字段")
     @TableField(exist = false)

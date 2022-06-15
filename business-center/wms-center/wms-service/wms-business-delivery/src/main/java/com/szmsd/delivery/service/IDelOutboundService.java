@@ -73,6 +73,14 @@ public interface IDelOutboundService extends IService<DelOutbound> {
     DelOutboundAddResponse insertDelOutbound(DelOutboundDto dto);
 
     /**
+     * 新增Shopify出库单
+     *
+     * @param dto dto
+     * @return 结果
+     */
+    DelOutboundAddResponse insertDelOutboundShopify(DelOutboundDto dto);
+
+    /**
      * 批量新增出库单
      *
      * @param dtoList dtoList
