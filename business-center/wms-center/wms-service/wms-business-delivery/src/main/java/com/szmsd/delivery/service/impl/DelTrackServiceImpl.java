@@ -10,6 +10,7 @@ import com.szmsd.bas.api.client.BasSubClientService;
 import com.szmsd.bas.api.feign.BasCarrierKeywordFeignService;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.utils.DateUtils;
+import com.szmsd.common.core.utils.StringToolkit;
 import com.szmsd.common.security.domain.LoginUser;
 import com.szmsd.common.security.utils.SecurityUtils;
 import com.szmsd.delivery.domain.DelOutbound;
@@ -81,6 +82,24 @@ public class DelTrackServiceImpl extends ServiceImpl<DelTrackMapper, DelTrack> i
     @Override
     public DelTrack selectDelTrackById(String id) {
         return baseMapper.selectById(id);
+    }
+
+
+    /**
+     * 查询模块列表
+     *
+     * @param delTrack 模块
+     * @return 模块
+     */
+    @Override
+    public List<DelTrack> commonTrackList(List<String> orderNos) {
+        LambdaQueryWrapper<DelTrack> delTrackLambdaQueryWrapper = Wrappers.lambdaQuery();
+        delTrackLambdaQueryWrapper.in(DelTrack::getOrderNo, orderNos);
+        delTrackLambdaQueryWrapper.or();
+        delTrackLambdaQueryWrapper.in(DelTrack::getTrackingNo, orderNos);
+        delTrackLambdaQueryWrapper.orderByDesc(DelTrack::getTrackingTime);
+        List<DelTrack> selectList = baseMapper.selectList(delTrackLambdaQueryWrapper);
+        return selectList;
     }
 
     /**
@@ -393,7 +412,7 @@ public class DelTrackServiceImpl extends ServiceImpl<DelTrackMapper, DelTrack> i
     private QueryWrapper<TrackAnalysisRequestDto> queryWrapper(TrackAnalysisRequestDto requestDto) {
         QueryWrapper<TrackAnalysisRequestDto> wrapper = new QueryWrapper<>();
         wrapper.eq(StringUtils.isNotBlank(requestDto.getShipmentService()), "a.shipment_rule", requestDto.getShipmentService());
-        wrapper.eq(StringUtils.isNotBlank(requestDto.getCountryCode()), "b.country_code", requestDto.getCountryCode());
+//        wrapper.eq(StringUtils.isNotBlank(requestDto.getCountryCode()), "b.country_code", requestDto.getCountryCode());
         wrapper.eq(StringUtils.isNotBlank(requestDto.getWarehouseCode()), "a.warehouse_code", requestDto.getWarehouseCode());
         wrapper.eq(StringUtils.isNotBlank(requestDto.getTrackingStatus()), "a.tracking_status", requestDto.getTrackingStatus());
         if (requestDto.getDateType() != null) {
@@ -403,9 +422,6 @@ public class DelTrackServiceImpl extends ServiceImpl<DelTrackMapper, DelTrack> i
             } else if (requestDto.getDateType() == 2) {
                 wrapper.ge(StringUtils.isNotBlank(requestDto.getStartTime()), "a.shipments_time", DateUtils.parseDate(requestDto.getStartTime()));
                 wrapper.le(StringUtils.isNotBlank(requestDto.getEndTime()), "a.shipments_time", DateUtils.parseDate(requestDto.getEndTime()));
-            } else if (requestDto.getDateType() == 3) {
-                wrapper.ge(StringUtils.isNotBlank(requestDto.getStartTime()), "b.tracking_time", DateUtils.parseDate(requestDto.getStartTime()));
-                wrapper.le(StringUtils.isNotBlank(requestDto.getEndTime()), "b.tracking_time", DateUtils.parseDate(requestDto.getEndTime()));
             }
         }
         LoginUser loginUser = SecurityUtils.getLoginUser();
