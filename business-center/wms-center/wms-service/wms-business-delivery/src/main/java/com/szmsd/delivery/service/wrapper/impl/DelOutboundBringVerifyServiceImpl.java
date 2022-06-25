@@ -750,12 +750,6 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                     }
                     try {
                         FileUtils.writeByteArrayToFile(labelFile, inputStream, false);
-
-
-                        if(path != null){
-                            path = com.szmsd.common.core.utils.StringUtils.replace(path, "/u01/www/", env.getProperty("file.mainUrl")+"/");
-
-                        }
                         return path;
                     } catch (IOException e) {
                         // 内部异常，不再重试，直接抛出去
@@ -837,9 +831,33 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                     // 标签文件 - 从承运商物流那边获取的
                     labelFilePath = DelOutboundServiceImplUtil.getLabelFilePath(delOutbound) + "/" + delOutbound.getShipmentOrderNumber() + ".pdf";
                 }
+                String uploadBoxLabel = null;
+                if("Y".equals(delOutbound.getUploadBoxLabel())){
+                    BasAttachmentQueryDTO basAttachmentQueryDTO = new BasAttachmentQueryDTO();
+                    basAttachmentQueryDTO.setBusinessCode(AttachmentTypeEnum.ONE_PIECE_ISSUED_ON_BEHALF.getBusinessCode());
+                    basAttachmentQueryDTO.setRemark(delOutbound.getOrderNo());
+                    R<List<BasAttachment>> documentListR = remoteAttachmentService.list(basAttachmentQueryDTO);
+                    if (null != documentListR && null != documentListR.getData()) {
+                        List<BasAttachment> documentList = documentListR.getData();
+                        if (CollectionUtils.isNotEmpty(documentList)) {
+                            BasAttachment basAttachment = documentList.get(0);
+                            uploadBoxLabel = basAttachment.getAttachmentPath() + "/" + basAttachment.getAttachmentName() + basAttachment.getAttachmentFormat();
+                        }
+                    }else{
+                        basAttachmentQueryDTO = new BasAttachmentQueryDTO();
+                        basAttachmentQueryDTO.setBusinessCode(AttachmentTypeEnum.TRANSSHIPMENT_OUTBOUND.getBusinessCode());
+                        basAttachmentQueryDTO.setRemark(delOutbound.getOrderNo());
+                        documentListR = remoteAttachmentService.list(basAttachmentQueryDTO);
+                        List<BasAttachment> documentList = documentListR.getData();
+                        if (CollectionUtils.isNotEmpty(documentList)) {
+                            BasAttachment basAttachment = documentList.get(0);
+                            uploadBoxLabel = basAttachment.getAttachmentPath() + "/" + basAttachment.getAttachmentName() + basAttachment.getAttachmentFormat();
+                        }
+                    }
+                }
                 // 合并文件
                 try {
-                    if (PdfUtil.merge(mergeFilePath, boxFilePath, labelFilePath)) {
+                    if (PdfUtil.merge(mergeFilePath, boxFilePath, labelFilePath, uploadBoxLabel)) {
                         pathname = mergeFilePath;
                     }
                 } catch (IOException e) {
