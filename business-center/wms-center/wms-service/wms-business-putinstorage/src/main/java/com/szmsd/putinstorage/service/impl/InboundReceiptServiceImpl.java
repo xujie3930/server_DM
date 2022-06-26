@@ -218,6 +218,7 @@ public class InboundReceiptServiceImpl extends ServiceImpl<InboundReceiptMapper,
         String warehouseNo = inboundReceipt.getWarehouseNo();
         createInboundReceiptDTO.setWarehouseNo(warehouseNo);
         //校验快递单号唯一
+        log.info("校验快递单号唯一：{}", createInboundReceiptDTO);
         List<String> deliveryNoList = createInboundReceiptDTO.getDeliveryNoList();
         checkDeliveryNoRepeat(createInboundReceiptDTO.getId(), warehouseNo, deliveryNoList);
         // 保存入库单明细
