@@ -329,7 +329,6 @@ public class PurchaseServiceImpl extends ServiceImpl<PurchaseMapper, Purchase> i
         CompletableFuture.runAsync(() -> {
             RequestContextHolder.setRequestAttributes(requestAttributes);
             SecurityContextHolder.setContext(context);
-
             SysUser loginUserInfo = remoteComponent.getLoginUserInfo();
             String sellerCode = loginUserInfo.getSellerCode();
             //获取sku信息
