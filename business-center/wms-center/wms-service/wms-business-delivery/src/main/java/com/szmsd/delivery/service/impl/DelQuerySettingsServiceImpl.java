@@ -85,7 +85,6 @@ public class DelQuerySettingsServiceImpl extends ServiceImpl<DelQuerySettingsMap
             where.eq("country_code", delQuerySettings.getCountryCode());
             where.eq("shipment_rule", delQuerySettings.getShipmentRule());
             if(baseMapper.selectList(where).size() > 0){
-                throw new CommonException("400", "一个国家下不能存在相同的物流服务");
             }
 
         return baseMapper.updateById(delQuerySettings);

@@ -1094,7 +1094,6 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
         //地址信息
         DelOutboundAddressDto delOutboundAddressDto = Optional.ofNullable(delOutboundDto.getAddress()).orElse(new DelOutboundAddressDto());
         delOutboundDto.setAddress(delOutboundAddressDto);
-        log.info("计费重量：{}", JSONObject.toJSONString(delOutboundVO));
         if (null != delOutboundVO.getCalcWeight()) {
             String calcWeightUnit = Optional.ofNullable(delOutboundVO.getCalcWeightUnit()).orElse("g");
             BigDecimal calcWeight = Optional.ofNullable(delOutboundVO.getCalcWeight()).orElse(BigDecimal.ZERO);
@@ -1106,7 +1105,6 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
                 delOutboundDto.setWeight(calcWeight.doubleValue());
             }
         }
-        log.info("计费重量-设置后：{}", JSONObject.toJSONString(delOutboundDto));
         DelOutboundAddressDto addressDTO = delOutboundDto.getAddress();
         DelOutboundAddressVO addressVO = Optional.ofNullable(delOutboundVO.getAddress()).orElse(new DelOutboundAddressVO());
         addressDTO.setConsignee(getStrOrDefault(importReassignDTO.getConsignee(), addressVO.getConsignee()));
