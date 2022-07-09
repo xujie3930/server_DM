@@ -329,17 +329,20 @@ public class PurchaseServiceImpl extends ServiceImpl<PurchaseMapper, Purchase> i
         CompletableFuture.runAsync(() -> {
             RequestContextHolder.setRequestAttributes(requestAttributes);
             SecurityContextHolder.setContext(context);
+
             SysUser loginUserInfo = remoteComponent.getLoginUserInfo();
             String sellerCode = loginUserInfo.getSellerCode();
+            sellerCode = Optional.ofNullable(sellerCode).orElse(transportWarehousingAddDTO.getCustomCode());
             //获取sku信息
-            List<DelOutboundDetailVO> transshipmentProductData = remoteComponent.getTransshipmentProductData(transportWarehousingAddDTO.getIdList());
+//            List<DelOutboundDetailVO> transshipmentProductData = new ArrayList<>();
+            /*List<DelOutboundDetailVO> transshipmentProductData = remoteComponent.getTransshipmentProductData(transportWarehousingAddDTO.getIdList());
             if (CollectionUtils.isEmpty(transshipmentProductData)) {
                 throw new RuntimeException("无相关数据");
-            }
+            }*/
             //合并相同sku数据
             //transshipmentProductData = mergeTwo(transshipmentProductData);
             //创建入库单
-            long sum = transshipmentProductData.stream().mapToLong(DelOutboundDetailVO::getQty).sum();
+//            long sum = transshipmentProductData.stream().mapToLong(DelOutboundDetailVO::getQty).sum();
             String deliveryNo = transportWarehousingAddDTO.getDeliveryNo();
             CreateInboundReceiptDTO createInboundReceiptDTO = new CreateInboundReceiptDTO();
 
@@ -353,13 +356,20 @@ public class PurchaseServiceImpl extends ServiceImpl<PurchaseMapper, Purchase> i
                     .setOrderType(InboundReceiptEnum.OrderType.PACKAGE_TRANSFER.getValue())
                     .setWarehouseCategoryCode(transportWarehousingAddDTO.getWarehouseCategoryCode())
                     .setDeliveryWayCode(transportWarehousingAddDTO.getDeliveryWay())
-                    .setTotalDeclareQty(Integer.parseInt(sum + ""))
+//                    .setTotalDeclareQty(Integer.parseInt(sum + ""))
+                    .setTotalDeclareQty(1)
 //                .setTotalDeclareQty(10)
                     .setTotalPutQty(0);
             //当成商品sku使用
             List<String> transferNoList = transportWarehousingAddDTO.getTransferNoList();
             //设置SKU列表数据
-            ArrayList<InboundReceiptDetailDTO> inboundReceiptDetailAddList = new ArrayList<>();
+            List<InboundReceiptDetailDTO> inboundReceiptDetailAddList = transferNoList.stream().map(x->{
+                InboundReceiptDetailDTO inboundReceiptDetailDTO = new InboundReceiptDetailDTO();
+                inboundReceiptDetailDTO.setDeliveryNo(x);
+                inboundReceiptDetailDTO.setDeclareQty(1);
+                return inboundReceiptDetailDTO;
+            }).collect(Collectors.toList());
+            /*ArrayList<InboundReceiptDetailDTO> inboundReceiptDetailAddList = new ArrayList<>();
             transshipmentProductData.forEach(addSku -> {
                 InboundReceiptDetailDTO inboundReceiptDetailDTO = new InboundReceiptDetailDTO();
                 inboundReceiptDetailDTO
@@ -372,13 +382,13 @@ public class PurchaseServiceImpl extends ServiceImpl<PurchaseMapper, Purchase> i
                         .setSkuName(addSku.getProductName())
                 ;
                 inboundReceiptDetailAddList.add(inboundReceiptDetailDTO);
-            });
+            });*/
             //以出库单为单位，每个数量1
             Collection<InboundReceiptDetailDTO> values = inboundReceiptDetailAddList.stream().collect(Collectors.toMap(InboundReceiptDetailDTO::getDeliveryNo, x -> x, (x1, x2) -> x1)).values();
             List<InboundReceiptDetailDTO> inboundReceiptDetailDTOS = new ArrayList<>(values);
             inboundReceiptDetailDTOS.forEach(x -> x.setDeclareQty(1));
             createInboundReceiptDTO.setInboundReceiptDetails(inboundReceiptDetailDTOS);
-            Integer integer = inboundReceiptDetailDTOS.stream().map(InboundReceiptDetailDTO::getDeclareQty).reduce(Integer::sum).orElse(0);
+            Integer integer = inboundReceiptDetailDTOS.stream().map(InboundReceiptDetailDTO::getDeclareQty).reduce(Integer::sum).orElse(1);
             createInboundReceiptDTO.setTotalDeclareQty(integer);
             createInboundReceiptDTO.setTransferNoList(transferNoList);
             InboundReceiptInfoVO inboundReceiptInfoVO = remoteComponent.orderStorage(createInboundReceiptDTO);
