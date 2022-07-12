@@ -1,13 +1,24 @@
 package com.szmsd.delivery.api.feign;
 
 import com.szmsd.common.core.domain.R;
+import com.szmsd.common.core.validator.ValidationUpdateGroup;
 import com.szmsd.common.core.web.page.TableDataInfo;
 import com.szmsd.delivery.api.BusinessDeliveryInterface;
 import com.szmsd.delivery.api.feign.factory.DelOutboundFeignFallback;
 import com.szmsd.delivery.domain.DelOutbound;
 import com.szmsd.delivery.domain.DelOutboundPacking;
 import com.szmsd.delivery.dto.*;
-import com.szmsd.delivery.vo.*;
+import com.szmsd.delivery.vo.DelOutboundAddResponse;
+import com.szmsd.delivery.vo.DelOutboundBringVerifyVO;
+import com.szmsd.delivery.vo.DelOutboundDetailListVO;
+import com.szmsd.delivery.vo.DelOutboundDetailVO;
+import com.szmsd.delivery.vo.DelOutboundLabelResponse;
+import com.szmsd.delivery.vo.DelOutboundListExceptionMessageExportVO;
+import com.szmsd.delivery.vo.DelOutboundListExceptionMessageVO;
+import com.szmsd.delivery.vo.DelOutboundListVO;
+import com.szmsd.delivery.vo.DelOutboundPackingVO;
+import com.szmsd.delivery.vo.DelOutboundThirdPartyVO;
+import com.szmsd.delivery.vo.DelOutboundVO;
 import com.szmsd.finance.dto.QueryChargeDto;
 import com.szmsd.finance.vo.QueryChargeVO;
 import com.szmsd.http.vo.PricedProduct;
@@ -220,10 +231,19 @@ public interface DelOutboundFeignService {
     @ApiImplicitParam(name = "dto", value = "出库单", dataType = "DelOutboundDto")
     R<DelOutboundAddResponse> addShopify(@RequestBody DelOutboundDto dto);
 
-
-
     @PostMapping("/del-track/commonTrackList")
     @ApiOperation(value = "出库管理 - 轨迹查询", position = 2300)
     @ApiImplicitParam(name = "dto", value = "轨迹", dataType = "orders")
     R<DelTrackMainCommonDto> commonTrackList(@RequestBody List<String> orders);
+
+    @PostMapping("/api/outbound/updateInStockList")
+    @ApiOperation(value = "出库管理 - 修改入库状态", position = 2400)
+    @ApiImplicitParam(name = "idList", value = "出库单ID", dataType = "Long")
+    R<Boolean> updateInStockList(@RequestBody List<Long> idList);
+
+
+    @PostMapping("/api/outbound//updateWeightDelOutbound")
+    @ApiOperation(value = "出库管理 - 修改重量数据", position = 400)
+    @ApiImplicitParam(name = "dto", value = "出库单", dataType = "UpdateWeightDelOutboundDto")
+    R<Integer> updateWeightDelOutbound(@RequestBody UpdateWeightDelOutboundDto dto);
 }

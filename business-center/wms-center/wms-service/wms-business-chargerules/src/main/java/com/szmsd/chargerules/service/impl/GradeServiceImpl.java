@@ -11,6 +11,7 @@ import com.szmsd.common.security.domain.LoginUser;
 import com.szmsd.common.security.utils.SecurityUtils;
 import com.szmsd.http.api.feign.HtpCustomPricesFeignService;
 import com.szmsd.http.api.feign.HtpGradeFeignService;
+import com.szmsd.http.dto.OperationRecordDto;
 import com.szmsd.http.dto.UserIdentity;
 import com.szmsd.http.dto.chaLevel.ChaLevelMaintenanceDto;
 import com.szmsd.http.dto.custom.*;
@@ -36,6 +37,11 @@ public class GradeServiceImpl implements IGradeService {
     private HtpGradeFeignService htpGradeFeignService;
 
     @Override
+    public R<OperationRecordDto> operationRecord(String id) {
+        return htpGradeFeignService.operationRecord(id);
+    }
+
+    @Override
     public R<GradeMainDto> detailResult(String id) {
         return htpGradeFeignService.detailResult(id);
     }
@@ -43,7 +49,7 @@ public class GradeServiceImpl implements IGradeService {
     @Override
     public TableDataInfo<GradeMainDto> page(GradePageRequest pageDTO) {
 
-        R<PageVO> r = htpGradeFeignService.page(pageDTO);
+        R<PageVO<GradeMainDto>> r = htpGradeFeignService.page(pageDTO);
         if(r.getCode() == 200){
             TableDataInfo tableDataInfo = new TableDataInfo();
             tableDataInfo.setCode(r.getCode());
