@@ -2,18 +2,16 @@ package com.szmsd.http.util;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.TypeReference;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.szmsd.common.core.domain.R;
-import com.szmsd.common.core.exception.com.CommonException;
 import com.szmsd.common.core.utils.HttpResponseBody;
 import com.szmsd.common.core.utils.StringUtils;
-import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.common.core.web.page.PageVO;
+import com.szmsd.http.dto.discount.DiscountMainDto;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.apache.http.HttpStatus;
-import org.apache.poi.ss.formula.functions.T;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,7 +42,7 @@ public class HttpResponseVOUtils {
 
     }
 
-    private static String getErrorMsg(HttpResponseBody hrb) {
+    public static String getErrorMsg(HttpResponseBody hrb) {
         if (!(hrb.getStatus() == com.szmsd.common.core.constant.HttpStatus.SUCCESS || hrb.getStatus() == com.szmsd.common.core.constant.HttpStatus.CREATED)) {
             try {
                 ErrorInfo errorInfo = JSONObject.parseObject(hrb.getBody(), ErrorInfo.class);
@@ -79,16 +77,7 @@ public class HttpResponseVOUtils {
         }
 
     }
-    public static R<PageVO> transformationPage(HttpResponseBody hrb, Class cls){
-        if (HttpStatus.SC_OK == hrb.getStatus()) {
-            PageVO pageVO = JSON.parseObject(hrb.getBody(), PageVO.class);
-            pageVO.setData(BeanMapperUtil.mapList(pageVO.getData(), cls));
-            return R.ok(pageVO);
-        } else {
-            return R.failed(getErrorMsg(hrb));
-        }
 
-    }
 
     public static R transformationList(HttpResponseBody hrb, Class cls){
         if (HttpStatus.SC_OK == hrb.getStatus()) {

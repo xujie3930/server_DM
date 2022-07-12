@@ -196,6 +196,16 @@ public class DelOutboundFeignFallback implements FallbackFactory<DelOutboundFeig
             public R<DelTrackMainCommonDto> commonTrackList(List<String> orders) {
                 return R.convertResultJson(throwable);
             }
+
+            @Override
+            public R<Boolean> updateInStockList(List<Long> idList) {
+                return R.convertResultJson(throwable);
+            }
+
+            @Override
+            public R<Integer> updateWeightDelOutbound(UpdateWeightDelOutboundDto dto) {
+                return R.convertResultJson(throwable);
+            }
         };
     }
 }
