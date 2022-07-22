@@ -377,11 +377,19 @@ public final class DelOutboundServiceImplUtil {
         BaseFont bf = BaseFont.createFont("ARIALUNI.TTF", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, BaseFont.NOT_CACHED, fontBytes, fontBytes);
         //3. 注册字体
         Font font = new Font(bf, 18);
+        font.setSize(12f);
+        Paragraph weight = new Paragraph(delOutbound.getWeight() + " g", font);
+        weight.setAlignment(Element.ALIGN_LEFT);
+        weight.setSpacingBefore(0f);
+        weight.setSpacingAfter(0f);
+        weight.setPaddingTop(0f);
+        document.add(weight);
         //3. 添加段落,并设置字体
         // 文本块(Chunk)、短语(Phrase)和段落(paragraph)处理文本
+        font.setSize(18f);
         Paragraph paragraph = new Paragraph(delOutbound.getShipmentRule(), font);
         paragraph.setAlignment(Element.ALIGN_RIGHT);
-        paragraph.setSpacingBefore(0f);
+        paragraph.setSpacingBefore(-26f);
         paragraph.setSpacingAfter(0f);
         paragraph.setPaddingTop(0f);
         document.add(paragraph);
@@ -389,7 +397,7 @@ public final class DelOutboundServiceImplUtil {
         PdfPTable pdfPTable = new PdfPTable(1);
         pdfPTable.setWidthPercentage(100f);
         pdfPTable.setSpacingBefore(5f);
-        pdfPTable.setSpacingAfter(0f);
+        pdfPTable.setSpacingAfter(-9f);
         pdfPTable.setWidths(new float[]{1f});
         pdfPTable.setPaddingTop(0f);
         for (int i = 0; i < 2; i++) {
@@ -400,7 +408,7 @@ public final class DelOutboundServiceImplUtil {
             pdfPCell.setBorder(15);
             pdfPCell.setBorderWidth(1.5f);
             if (i == 0) {
-                pdfPCell.setFixedHeight(140f);
+                pdfPCell.setFixedHeight(135f);
                 Phrase element = new Phrase("To:");
                 pdfPCell.addElement(element);
                 pdfPCell.addElement(new Phrase(delOutboundAddress.getConsignee()));
@@ -415,41 +423,39 @@ public final class DelOutboundServiceImplUtil {
                 }
                 Paragraph country = new Paragraph(text, font);
                 country.setAlignment(Element.ALIGN_RIGHT);
-                country.setSpacingBefore(0f);
+                country.setSpacingBefore(-5f);
                 country.setSpacingAfter(0f);
                 pdfPCell.addElement(country);
                 pdfPCell.addElement(new Phrase("TEL:" + delOutboundAddress.getPhoneNo()));
             } else {
-                pdfPCell.setFixedHeight(40f);
+                pdfPCell.setFixedHeight(38f);
                 font.setSize(12f);
-                pdfPCell.addElement(new Phrase("Custom:" + delOutbound.getRemark(), font));
+                Phrase element = new Phrase("Custom:" + delOutbound.getRemark(), font);
+                element.setMultipliedLeading(1f);
+                pdfPCell.addElement(element);
             }
             pdfPTable.addCell(pdfPCell);
         }
         document.add(pdfPTable);
-        Paragraph country = new Paragraph(delOutbound.getWeight() + " g");
-        country.setAlignment(Element.ALIGN_RIGHT);
-        country.setSpacingBefore(-5f);
-        country.setSpacingAfter(0f);
-        country.setPaddingTop(0f);
-        document.add(country);
+        // 条形码
         String content = delOutbound.getOrderNo();
         BufferedImage bufferedImage = ITextPdfUtil.getBarCode(content);
         BufferedImage image = ITextPdfUtil.insertWords(bufferedImage, content);
         Image image1 = Image.getInstance(image, null);
         // 计算缩放比例
         // 渲染在画布上的宽度只有200，以200作为基础比例
-        float scalePercent = 200f / image.getWidth();
-        image1.scalePercent(scalePercent * 100f);
-        image1.setSpacingBefore(-10f);
-        image1.setAbsolutePosition(10f, 25f);
+        image1.scalePercent(55f);
+        // image1.setSpacingBefore(-10f);
+        // image1.setAbsolutePosition(10f, 25f);
         document.add(image1);
         if (StringUtils.isNotEmpty(skuLabel)) {
+            font.setSize(10f);
             Paragraph paragraph_label = new Paragraph(skuLabel, font);
             paragraph_label.setAlignment(Element.ALIGN_LEFT);
-            paragraph_label.setSpacingBefore(30f);
+            paragraph_label.setSpacingBefore(1f);
             paragraph_label.setSpacingAfter(0f);
             paragraph_label.setPaddingTop(0f);
+            paragraph_label.setMultipliedLeading(1f);
             document.add(paragraph_label);
         }
         document.close();

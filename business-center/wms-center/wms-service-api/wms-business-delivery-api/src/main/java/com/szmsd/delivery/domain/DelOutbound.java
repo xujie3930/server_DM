@@ -268,4 +268,28 @@ public class DelOutbound extends BaseEntity {
 
     @ApiModelProperty(value = "是否入库")
     private Boolean inStock;
+
+
+    @ApiModelProperty(value = "清关方式")
+    private String customsClearanceMethod;
+
+    @ApiModelProperty(value = "VAT")
+    private String vat;
+
+    @ApiModelProperty(value = "客户单号")
+    private String customerOrderNo;
+
+    @ApiModelProperty(value = "Amazon Reference ID")
+    private String amazonReferenceId;
+
+
+    @ApiModelProperty(value = "送达目的地")
+    private String destinationDelivery;
+
+    @ApiModelProperty(value = "送达目的地名称")
+    private String destinationDeliveryName;
+
+
+    @ApiModelProperty(value = "仓库选择")
+    private String warehouseSelection;
 }

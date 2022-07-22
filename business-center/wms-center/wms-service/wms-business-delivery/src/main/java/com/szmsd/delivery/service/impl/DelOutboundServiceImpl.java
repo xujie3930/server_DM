@@ -329,6 +329,24 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 }
             }
         }
+        if (DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())) {
+            BasAttachmentQueryDTO dto = new BasAttachmentQueryDTO();
+            dto.setBusinessNo(delOutbound.getOrderNo());
+            dto.setAttachmentType(AttachmentTypeEnum.BULK_ORDER_DETAIL.getAttachmentType());
+            List<BasAttachment> attachment = ListUtils.emptyIfNull(remoteAttachmentService.list(dto).getData());
+            for (BasAttachment basAttachment : attachment) {
+                for (DelOutboundDetailVO detailVO : delOutboundVO.getDetails()) {
+                    if (StringUtils.equals("" + detailVO.getId(), basAttachment.getBusinessItemNo())) {
+                            detailVO.setSkuFile(Arrays.asList(
+                            new AttachmentFileDTO().setId(basAttachment.getId()).setAttachmentName(basAttachment.getAttachmentName()).
+                                    setAttachmentUrl(basAttachment.getAttachmentUrl())));
+
+                    }
+                }
+            }
+
+
+        }
 
         if (DelOutboundOrderTypeEnum.MULTIPLE_PIECES.getCode().equals(delOutbound.getOrderType())) {
             //一票多件
@@ -707,8 +725,29 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             this.saveDetail(dto, delOutbound.getOrderNo());
             logger.info(">>>>>[创建出库单]3.6 保存明细信息，{}", timer.intervalRestart());
 
+
+            if(DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())){
+                //保存箱标数据
+                AttachmentDTO attachmentDTO = AttachmentDTO.builder().businessNo(orderNo).businessItemNo(null).fileList(dto.getBatchLabels()).attachmentTypeEnum(AttachmentTypeEnum.BULK_ORDER_BOX).build();
+                this.remoteAttachmentService.saveAndUpdate(attachmentDTO);
+                //保存明细附件数据
+                for (DelOutboundDetailDto detail : dto.getDetails()) {
+                    if (detail.getSkuFile() != null && detail.getSkuFile().size() > 0) {
+                        AttachmentDataDTO attachmentDataDTO = detail.getSkuFile().get(0);
+                        // 箱标明细
+                        AttachmentDTO boxMarkDetailFiels = AttachmentDTO.builder().businessNo(orderNo).businessItemNo("" + detail.getId()).fileList(
+                                        Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl())
+                                                .setAttachmentName(attachmentDataDTO.getAttachmentName()))).
+                                attachmentTypeEnum(AttachmentTypeEnum.BULK_ORDER_DETAIL).build();
+                        this.remoteAttachmentService.saveAndUpdate(boxMarkDetailFiels);
+
+                    }
+                }
+            }
             // 附件信息
-            if (!DelOutboundOrderTypeEnum.MULTIPLE_PIECES.getCode().equals(delOutbound.getOrderType())) {
+            if (!DelOutboundOrderTypeEnum.MULTIPLE_PIECES.getCode().equals(delOutbound.getOrderType())
+            && !DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())
+            ) {
                 AttachmentDTO attachmentDTO = AttachmentDTO.builder().businessNo(orderNo).businessItemNo(null).fileList(dto.getDocumentsFiles()).attachmentTypeEnum(AttachmentTypeEnum.DEL_OUTBOUND_DOCUMENT).build();
                 this.remoteAttachmentService.saveAndUpdate(attachmentDTO);
             }
@@ -718,7 +757,6 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             if (DelOutboundOrderTypeEnum.BATCH.getCode().equals(delOutbound.getOrderType())
                     || DelOutboundOrderTypeEnum.NORMAL.getCode().equals(delOutbound.getOrderType())
                     || DelOutboundOrderTypeEnum.PACKAGE_TRANSFER.getCode().equals(delOutbound.getOrderType())
-
             ) {
                 // 装箱信息
                 List<DelOutboundPackingDto> packings = dto.getPackings();
@@ -868,7 +906,28 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             delOutbound.setWeight(0D);
             // 规格，长*宽*高
             delOutbound.setSpecifications(0 + "*" + 0 + "*" + 0);
-        } else {
+        } else if(DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())){
+            BigDecimal length = BigDecimal.ZERO;
+            BigDecimal width = BigDecimal.ZERO;
+            BigDecimal height = BigDecimal.ZERO;
+            BigDecimal weight = BigDecimal.ZERO;
+            Set<String> set = new HashSet<>();
+
+            for (DelOutboundDetailDto detail : details) {
+                if (!set.contains(detail.getBoxMark())) {
+                    length = length.add(new BigDecimal(detail.getBoxLength()));
+                    width = width.add(new BigDecimal(detail.getBoxWidth()));
+                    height = height.add(new BigDecimal(detail.getBoxHeight()));
+                    weight = weight.add(new BigDecimal(detail.getBoxWeight()));
+                    set.add(detail.getBoxMark());
+                }
+            }
+            delOutbound.setLength(length.doubleValue());
+            delOutbound.setWidth(width.doubleValue());
+            delOutbound.setHeight(height.doubleValue());
+            delOutbound.setWeight(weight.doubleValue());
+
+        }else {
             // 查询包材的信息
             Set<String> skus = new HashSet<>();
             for (DelOutboundDetailDto detail : details) {
@@ -1021,11 +1080,29 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             // 计算发货类型
             inputDelOutbound.setShipmentType(this.buildShipmentType(dto));
             // 附件信息
-            if (!DelOutboundOrderTypeEnum.MULTIPLE_PIECES.getCode().equals(delOutbound.getOrderType())) {
+            if (!DelOutboundOrderTypeEnum.MULTIPLE_PIECES.getCode().equals(delOutbound.getOrderType()) && !DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())) {
                 AttachmentDTO attachmentDTO = AttachmentDTO.builder().businessNo(delOutbound.getOrderNo()).businessItemNo(null).fileList(dto.getDocumentsFiles()).attachmentTypeEnum(AttachmentTypeEnum.DEL_OUTBOUND_DOCUMENT).build();
                 this.remoteAttachmentService.saveAndUpdate(attachmentDTO);
             }
 
+            if(DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())){
+                //保存箱标数据
+                AttachmentDTO attachmentDTO = AttachmentDTO.builder().businessNo(orderNo).businessItemNo(null).fileList(dto.getBatchLabels()).attachmentTypeEnum(AttachmentTypeEnum.BULK_ORDER_BOX).build();
+                this.remoteAttachmentService.saveAndUpdate(attachmentDTO);
+                //保存明细附件数据
+                for (DelOutboundDetailDto detail : dto.getDetails()) {
+                    if (detail.getSkuFile() != null && detail.getSkuFile().size() > 0) {
+                        AttachmentDataDTO attachmentDataDTO = detail.getSkuFile().get(0);
+                        // 箱标明细
+                        AttachmentDTO boxMarkDetailFiels = AttachmentDTO.builder().businessNo(orderNo).businessItemNo("" + detail.getId()).fileList(
+                                        Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl())
+                                                .setAttachmentName(attachmentDataDTO.getAttachmentName()))).
+                                attachmentTypeEnum(AttachmentTypeEnum.BULK_ORDER_DETAIL).build();
+                        this.remoteAttachmentService.saveAndUpdate(boxMarkDetailFiels);
+
+                    }
+                }
+            }
 
             // 计算包裹大小
             this.countPackageSize(inputDelOutbound, dto);
@@ -1365,7 +1442,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             updateWrapper.set(DelOutbound::getState, stateEnum.getCode());
         }
         updateWrapper.set(DelOutbound::getPackingMaterial, dto.getPackingMaterial());
-        return this.baseMapper.update(null, updateWrapper);
+        int i = this.baseMapper.update(null, updateWrapper);
+        return i;
     }
 
     @Transactional
