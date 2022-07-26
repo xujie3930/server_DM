@@ -694,6 +694,10 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         if (StringUtils.isEmpty(shipmentRule)) {
             shipmentRule = delOutbound.getShipmentRule();
         }
+        // 销毁出库单的发货规则默认XiaoHui
+        if (DelOutboundOrderTypeEnum.DESTROY.getCode().equals(shipmentRule)) {
+            shipmentRule = "XiaoHui";
+        }
         out:
         if (StringUtils.isEmpty(shipmentRule)) {
             logMessage = "发货规则为空";
@@ -743,7 +747,43 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         Object[] params = new Object[]{delOutbound, logMessage};
         DelOutboundOperationLogEnum.BRV_SHIPMENT_RULE.listener(params);
     }
+    @Override
+    public String saveShipmentLabel(FileStream fileStream, DelOutbound delOutbound) {
+        String orderNumber = delOutbound.getShipmentOrderNumber();
+        String pathname = DelOutboundServiceImplUtil.getLabelFilePath(delOutbound);
+        File file = new File(pathname);
+        if (!file.exists()) {
+            try {
+                FileUtils.forceMkdir(file);
+            } catch (IOException e) {
+                // 内部异常，不再重试，直接抛出去
+                throw new CommonException("500", "创建文件夹[" + file.getPath() + "]失败，Error：" + e.getMessage());
+            }
+        }
+        byte[] inputStream;
+        if (null != fileStream && null != (inputStream = fileStream.getInputStream())) {
+            String path  = file.getPath() + "/" + orderNumber + ".pdf";
+            File labelFile = new File(file.getPath() + "/" + orderNumber + ".pdf");
+            if (labelFile.exists()) {
+                File destFile = new File(file.getPath() + "/" + orderNumber + "_" + DateFormatUtils.format(new Date(), "yyyyMMdd_HHmmss") + ".pdf");
+                try {
+                    FileUtils.copyFile(labelFile, destFile);
+                } catch (IOException e) {
+                    logger.error("复制文件失败，" + e.getMessage(), e);
+                }
+            }
+            try {
+                FileUtils.writeByteArrayToFile(labelFile, inputStream, false);
+                return path;
+            } catch (IOException e) {
+                // 内部异常，不再重试，直接抛出去
+                throw new CommonException("500", "保存标签文件失败，Error：" + e.getMessage());
+            }
+        }
+        logger.error("保存标签文件流失败");
+        throw new CommonException("500", "获取标签文件流失败");
 
+    }
     @Override
     public String getShipmentLabel(DelOutbound delOutbound) {
         if (null == delOutbound) {
@@ -871,27 +911,7 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 }
                 String uploadBoxLabel = null;
                 if("Y".equals(delOutbound.getUploadBoxLabel())){
-                    BasAttachmentQueryDTO basAttachmentQueryDTO = new BasAttachmentQueryDTO();
-                    basAttachmentQueryDTO.setBusinessCode(AttachmentTypeEnum.ONE_PIECE_ISSUED_ON_BEHALF.getBusinessCode());
-                    basAttachmentQueryDTO.setRemark(delOutbound.getOrderNo());
-                    R<List<BasAttachment>> documentListR = remoteAttachmentService.list(basAttachmentQueryDTO);
-                    if (null != documentListR && null != documentListR.getData()) {
-                        List<BasAttachment> documentList = documentListR.getData();
-                        if (CollectionUtils.isNotEmpty(documentList)) {
-                            BasAttachment basAttachment = documentList.get(0);
-                            uploadBoxLabel = basAttachment.getAttachmentPath() + "/" + basAttachment.getAttachmentName() + basAttachment.getAttachmentFormat();
-                        }
-                    }else{
-                        basAttachmentQueryDTO = new BasAttachmentQueryDTO();
-                        basAttachmentQueryDTO.setBusinessCode(AttachmentTypeEnum.TRANSSHIPMENT_OUTBOUND.getBusinessCode());
-                        basAttachmentQueryDTO.setRemark(delOutbound.getOrderNo());
-                        documentListR = remoteAttachmentService.list(basAttachmentQueryDTO);
-                        List<BasAttachment> documentList = documentListR.getData();
-                        if (CollectionUtils.isNotEmpty(documentList)) {
-                            BasAttachment basAttachment = documentList.get(0);
-                            uploadBoxLabel = basAttachment.getAttachmentPath() + "/" + basAttachment.getAttachmentName() + basAttachment.getAttachmentFormat();
-                        }
-                    }
+                    uploadBoxLabel = getBoxLabel(delOutbound);
                 }
                 // 合并文件
                 try {
@@ -907,6 +927,32 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         if (null == pathname) {
             // 判断从承运商获取的标签文件是否存在
             pathname = DelOutboundServiceImplUtil.getLabelFilePath(delOutbound) + "/" + delOutbound.getShipmentOrderNumber() + ".pdf";
+            if("Y".equals(delOutbound.getUploadBoxLabel())){
+                String uploadBoxLabel = getBoxLabel(delOutbound);
+                String mergeFileDirPath = DelOutboundServiceImplUtil.getBatchMergeFilePath(delOutbound);
+                File mergeFileDir = new File(mergeFileDirPath);
+                if (!mergeFileDir.exists()) {
+                    try {
+                        FileUtils.forceMkdir(mergeFileDir);
+                    } catch (IOException e) {
+                        logger.error(e.getMessage(), e);
+                        throw new CommonException("500", "创建文件夹失败，" + e.getMessage());
+                    }
+                }
+                String mergeFilePath = mergeFileDirPath + "/" + delOutbound.getOrderNo();
+                File mergeFile = new File(mergeFilePath);
+                logger.info(mergeFilePath + "," + pathname + "," + uploadBoxLabel);
+                try {
+                    if (PdfUtil.merge(mergeFilePath, pathname, uploadBoxLabel)) {
+                        pathname = mergeFilePath;
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    logger.error(e.getMessage(), e);
+                    throw new CommonException("500", "合并箱标文件，标签文件失败");
+                }
+            }
+
         }
         File labelFile = new File(pathname);
         // 判断标签文件是否存在
@@ -931,6 +977,31 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 throw new CommonException("500", "读取标签文件失败");
             }
         }
+    }
+
+    private String getBoxLabel(DelOutbound delOutbound){
+        BasAttachmentQueryDTO basAttachmentQueryDTO = new BasAttachmentQueryDTO();
+        basAttachmentQueryDTO.setBusinessCode(AttachmentTypeEnum.ONE_PIECE_ISSUED_ON_BEHALF.getBusinessCode());
+        basAttachmentQueryDTO.setRemark(delOutbound.getOrderNo());
+        R<List<BasAttachment>> documentListR = remoteAttachmentService.list(basAttachmentQueryDTO);
+        if (null != documentListR && null != documentListR.getData()) {
+            List<BasAttachment> documentList = documentListR.getData();
+            if (CollectionUtils.isNotEmpty(documentList)) {
+                BasAttachment basAttachment = documentList.get(0);
+                return basAttachment.getAttachmentPath() + "/" + basAttachment.getAttachmentName() + basAttachment.getAttachmentFormat();
+            }
+        }else{
+            basAttachmentQueryDTO = new BasAttachmentQueryDTO();
+            basAttachmentQueryDTO.setBusinessCode(AttachmentTypeEnum.TRANSSHIPMENT_OUTBOUND.getBusinessCode());
+            basAttachmentQueryDTO.setRemark(delOutbound.getOrderNo());
+            documentListR = remoteAttachmentService.list(basAttachmentQueryDTO);
+            List<BasAttachment> documentList = documentListR.getData();
+            if (CollectionUtils.isNotEmpty(documentList)) {
+                BasAttachment basAttachment = documentList.get(0);
+                return basAttachment.getAttachmentPath() + "/" + basAttachment.getAttachmentName() + basAttachment.getAttachmentFormat();
+            }
+        }
+        return null;
     }
 
     @Override
