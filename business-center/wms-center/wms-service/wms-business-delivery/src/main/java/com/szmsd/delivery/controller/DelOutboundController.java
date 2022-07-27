@@ -33,24 +33,7 @@ import com.szmsd.common.log.annotation.Log;
 import com.szmsd.common.log.enums.BusinessType;
 import com.szmsd.common.plugin.annotation.AutoValue;
 import com.szmsd.delivery.domain.DelOutbound;
-import com.szmsd.delivery.dto.DelOutboundAgainTrackingNoDto;
-import com.szmsd.delivery.dto.DelOutboundBatchUpdateTrackingNoDto;
-import com.szmsd.delivery.dto.DelOutboundBoxLabelDto;
-import com.szmsd.delivery.dto.DelOutboundBringVerifyDto;
-import com.szmsd.delivery.dto.DelOutboundCanceledDto;
-import com.szmsd.delivery.dto.DelOutboundDetailEnImportDto2;
-import com.szmsd.delivery.dto.DelOutboundDetailImportDto;
-import com.szmsd.delivery.dto.DelOutboundDetailImportDto2;
-import com.szmsd.delivery.dto.DelOutboundDto;
-import com.szmsd.delivery.dto.DelOutboundEnImportDto;
-import com.szmsd.delivery.dto.DelOutboundFurtherHandlerDto;
-import com.szmsd.delivery.dto.DelOutboundHandlerDto;
-import com.szmsd.delivery.dto.DelOutboundImportDto;
-import com.szmsd.delivery.dto.DelOutboundLabelDto;
-import com.szmsd.delivery.dto.DelOutboundListQueryDto;
-import com.szmsd.delivery.dto.DelOutboundToPrintDto;
-import com.szmsd.delivery.dto.DelOutboundUploadBoxLabelDto;
-import com.szmsd.delivery.dto.UpdateWeightDelOutboundDto;
+import com.szmsd.delivery.dto.*;
 import com.szmsd.delivery.enums.DelOutboundOperationTypeEnum;
 import com.szmsd.delivery.enums.DelOutboundStateEnum;
 import com.szmsd.delivery.exported.DelOutboundExportContext;
@@ -320,13 +303,13 @@ public class DelOutboundController extends BaseController {
         if(data == null){
             throw new CommonException("400", "该客户下订单不存在");
         }
-        if (!(
-                DelOutboundStateEnum.AUDIT_FAILED.getCode().equals(data.getState())
-                || DelOutboundStateEnum.REVIEWED.getCode().equals(data.getState())
-                || DelOutboundStateEnum.DELIVERED.getCode().equals(data.getState())
-                || DelOutboundStateEnum.REVIEWED_DOING.getCode().equals(data.getState())
-
-        )) {
+        if (
+                DelOutboundStateEnum.PROCESSING.getCode().equals(data.getState())
+                || DelOutboundStateEnum.NOTIFY_WHSE_PROCESSING.getCode().equals(data.getState())
+                || DelOutboundStateEnum.WHSE_PROCESSING.getCode().equals(data.getState())
+                || DelOutboundStateEnum.WHSE_COMPLETED.getCode().equals(data.getState())
+                || DelOutboundStateEnum.COMPLETED.getCode().equals(data.getState())
+        ) {
             throw new CommonException("400", "单据不能修改");
         }
         BeanUtils.copyProperties(dto, data);
@@ -710,7 +693,7 @@ public class DelOutboundController extends BaseController {
             String len = getLen();
 
             // 查询出库类型数据
-            Map<String, List<BasSubWrapperVO>> listMap = this.basSubClientService.getSub("063,065,066,099");
+            Map<String, List<BasSubWrapperVO>> listMap = this.basSubClientService.getSub("063,065,066,099,059");
             DelOutboundExportContext exportContext = new DelOutboundExportContext(this.basWarehouseClientService, this.basRegionFeignService, len);
             exportContext.setStateCacheAdapter(listMap.get("065"));
             exportContext.setOrderTypeCacheAdapter(listMap.get("063"));
@@ -724,7 +707,7 @@ public class DelOutboundController extends BaseController {
             QueryDto queryDto2 = new QueryDto();
             queryDto2.setPageNum(1);
             queryDto2.setPageSize(500);
-            QueryPage<DelOutboundExportItemListVO> itemQueryPage = new DelOutboundExportItemQueryPage(queryDto, queryDto2, this.delOutboundDetailService, this.baseProductClientService);
+            QueryPage<DelOutboundExportItemListVO> itemQueryPage = new DelOutboundExportItemQueryPage(queryDto, queryDto2, this.delOutboundDetailService, this.baseProductClientService, listMap.get("059"));
 
 
             ExcelUtils.export(response, null, ExcelUtils.ExportExcel.build("en".equals(len) ? "Outbound_order" : "出库单", len,  null, new ExcelUtils.ExportSheet<DelOutboundExportListVO>() {
@@ -898,4 +881,13 @@ public class DelOutboundController extends BaseController {
         this.delOutboundService.update(null, lambdaUpdateWrapper);
         return R.ok(true);
     }
+    @PreAuthorize("@ss.hasPermi('DelOutbound:DelOutbound:receiveLabel')")
+    @Log(title = "出库单模块", businessType = BusinessType.UPDATE)
+    @PostMapping("/receiveLabel")
+    @ApiOperation(value = "出库管理 - 接收供应商系统传回的标签", position = 400)
+    @ApiImplicitParam(name = "dto", value = "出库单", dataType = "DelOutboundDto")
+    public R<Integer> receiveLabel(@RequestBody @Validated(ValidationUpdateGroup.class) DelOutboundReceiveLabelDto dto) {
+        return R.ok(delOutboundService.receiveLabel(dto));
+    }
+
 }
