@@ -189,4 +189,8 @@ public interface DelOutboundClientService {
     DelTrackMainDocCommonDto commonTrackList(List<String> orderNos) ;
 
     int updateWeightDelOutbound(UpdateWeightDelOutboundDto dto);
+
+
+
+    List<DelOutboundBringVerifyVO> bringVerifyByOrderNo(DelOutboundBringVerifyNoDto dto);
 }

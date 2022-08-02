@@ -151,4 +151,10 @@ public class DelOutboundClientServiceImpl implements DelOutboundClientService {
     public int updateWeightDelOutbound(UpdateWeightDelOutboundDto dto) {
         return R.getDataAndException(this.delOutboundFeignService.updateWeightDelOutbound(dto));
     }
+
+
+    @Override
+    public List<DelOutboundBringVerifyVO> bringVerifyByOrderNo(DelOutboundBringVerifyNoDto dto) {
+        return R.getDataAndException(this.delOutboundFeignService.bringVerifyByOrderNo(dto));
+    }
 }

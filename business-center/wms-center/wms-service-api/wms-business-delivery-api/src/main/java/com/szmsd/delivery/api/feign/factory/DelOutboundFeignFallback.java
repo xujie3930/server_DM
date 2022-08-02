@@ -206,6 +206,12 @@ public class DelOutboundFeignFallback implements FallbackFactory<DelOutboundFeig
             public R<Integer> updateWeightDelOutbound(UpdateWeightDelOutboundDto dto) {
                 return R.convertResultJson(throwable);
             }
+
+
+            @Override
+            public R<List<DelOutboundBringVerifyVO>> bringVerifyByOrderNo(DelOutboundBringVerifyNoDto dto) {
+                return R.convertResultJson(throwable);
+            }
         };
     }
 }

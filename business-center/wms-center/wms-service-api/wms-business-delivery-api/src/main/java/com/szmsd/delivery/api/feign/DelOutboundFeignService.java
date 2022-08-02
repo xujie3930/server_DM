@@ -246,4 +246,10 @@ public interface DelOutboundFeignService {
     @ApiOperation(value = "出库管理 - 修改重量数据", position = 400)
     @ApiImplicitParam(name = "dto", value = "出库单", dataType = "UpdateWeightDelOutboundDto")
     R<Integer> updateWeightDelOutbound(@RequestBody UpdateWeightDelOutboundDto dto);
+
+
+    @PostMapping("/api/outbound/bringVerifyByOrderNo")
+    @ApiOperation(value = "出库管理 - 提审", position = 600)
+    @ApiImplicitParam(name = "dto", value = "出库单", dataType = "DelOutboundBringVerifyNoDto")
+    R<List<DelOutboundBringVerifyVO>> bringVerifyByOrderNo(@RequestBody DelOutboundBringVerifyNoDto dto);
 }
