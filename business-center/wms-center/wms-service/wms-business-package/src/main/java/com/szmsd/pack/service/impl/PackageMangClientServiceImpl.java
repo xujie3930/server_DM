@@ -76,7 +76,12 @@ public class PackageMangClientServiceImpl extends ServiceImpl<PackageAddressMapp
      */
     @Override
     public List<PackageAddressVO> selectPackageAddressList(PackageMangQueryDTO packageAddress) {
-        packageAddress.setSellerCode(getSellCode());
+//        packageAddress.setSellerCode(getSellCode());
+        // 子母单的查询 如果没有传值就只能才自己的
+        String cusCode = org.apache.commons.collections4.CollectionUtils.isNotEmpty(SecurityUtils.getLoginUser().getPermissions()) ? SecurityUtils.getLoginUser().getPermissions().get(0) : "";
+        if(StringUtils.isEmpty(packageAddress.getCustomCode())){
+            packageAddress.setCustomCode(cusCode);
+        }
         List<PackageAddressVO> packageAddressVoList = baseMapper.selectPackageAddressList(packageAddress);
         packageAddressVoList.forEach(PackageAddressVO::setShowAddr);
         return packageAddressVoList;
@@ -200,7 +205,10 @@ public class PackageMangClientServiceImpl extends ServiceImpl<PackageAddressMapp
      */
     @Override
     public List<PackageMangVO> selectPackageManagementList(PackageMangQueryDTO packageMangQueryDTO) {
-        packageMangQueryDTO.setSellerCode(getSellCode());
+        String cusCode = org.apache.commons.collections4.CollectionUtils.isNotEmpty(SecurityUtils.getLoginUser().getPermissions()) ? SecurityUtils.getLoginUser().getPermissions().get(0) : "";
+        if(StringUtils.isEmpty(packageMangQueryDTO.getCustomCode())){
+            packageMangQueryDTO.setCustomCode(cusCode);
+        }
         return packageManagementService.selectPackageManagementList(packageMangQueryDTO);
     }
 
