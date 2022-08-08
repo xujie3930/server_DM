@@ -207,6 +207,10 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
             List<String> skuList = ListUtils.emptyIfNull(inventorySkuQueryDTO.getSkuList());
             inventorySkuQueryDTO.setSkuList(Stream.of(skuSplit, skuList).flatMap(Collection::stream).distinct().collect(Collectors.toList()));
         }
+        String cusCode = CollectionUtils.isNotEmpty(SecurityUtils.getLoginUser().getPermissions()) ? SecurityUtils.getLoginUser().getPermissions().get(0) : "";
+        if(StringUtils.isEmpty(inventorySkuQueryDTO.getCusCode())){
+            inventorySkuQueryDTO.setCusCode(cusCode);
+        }
         return baseMapper.selectListVO(inventorySkuQueryDTO);
     }
 
@@ -704,7 +708,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                 before.setTotalInventory(0).setTotalInbound(0);
                 // 记录库存日志
                 //iInventoryRecordService.saveLogs(localLanguageEnum.getKey(), before, inventory, quantity);
-                iInventoryRecordService.saveLogs(localLanguageEnum.getKey(), before, inventory, quantity, inventoryAdjustmentDTO.getReceiptNo());
+                iInventoryRecordService.saveLogs(localLanguageEnum.getKey(), before, inventory, quantity, inventoryAdjustmentDTO.getRelevanceNumber());
                 return;
             }
             int afterTotalInventory = before.getTotalInventory() + quantity;
@@ -713,6 +717,12 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
             Inventory after = new Inventory();
             after.setId(before.getId()).setCusCode(before.getCusCode()).setSku(sku).setWarehouseCode(warehouseCode).setTotalInventory(afterTotalInventory).setAvailableInventory(afterAvailableInventory);
+           if (inventoryAdjustmentDTO.getRemark()!=null){
+               after.setRemark(inventoryAdjustmentDTO.getRemark());
+           }
+           if (inventoryAdjustmentDTO.getRelevanceNumber()!=null)
+            after.setRelevanceNumber(inventoryAdjustmentDTO.getRelevanceNumber());
+
             this.updateById(after);
             // 记录库存日志
             iInventoryRecordService.saveLogs(localLanguageEnum.getKey(), before, after, quantity, inventoryAdjustmentDTO.getReceiptNo());

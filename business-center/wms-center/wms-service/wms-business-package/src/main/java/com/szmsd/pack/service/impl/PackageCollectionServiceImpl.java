@@ -208,8 +208,10 @@ public class PackageCollectionServiceImpl extends ServiceImpl<PackageCollectionM
                     packageCollection.setCalcWeight(calcWeight.getValue());
                     packageCollection.setCalcWeightUnit(calcWeight.getUnit());
 
-                    if (data.getIsPickupPackageService() != null) packageCollection.setIsPickupPackageService(data.getIsPickupPackageService());
-                    if (data.getPickupPackageServiceName() != null) packageCollection.setPickupPackageServiceName(data.getPickupPackageServiceName());
+                    if (data.getIsPickupPackageService() != null)
+                        packageCollection.setIsPickupPackageService(data.getIsPickupPackageService());
+                    if (data.getPickupPackageServiceName() != null)
+                        packageCollection.setPickupPackageServiceName(data.getPickupPackageServiceName());
 
                     List<ChargeItem> charges = chargeWrapper.getCharges();
                     // 汇总费用
@@ -468,7 +470,7 @@ public class PackageCollectionServiceImpl extends ServiceImpl<PackageCollectionM
         createPickupPackageCommand.setPickupPieces(pickupPieces);
 
         PickupDateInfo pickupDateInfo = new PickupDateInfo();
-        if(packageCollection.getCollectionDate()!=null){
+        if (packageCollection.getCollectionDate() != null) {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
             pickupDateInfo.setPickupDate(sdf.format(packageCollection.getCollectionDate()));
         }
@@ -853,11 +855,20 @@ public class PackageCollectionServiceImpl extends ServiceImpl<PackageCollectionM
         IPage<PackageCollection> iPage = new Page<>(dto.getPageNum(), dto.getPageSize());
         LambdaQueryWrapper<PackageCollection> queryWrapper = Wrappers.lambdaQuery();
         // 只查询自己的揽收单
-        LoginUser loginUser = SecurityUtils.getLoginUser();
-        if (null != loginUser) {
-            String sellerCode = loginUser.getSellerCode();
-            queryWrapper.eq(StringUtils.isNotEmpty(sellerCode), PackageCollection::getSellerCode, sellerCode);
+//        LoginUser loginUser = SecurityUtils.getLoginUser();
+//        if (null != loginUser) {
+//            String sellerCode = loginUser.getSellerCode();
+//            queryWrapper.eq(StringUtils.isNotEmpty(sellerCode), PackageCollection::getSellerCode, sellerCode);
+//        }
+        // 子母单的查询 如果没有传值就只能才自己的
+        String cusCode = CollectionUtils.isNotEmpty(SecurityUtils.getLoginUser().getPermissions()) ? SecurityUtils.getLoginUser().getPermissions().get(0) : "";
+        if (StringUtils.isEmpty(dto.getCustomCode())) {
+            dto.setCustomCode(cusCode);
         }
+        if (CollectionUtils.isNotEmpty(dto.getCustomCodeList())) {
+            queryWrapper.in(PackageCollection::getSellerCode, dto.getCustomCodeList());
+        }
+
         // 揽收单号
         this.autoSettingListCondition(queryWrapper, PackageCollection::getCollectionNo, this.getTextList(dto.getCollectionNo()));
         // 跟踪号

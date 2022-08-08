@@ -101,14 +101,19 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
     @Override
     public List<AccountBalance> listPage(AccountBalanceDTO dto) {
         LambdaQueryWrapper<AccountBalance> queryWrapper = Wrappers.lambdaQuery();
-        if (StringUtils.isNotEmpty(dto.getCusCode())) {
-            queryWrapper.eq(AccountBalance::getCusCode, dto.getCusCode());
+//        if (StringUtils.isNotEmpty(dto.getCusCode())) {
+//            queryWrapper.eq(AccountBalance::getCusCode, dto.getCusCode());
+//        }
+
+        if (CollectionUtils.isNotEmpty(dto.getCusCodeList())) {
+            List<String> cusCodeList = dto.getCusCodeList();
+            queryWrapper.in(AccountBalance::getCusCode, cusCodeList);
+            dto.setCusCode("");
         }
         if (StringUtils.isNotEmpty(dto.getCurrencyCode())) {
             queryWrapper.eq(AccountBalance::getCurrencyCode, dto.getCurrencyCode());
         }
         List<AccountBalance> accountBalances = accountBalanceMapper.listPage(queryWrapper);
-
         Map<String, CreditUseInfo> creditUseInfoMap = iDeductionRecordService.queryTimeCreditUse(dto.getCusCode(), new ArrayList<>(), Arrays.asList(CreditConstant.CreditBillStatusEnum.DEFAULT, CreditConstant.CreditBillStatusEnum.CHECKED));
         Map<String, CreditUseInfo> needRepayCreditUseInfoMap = iDeductionRecordService.queryTimeCreditUse(dto.getCusCode(), new ArrayList<>(), Arrays.asList(CreditConstant.CreditBillStatusEnum.CHECKED));
         accountBalances.forEach(x -> {
@@ -235,7 +240,7 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
      * @param dto
      * @return true : 已存在
      */
-    public boolean checkForDuplicateCharges(CustPayDTO dto){
+    public boolean checkForDuplicateCharges(CustPayDTO dto) {
         return accountSerialBillService.checkForDuplicateCharges(dto);
     }
 
