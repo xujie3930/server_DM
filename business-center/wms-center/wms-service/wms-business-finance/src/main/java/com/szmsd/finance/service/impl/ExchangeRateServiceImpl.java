@@ -1,5 +1,7 @@
 package com.szmsd.finance.service.impl;
 
+
+import com.alibaba.fastjson.JSONArray;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -17,6 +19,8 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author liulei
@@ -109,6 +113,30 @@ public class ExchangeRateServiceImpl implements IExchangeRateService {
             return R.ok(fromToRate);
         }*/
         return R.failed("未查询到对应币种的汇率交换");
+    }
+
+    @Override
+    public List<ExchangeRateDTO> selectRates(Map map) {
+        return exchangeRateMapper.selectRates(map);
+    }
+
+    @Override
+    public int insertExchangeRate(List<Map> mapList) {
+        JSONArray jsonArray = new JSONArray();
+        jsonArray.addAll(mapList);
+        List<ExchangeRate> list = jsonArray.toJavaList(ExchangeRate.class);
+        Set<ExchangeRate> set=new HashSet<ExchangeRate>();
+        set.addAll(list);
+        set.forEach(x->{
+             exchangeRateMapper.insert(x);
+
+        });
+       return 0;
+    }
+
+    @Override
+    public void deleteExchangeRate(Map map) {
+       exchangeRateMapper.deleteExchangeRate(map);
     }
 
 }
