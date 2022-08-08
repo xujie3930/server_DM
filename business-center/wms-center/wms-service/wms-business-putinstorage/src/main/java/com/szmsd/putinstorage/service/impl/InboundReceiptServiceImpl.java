@@ -149,10 +149,13 @@ public class InboundReceiptServiceImpl extends ServiceImpl<InboundReceiptMapper,
             List<String> orderNoList = ListUtils.emptyIfNull(queryDTO.getOrderNoList());
             queryDTO.setOrderNoList(Stream.of(orderNoSplit, orderNoList).flatMap(Collection::stream).distinct().collect(Collectors.toList()));
         }
-        String cusCode = CollectionUtils.isNotEmpty(SecurityUtils.getLoginUser().getPermissions()) ? SecurityUtils.getLoginUser().getPermissions().get(0) : "";
-        if(StringUtils.isEmpty(queryDTO.getCusCode())){
-            queryDTO.setCusCode(cusCode);
+        if (Objects.nonNull(SecurityUtils.getLoginUser())) {
+            String cusCode = CollectionUtils.isNotEmpty(SecurityUtils.getLoginUser().getPermissions()) ? SecurityUtils.getLoginUser().getPermissions().get(0) : "";
+            if (StringUtils.isEmpty(queryDTO.getCusCode())) {
+                queryDTO.setCusCode(cusCode);
+            }
         }
+
         return baseMapper.selectListByCondiction(queryDTO);
     }
 
@@ -443,14 +446,14 @@ public class InboundReceiptServiceImpl extends ServiceImpl<InboundReceiptMapper,
     @Override
     @Transactional(rollbackFor = Throwable.class)
     public void receiving(ReceivingRequest receivingRequest) {
-        InboundReceiptDetailQueryDTO inboundReceiptDetailQueryDTO=new InboundReceiptDetailQueryDTO();
+        InboundReceiptDetailQueryDTO inboundReceiptDetailQueryDTO = new InboundReceiptDetailQueryDTO();
         inboundReceiptDetailQueryDTO.setWarehouseNo(receivingRequest.getOrderNo());
         inboundReceiptDetailQueryDTO.setSku(receivingRequest.getSku());
-        List<InboundReceiptDetailVO> inboundReceiptDetailVOSlist= inboundReceiptDetailMapper.selectList(inboundReceiptDetailQueryDTO);
+        List<InboundReceiptDetailVO> inboundReceiptDetailVOSlist = inboundReceiptDetailMapper.selectList(inboundReceiptDetailQueryDTO);
 
         //表示同步过来的sku没有， 做入库单新增绑定
-        if (inboundReceiptDetailVOSlist.size()==0){
-            InboundReceiptDetail inboundReceiptDetail=new InboundReceiptDetail();
+        if (inboundReceiptDetailVOSlist.size() == 0) {
+            InboundReceiptDetail inboundReceiptDetail = new InboundReceiptDetail();
             inboundReceiptDetail.setSku(receivingRequest.getSku());
             inboundReceiptDetail.setWarehouseNo(receivingRequest.getOrderNo());
             inboundReceiptDetail.setPutQty(receivingRequest.getQty());
@@ -461,7 +464,7 @@ public class InboundReceiptServiceImpl extends ServiceImpl<InboundReceiptMapper,
 
         }
         //表示同步过来的sku是有的 做上架操作
-        if (inboundReceiptDetailVOSlist.size()>0) {
+        if (inboundReceiptDetailVOSlist.size() > 0) {
             log.info("#B1 接收入库上架：{}", receivingRequest);
 
             Integer qty = receivingRequest.getQty();
@@ -992,7 +995,7 @@ public class InboundReceiptServiceImpl extends ServiceImpl<InboundReceiptMapper,
         createInboundReceiptDTO.setCollectionNo(packageCollection.getCollectionNo());
         createInboundReceiptDTO.setTransferNoList(Lists.newArrayList());
         List<PackageCollectionDetail> detailList = packageCollection.getDetailList();
-        AtomicInteger qtyTotal= new AtomicInteger();
+        AtomicInteger qtyTotal = new AtomicInteger();
         List<InboundReceiptDetailDTO> detailDTOList = detailList.stream().map(detail -> {
             Integer qty = Optional.ofNullable(detail.getQty()).orElse(0);
             qtyTotal.addAndGet(qty);
