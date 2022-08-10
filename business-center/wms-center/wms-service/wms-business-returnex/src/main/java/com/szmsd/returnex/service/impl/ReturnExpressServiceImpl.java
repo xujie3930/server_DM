@@ -22,6 +22,7 @@ import com.szmsd.common.core.web.page.TableDataInfo;
 import com.szmsd.common.security.domain.LoginUser;
 import com.szmsd.common.security.utils.SecurityUtils;
 import com.szmsd.delivery.api.feign.DelOutboundFeignService;
+import com.szmsd.delivery.domain.DelTrack;
 import com.szmsd.delivery.dto.DelOutboundAddressDto;
 import com.szmsd.delivery.dto.DelOutboundDto;
 import com.szmsd.delivery.dto.DelOutboundListQueryDto;
@@ -218,7 +219,33 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
      */
     @Override
     public List<ReturnExpressListVO> selectReturnOrderList(ReturnExpressListQueryDTO queryDto) {
+        String queryNo = queryDto.getQueryNoOne();
+        if (com.szmsd.common.core.utils.StringUtils.isNotEmpty(queryNo)) {
+            List<String> queryNoList = splitToArray(queryNo, "[\n,]");
+            queryDto.setQueryNoOneList(queryNoList);
+        }
+
+        String queryNoTwo = queryDto.getQueryNoTwo();
+        if (com.szmsd.common.core.utils.StringUtils.isNotEmpty(queryNoTwo)) {
+            List<String> queryNoList = splitToArray(queryNoTwo, "[\n,]");
+            queryDto.setQueryNoTwoList(queryNoList);
+        }
         return returnExpressMapper.selectPageList(queryDto);
+    }
+
+    public static List<String> splitToArray(String text, String split) {
+        String[] arr = text.split(split);
+        if (arr.length == 0) {
+            return Collections.emptyList();
+        }
+        List<String> list = new ArrayList<>();
+        for (String s : arr) {
+            if (com.szmsd.common.core.utils.StringUtils.isEmpty(s)) {
+                continue;
+            }
+            list.add(s);
+        }
+        return list;
     }
 
     /**
@@ -375,7 +402,7 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
         String fromOrderNo = returnExpressAddDTO.getFromOrderNo();
         Integer integer = returnExpressMapper.selectCount(Wrappers.<ReturnExpressDetail>lambdaQuery()
                 //唯一 必填
-                .eq(ReturnExpressDetail::getScanCode, returnExpressAddDTO.getScanCode())
+                .eq(StringUtils.isNotBlank(returnExpressAddDTO.getScanCode()),ReturnExpressDetail::getScanCode, returnExpressAddDTO.getScanCode())
                 .or().eq(StringUtils.isNotBlank(fromOrderNo), ReturnExpressDetail::getFromOrderNo, fromOrderNo)
                 .select(ReturnExpressDetail::getId));
         AssertUtil.isTrue(integer == 0, "退件可扫描编码/原出库单号不能重复");
@@ -396,6 +423,9 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
         } else {
             returnExpressDetail.setDealStatus(configStatus.getDealStatus().getWmsWaitReceive());
             returnExpressDetail.setDealStatusStr(configStatus.getDealStatus().getWmsWaitReceiveStr());
+        }
+        if (returnExpressDetail.getScanCode()==null||returnExpressDetail.getScanCode().equals("")){
+            returnExpressDetail.setScanCode(returnExpressDetail.getFromOrderNo());
         }
         return returnExpressMapper.insert(returnExpressDetail);
     }
