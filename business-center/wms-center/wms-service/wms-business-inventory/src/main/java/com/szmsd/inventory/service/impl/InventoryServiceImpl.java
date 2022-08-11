@@ -207,12 +207,13 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 //            List<String> skuList = ListUtils.emptyIfNull(inventorySkuQueryDTO.getSkuList());
 //            inventorySkuQueryDTO.setSkuList(Stream.of(skuSplit, skuList).flatMap(Collection::stream).distinct().collect(Collectors.toList()));
 //        }
-        if (Objects.nonNull(SecurityUtils.getLoginUser())) {
-            String cusCode = CollectionUtils.isNotEmpty(SecurityUtils.getLoginUser().getPermissions()) ? SecurityUtils.getLoginUser().getPermissions().get(0) : "";
-            if (StringUtils.isEmpty(inventorySkuQueryDTO.getCusCode())) {
-                inventorySkuQueryDTO.setCusCode(cusCode);
-            }
-        }
+        //屏蔽字母账号，在发uat
+//        if (Objects.nonNull(SecurityUtils.getLoginUser())) {
+//            String cusCode = StringUtils.isNotEmpty(SecurityUtils.getLoginUser().getSellerCode()) ? SecurityUtils.getLoginUser().getSellerCode() : "";
+//            if (StringUtils.isEmpty(inventorySkuQueryDTO.getCusCode())) {
+//                inventorySkuQueryDTO.setCusCode(cusCode);
+//            }
+//        }
         return baseMapper.selectListVO(inventorySkuQueryDTO);
     }
 
@@ -727,7 +728,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
             this.updateById(after);
             // 记录库存日志
-            iInventoryRecordService.saveLogs(localLanguageEnum.getKey(), before, after, quantity, inventoryAdjustmentDTO.getReceiptNo());
+            iInventoryRecordService.saveLogs(localLanguageEnum.getKey(), before, after, quantity, inventoryAdjustmentDTO.getRelevanceNumber());
             adjustInventoryCK1(inventoryAdjustmentDTO);
         } finally {
             lock.unlock();
