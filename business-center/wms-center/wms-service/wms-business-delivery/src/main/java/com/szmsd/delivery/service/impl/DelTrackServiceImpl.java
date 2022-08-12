@@ -143,12 +143,12 @@ public class DelTrackServiceImpl extends ServiceImpl<DelTrackMapper, DelTrack> i
         }
 
         boolean orderNoNotEmpty = StringUtils.isNotEmpty(delTrack.getOrderNo());
-//        delTrackLambdaQueryWrapper.eq(orderNoNotEmpty, DelTrack::getOrderNo, delTrack.getOrderNo());
+        delTrackLambdaQueryWrapper.eq(orderNoNotEmpty, DelTrack::getOrderNo, delTrack.getOrderNo());
         delTrackLambdaQueryWrapper.eq(StringUtils.isNotBlank(delTrack.getSource()), DelTrack::getSource, delTrack.getSource());
         delTrackLambdaQueryWrapper
                 .ge(StringUtils.isNotBlank(delTrack.getBeginTime()), BaseEntity::getCreateTime, delTrack.getBeginTime())
                 .le(StringUtils.isNotBlank(delTrack.getEndTime()), BaseEntity::getCreateTime, delTrack.getEndTime())
-//                .eq(StringUtils.isNotBlank(delTrack.getTrackingNo()), DelTrack::getTrackingNo, delTrack.getTrackingNo())
+                .eq(StringUtils.isNotBlank(delTrack.getTrackingNo()), DelTrack::getTrackingNo, delTrack.getTrackingNo())
                 .eq(StringUtils.isNotBlank(delTrack.getCreateByName()), DelTrack::getCreateByName, delTrack.getCreateByName())
                 .orderByDesc(DelTrack::getTrackingTime)
         ;
@@ -197,10 +197,10 @@ public class DelTrackServiceImpl extends ServiceImpl<DelTrackMapper, DelTrack> i
                         // check result is null, ignore
                         ignore = true;
                     }
-                    if (ignore) {
-                        selectList.remove(i);
-                        i--;
-                    }
+//                    if (ignore) {
+//                        selectList.remove(i);
+//                        i--;
+//                    }
                 }
             }
         }
