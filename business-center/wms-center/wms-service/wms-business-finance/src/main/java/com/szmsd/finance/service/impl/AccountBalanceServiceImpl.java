@@ -103,9 +103,9 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
     @Override
     public List<AccountBalance> listPage(AccountBalanceDTO dto) {
         LambdaQueryWrapper<AccountBalance> queryWrapper = Wrappers.lambdaQuery();
-//        if (StringUtils.isNotEmpty(dto.getCusCode())) {
-//            queryWrapper.eq(AccountBalance::getCusCode, dto.getCusCode());
-//        }
+        if (StringUtils.isNotEmpty(dto.getCusCode())) {
+            queryWrapper.eq(AccountBalance::getCusCode, dto.getCusCode());
+        }
 
         LoginUser loginUser = SecurityUtils.getLoginUser();
         if (null != loginUser && !loginUser.isAllDataScope()) {
@@ -114,11 +114,11 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
             if (sellerCodeList.size()>0){
                 queryWrapper.in(AccountBalance::getCusCode, sellerCodeList);
             }
-            if (CollectionUtils.isNotEmpty(dto.getCusCodeList())) {
-            List<String> cusCodeList = dto.getCusCodeList();
-            queryWrapper.in(AccountBalance::getCusCode, cusCodeList);
-            dto.setCusCode("");
-        }
+//            if (CollectionUtils.isNotEmpty(dto.getCusCodeList())) {
+//            List<String> cusCodeList = dto.getCusCodeList();
+//            queryWrapper.in(AccountBalance::getCusCode, cusCodeList);
+//            dto.setCusCode("");
+//        }
         if (StringUtils.isNotEmpty(dto.getCurrencyCode())) {
             queryWrapper.eq(AccountBalance::getCurrencyCode, dto.getCurrencyCode());
         }
