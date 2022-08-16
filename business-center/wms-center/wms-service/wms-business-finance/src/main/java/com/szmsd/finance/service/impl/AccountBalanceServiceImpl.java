@@ -108,26 +108,40 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
         }
 
         LoginUser loginUser = SecurityUtils.getLoginUser();
-        if (null != loginUser && !loginUser.isAllDataScope()) {
+        List<String> sellerCodeList=null;
+        List<String> cusCodes=new ArrayList<>();
+        if (null != loginUser && !loginUser.getUsername().equals("admin")) {
             String username = loginUser.getUsername();
-            List<String> sellerCodeList=accountBalanceMapper.selectsellerCode(username);
+            sellerCodeList=accountBalanceMapper.selectsellerCode(username);
+            if (dto.getCusCode()==null){
+                cusCodes=sellerCodeList;
+            }else {
+                cusCodes.add(dto.getCusCode());
+            }
             if (sellerCodeList.size()>0){
                 queryWrapper.in(AccountBalance::getCusCode, sellerCodeList);
+
             }
-//            if (CollectionUtils.isNotEmpty(dto.getCusCodeList())) {
-//            List<String> cusCodeList = dto.getCusCodeList();
-//            queryWrapper.in(AccountBalance::getCusCode, cusCodeList);
-//            dto.setCusCode("");
-//        }
         if (StringUtils.isNotEmpty(dto.getCurrencyCode())) {
             queryWrapper.eq(AccountBalance::getCurrencyCode, dto.getCurrencyCode());
         }
-        //where.in(CollectionUtils.isNotEmpty( basSeller.getSellerCodeList()),"o.seller_code", basSeller.getSellerCodeList());
 
         }
+        if (null != loginUser && loginUser.getUsername().equals("admin")){
+            sellerCodeList=accountBalanceMapper.selectsellerCodes();
+            if (dto.getCusCode()==null){
+                cusCodes=sellerCodeList;
+            }else {
+                cusCodes.add(dto.getCusCode());
+            }
+        }
+
         List<AccountBalance> accountBalances = accountBalanceMapper.listPage(queryWrapper);
-        Map<String, CreditUseInfo> creditUseInfoMap = iDeductionRecordService.queryTimeCreditUse(dto.getCusCode(), new ArrayList<>(), Arrays.asList(CreditConstant.CreditBillStatusEnum.DEFAULT, CreditConstant.CreditBillStatusEnum.CHECKED));
-        Map<String, CreditUseInfo> needRepayCreditUseInfoMap = iDeductionRecordService.queryTimeCreditUse(dto.getCusCode(), new ArrayList<>(), Arrays.asList(CreditConstant.CreditBillStatusEnum.CHECKED));
+
+            Map<String, CreditUseInfo> creditUseInfoMap = iDeductionRecordService.queryTimeCreditUseUS(cusCodes, new ArrayList<>(), Arrays.asList(CreditConstant.CreditBillStatusEnum.DEFAULT, CreditConstant.CreditBillStatusEnum.CHECKED));
+            Map<String, CreditUseInfo> needRepayCreditUseInfoMap = iDeductionRecordService.queryTimeCreditUseUS(cusCodes, new ArrayList<>(), Arrays.asList(CreditConstant.CreditBillStatusEnum.CHECKED));
+
+
         accountBalances.forEach(x -> {
             String currencyCode = x.getCurrencyCode();
             BigDecimal creditUseAmount = Optional.ofNullable(creditUseInfoMap.get(currencyCode)).map(CreditUseInfo::getCreditUseAmount).orElse(BigDecimal.ZERO);
