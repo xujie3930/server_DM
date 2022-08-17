@@ -2108,7 +2108,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         // 在提审的时候异常，会审核失败他们自己会修改。只有核重后的，不能修改表单。
         boolean update = delOutboundExceptionService.againTrackingNo(delOutbound, dto);
         if (update) {
-            DelOutboundFurtherHandlerDto furtherHandlerDto = new DelOutboundFurtherHandlerDto()
+            DelOutboundFurtherHandlerDto furtherHandlerDto = new DelOutboundFurtherHandlerDto();
             furtherHandlerDto.setOrderNo(delOutbound.getOrderNo());
             this.furtherHandler(furtherHandlerDto);
         }
