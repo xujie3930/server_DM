@@ -54,10 +54,7 @@ import com.szmsd.delivery.service.IDelOutboundDetailService;
 import com.szmsd.delivery.service.IDelOutboundDocService;
 import com.szmsd.delivery.service.IDelOutboundPackingService;
 import com.szmsd.delivery.service.IDelOutboundService;
-import com.szmsd.delivery.service.wrapper.BringVerifyEnum;
-import com.szmsd.delivery.service.wrapper.IDelOutboundAsyncService;
-import com.szmsd.delivery.service.wrapper.IDelOutboundBringVerifyService;
-import com.szmsd.delivery.service.wrapper.IDelOutboundExceptionService;
+import com.szmsd.delivery.service.wrapper.*;
 import com.szmsd.delivery.util.PackageInfo;
 import com.szmsd.delivery.util.PackageUtil;
 import com.szmsd.delivery.util.Utils;
@@ -104,11 +101,7 @@ import org.springframework.util.Base64Utils;
 import javax.annotation.Resource;
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletResponse;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -176,6 +169,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
     @Autowired
     private BasSubClientService basSubClientService;
+    @Autowired
+    @Lazy
+    private IDelOutboundBringVerifyService delOutboundBringVerifyService;
     /**
      * 查询出库单模块
      *
@@ -1589,6 +1585,12 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         this.updateById(delOutbound);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Override
+    public void saveShipmentOrderNumber(DelOutbound delOutbound) {
+        this.updateById(delOutbound);
+    }
+
     @Override
     public DelOutbound getByOrderNo(String orderNo) {
         LambdaQueryWrapper<DelOutbound> queryWrapper = Wrappers.lambdaQuery();
@@ -2106,7 +2108,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         // 在提审的时候异常，会审核失败他们自己会修改。只有核重后的，不能修改表单。
         boolean update = delOutboundExceptionService.againTrackingNo(delOutbound, dto);
         if (update) {
-            DelOutboundFurtherHandlerDto furtherHandlerDto = new DelOutboundFurtherHandlerDto();
+            DelOutboundFurtherHandlerDto furtherHandlerDto = new DelOutboundFurtherHandlerDto()
             furtherHandlerDto.setOrderNo(delOutbound.getOrderNo());
             this.furtherHandler(furtherHandlerDto);
         }
@@ -2261,7 +2263,6 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         this.delOutboundAddressService.updateReassignImportedData(delOutboundAddressList);
         return results.get();
     }
-
 
 }
 
