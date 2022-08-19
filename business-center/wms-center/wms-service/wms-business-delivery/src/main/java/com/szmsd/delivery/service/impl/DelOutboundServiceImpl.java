@@ -315,9 +315,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             for (BasAttachment basAttachment : attachment) {
                 for (DelOutboundDetailVO detailVO : delOutboundVO.getDetails()) {
                     if (StringUtils.equals("" + detailVO.getId(), basAttachment.getBusinessItemNo())) {
-                            detailVO.setSkuFile(Arrays.asList(
-                            new AttachmentFileDTO().setId(basAttachment.getId()).setAttachmentName(basAttachment.getAttachmentName()).
-                                    setAttachmentUrl(basAttachment.getAttachmentUrl())));
+                        detailVO.setSkuFile(Arrays.asList(
+                                new AttachmentFileDTO().setId(basAttachment.getId()).setAttachmentName(basAttachment.getAttachmentName()).
+                                        setAttachmentUrl(basAttachment.getAttachmentUrl())));
 
                     }
                 }
@@ -746,7 +746,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             }
             // 附件信息
             if (!DelOutboundOrderTypeEnum.MULTIPLE_PIECES.getCode().equals(delOutbound.getOrderType())
-            && !DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())
+                    && !DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())
             ) {
                 AttachmentDTO attachmentDTO = AttachmentDTO.builder().businessNo(orderNo).businessItemNo(null).fileList(dto.getDocumentsFiles()).attachmentTypeEnum(AttachmentTypeEnum.DEL_OUTBOUND_DOCUMENT).build();
                 this.remoteAttachmentService.saveAndUpdate(attachmentDTO);
@@ -802,8 +802,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
                         // 箱标明细
                         AttachmentDTO boxMarkDetailFiels = AttachmentDTO.builder().businessNo(orderNo).businessItemNo("" + detail.getId()).fileList(
-                                Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl())
-                                        .setAttachmentName(attachmentDataDTO.getAttachmentName()))).
+                                        Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl())
+                                                .setAttachmentName(attachmentDataDTO.getAttachmentName()))).
                                 attachmentTypeEnum(AttachmentTypeEnum.MULTIPLE_PIECES_BOX_DETAIL).build();
                         this.remoteAttachmentService.saveAndUpdate(boxMarkDetailFiels);
 
@@ -812,8 +812,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                         AttachmentDataDTO attachmentDataDTO = detail.getSkuFile().get(0);
                         // SKU
                         AttachmentDTO skuFiles = AttachmentDTO.builder().businessNo(orderNo).businessItemNo("" + detail.getId()).fileList(
-                                Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl()).
-                                        setAttachmentName(attachmentDataDTO.getAttachmentName()))).
+                                        Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl()).
+                                                setAttachmentName(attachmentDataDTO.getAttachmentName()))).
                                 attachmentTypeEnum(AttachmentTypeEnum.MULTIPLE_PIECES_SKU).build();
                         this.remoteAttachmentService.saveAndUpdate(skuFiles);
                     }
@@ -1773,22 +1773,18 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         }
         int result = 0;
         for (Long id : ids) {
-            try {
-                DelOutbound delOutbound = this.getById(id);
-                DelOutboundOperationLogEnum.HANDLER.listener(delOutbound);
-                if (DelOutboundStateEnum.WHSE_COMPLETED.getCode().equals(delOutbound.getState())) {
-                    // 仓库发货，调用完成的接口
-                    this.delOutboundAsyncService.completed(delOutbound.getOrderNo());
-                    result++;
-                } else if (DelOutboundStateEnum.WHSE_CANCELLED.getCode().equals(delOutbound.getState())) {
-                    // 仓库取消，调用取消的接口
-                    this.delOutboundAsyncService.cancelled(delOutbound.getOrderNo());
-                    result++;
-                } else {
-                    result = result + this.delOutboundAsyncService.shipmentPacking(id);
-                }
-            } catch (Exception e) {
-                logger.error(e.getMessage(), e);
+            DelOutbound delOutbound = this.getById(id);
+            DelOutboundOperationLogEnum.HANDLER.listener(delOutbound);
+            if (DelOutboundStateEnum.WHSE_COMPLETED.getCode().equals(delOutbound.getState())) {
+                // 仓库发货，调用完成的接口
+                this.delOutboundAsyncService.completed(delOutbound.getOrderNo());
+                result++;
+            } else if (DelOutboundStateEnum.WHSE_CANCELLED.getCode().equals(delOutbound.getState())) {
+                // 仓库取消，调用取消的接口
+                this.delOutboundAsyncService.cancelled(delOutbound.getOrderNo());
+                result++;
+            } else {
+                result = result + this.delOutboundAsyncService.shipmentPacking(id);
             }
         }
         return result;
@@ -1816,7 +1812,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         return result;
     }
 
-     @Override
+    @Override
     public void label(HttpServletResponse response, DelOutboundLabelDto dto) {
         DelOutbound delOutbound = this.getById(dto.getId());
         if (null == delOutbound) {
@@ -1850,7 +1846,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         }
     }
 
-    @Overrid
+    @Override
     public List<DelOutboundLabelResponse> labelBase64(DelOutboundLabelDto dto) {
         List<String> orderNos = dto.getOrderNos();
         if (CollectionUtils.isEmpty(orderNos)) {
