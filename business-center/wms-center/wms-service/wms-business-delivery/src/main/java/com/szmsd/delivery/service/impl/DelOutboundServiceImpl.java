@@ -1816,107 +1816,41 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         return result;
     }
 
-    @Override
+     @Override
     public void label(HttpServletResponse response, DelOutboundLabelDto dto) {
         DelOutbound delOutbound = this.getById(dto.getId());
         if (null == delOutbound) {
             throw new CommonException("400", "单据不存在");
         }
-        if("0".equals(dto.getType())){
-
-            if(StringUtils.isEmpty(delOutbound.getShipmentRetryLabel())){
-                throw new CommonException("400", "标签文件不存在");
-
-            }
-            String pathname = DelOutboundServiceImplUtil.getPackageTransferLabelFilePath(delOutbound) + "/" + delOutbound.getOrderNo() + ".pdf";
-            File labelFile = new File(pathname);
-            if (!labelFile.exists()) {
-                String orderNo = delOutbound.getOrderNo();
-                // 查询地址信息
-                DelOutboundAddress delOutboundAddress = this.delOutboundAddressService.getByOrderNo(orderNo);
-                try {
-                    // 查询SKU信息
-                    List<String> nos = new ArrayList<>();
-                    nos.add(orderNo);
-                    Map<String, String> skuLabelMap = this.delOutboundDetailService.queryDetailsLabelByNos(nos);
-                    String skuLabel = skuLabelMap.get(orderNo);
-                    ByteArrayOutputStream byteArrayOutputStream = DelOutboundServiceImplUtil.renderPackageTransfer(delOutbound, delOutboundAddress, skuLabel);
-                    byte[] fb = null;
-                    FileUtils.writeByteArrayToFile(labelFile, fb = byteArrayOutputStream.toByteArray(), false);
-                    ServletOutputStream outputStream = null;
-                    InputStream inputStream = null;
-                    try {
-                        outputStream = response.getOutputStream();
-                        //response为HttpServletResponse对象
-                        response.setContentType("application/pdf;charset=utf-8");
-                        //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
-                        response.setHeader("Content-Disposition", "attachment;filename=" + delOutbound.getOrderNo() + ".pdf");
-                        IOUtils.copy(new ByteArrayInputStream(fb), outputStream);
-                    } catch (IOException e) {
-                        logger.error(e.getMessage(), e);
-                        throw new CommonException("500", "读取标签文件失败");
-                    } finally {
-                        IoUtil.flush(outputStream);
-                        IoUtil.close(outputStream);
-                        IoUtil.close(inputStream);
-                    }
-                    return;
-
-                } catch (Exception e) {
-                    throw new CommonException("400", "标签文件不存在");
-                }
-
-            }
-            ServletOutputStream outputStream = null;
-            InputStream inputStream = null;
-            try {
-                outputStream = response.getOutputStream();
-                //response为HttpServletResponse对象
-                response.setContentType("application/pdf;charset=utf-8");
-                //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
-                response.setHeader("Content-Disposition", "attachment;filename=" + delOutbound.getOrderNo() + ".pdf");
-                inputStream = new FileInputStream(labelFile);
-                IOUtils.copy(inputStream, outputStream);
-            } catch (IOException e) {
-                logger.error(e.getMessage(), e);
-                throw new CommonException("500", "读取标签文件失败");
-            } finally {
-                IoUtil.flush(outputStream);
-                IoUtil.close(outputStream);
-                IoUtil.close(inputStream);
-            }
-        }else{
-            if (StringUtils.isEmpty(delOutbound.getShipmentOrderNumber())) {
-                throw new CommonException("400", "未获取承运商标签");
-            }
-            String pathname = DelOutboundServiceImplUtil.getLabelFilePath(delOutbound) + "/" + delOutbound.getShipmentOrderNumber() + ".pdf";
-            File labelFile = new File(pathname);
-            if (!labelFile.exists()) {
-                throw new CommonException("400", "标签文件不存在");
-            }
-            ServletOutputStream outputStream = null;
-            InputStream inputStream = null;
-            try {
-                outputStream = response.getOutputStream();
-                //response为HttpServletResponse对象
-                response.setContentType("application/pdf;charset=utf-8");
-                //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
-                response.setHeader("Content-Disposition", "attachment;filename=" + delOutbound.getShipmentOrderNumber() + ".pdf");
-                inputStream = new FileInputStream(labelFile);
-                IOUtils.copy(inputStream, outputStream);
-            } catch (IOException e) {
-                logger.error(e.getMessage(), e);
-                throw new CommonException("500", "读取标签文件失败");
-            } finally {
-                IoUtil.flush(outputStream);
-                IoUtil.close(outputStream);
-                IoUtil.close(inputStream);
-            }
+        if (StringUtils.isEmpty(delOutbound.getShipmentOrderNumber())) {
+            throw new CommonException("400", "未获取承运商标签");
         }
-
+        String pathname = DelOutboundServiceImplUtil.getLabelFilePath(delOutbound) + "/" + delOutbound.getShipmentOrderNumber() + ".pdf";
+        File labelFile = new File(pathname);
+        if (!labelFile.exists()) {
+            throw new CommonException("400", "标签文件不存在");
+        }
+        ServletOutputStream outputStream = null;
+        InputStream inputStream = null;
+        try {
+            outputStream = response.getOutputStream();
+            //response为HttpServletResponse对象
+            response.setContentType("application/pdf;charset=utf-8");
+            //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
+            response.setHeader("Content-Disposition", "attachment;filename=" + delOutbound.getShipmentOrderNumber() + ".pdf");
+            inputStream = new FileInputStream(labelFile);
+            IOUtils.copy(inputStream, outputStream);
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+            throw new CommonException("500", "读取标签文件失败");
+        } finally {
+            IoUtil.flush(outputStream);
+            IoUtil.close(outputStream);
+            IoUtil.close(inputStream);
+        }
     }
 
-    @Override
+    @Overrid
     public List<DelOutboundLabelResponse> labelBase64(DelOutboundLabelDto dto) {
         List<String> orderNos = dto.getOrderNos();
         if (CollectionUtils.isEmpty(orderNos)) {
@@ -2356,66 +2290,5 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         return results.get();
     }
 
-    @Override
-    public int receiveLabel(DelOutboundReceiveLabelDto dto) {
-
-        LambdaQueryWrapper<DelOutbound> queryWrapper = Wrappers.lambdaQuery();
-        if(StringUtils.isNotEmpty(dto.getOrderNo())){
-            queryWrapper.eq(DelOutbound::getOrderNo, dto.getOrderNo());
-
-        }else if(StringUtils.isNotEmpty(dto.getOrderNo())){
-            queryWrapper.eq(DelOutbound::getRefNo, dto.getRefNo());
-
-        }else if(StringUtils.isNotEmpty(dto.getOrderNo())){
-            queryWrapper.eq(DelOutbound::getTrackingNo, dto.getTrackingNo());
-        }else{
-            throw new CommonException("400", "唯一标识必须有值");
-        }
-        DelOutbound data = this.getOne(queryWrapper);
-        if(data == null){
-            throw new CommonException("400", "出库单未匹配");
-        }
-        if(StringUtils.isNotEmpty(dto.getTraceId())){
-            data.setTraceId(dto.getTraceId());
-        }
-        if(StringUtils.isNotEmpty(dto.getRemark())){
-            data.setRemark(dto.getRemark());
-
-        }
-
-        data.setShipmentOrderLabelUrl(delOutboundBringVerifyService.saveShipmentLabel(dto.getFileStream(), data));
-        this.updateById(data);
-        return 1;
-    }
-
-    @Override
-    public int boxStatus(DelOutboundBoxStatusDto dto) {
-        LambdaQueryWrapper<DelOutboundDetail> queryWrapper = Wrappers.lambdaQuery();
-        queryWrapper.eq(DelOutboundDetail::getOrderNo, dto.getOrderNo());
-        queryWrapper.eq(DelOutboundDetail::getBoxMark, dto.getBoxNo());
-        List<DelOutboundDetail> dataDelOutboundDetailList = delOutboundDetailService.list(queryWrapper);
-        if(dataDelOutboundDetailList.size() == 0){
-            throw new CommonException("400", "没有匹配的箱号数据");
-        }
-        for (DelOutboundDetail detail: dataDelOutboundDetailList){
-            detail.setOperationType(dto.getOperationType());
-        }
-        delOutboundDetailService.updateBatchById(dataDelOutboundDetailList);
-
-        int i = 0;
-        for (DelOutboundDetail detail: dataDelOutboundDetailList){
-            if("Completed".equals(detail.getOperationType())){
-                i++;
-            }
-        }
-        if(i == dataDelOutboundDetailList.size()){
-            //该订单全部接收完成后，调用PRC
-            ApplicationContext context = delOutboundBringVerifyService.initContext(this.getByOrderNo(dto.getOrderNo()));
-            ApplicationContainer applicationContainer = new ApplicationContainer(context, BringVerifyEnum.PRC_PRICING, BringVerifyEnum.PRODUCT_INFO, BringVerifyEnum.PRC_PRICING);
-            applicationContainer.action();
-
-        }
-        return 1;
-    }
 }
 
