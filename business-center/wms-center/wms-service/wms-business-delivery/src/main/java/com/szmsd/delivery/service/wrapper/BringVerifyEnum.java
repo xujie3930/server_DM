@@ -336,9 +336,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                     delOutbound.setSupplierCalcType(data.getSupplierCalcType());
                     delOutbound.setSupplierCalcId(data.getSupplierCalcId());
 
-                    if(StringUtils.isNotEmpty(data.getAmazonLogisticsRouteId())){
-                        delOutbound.setAmazonLogisticsRouteId(data.getAmazonLogisticsRouteId());
-                    }
+
                     // 计费重信息
                     Weight calcWeight = packageInfo.getCalcWeight();
                     delOutbound.setCalcWeight(calcWeight.getValue());
@@ -411,7 +409,6 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             // 推单WMS
             updateDelOutbound.setRefOrderNo("");
 
-            updateDelOutbound.setAmazonLogisticsRouteId((""));
 
             // 提审失败
             updateDelOutbound.setState(DelOutboundStateEnum.AUDIT_FAILED.getCode());
@@ -963,9 +960,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             // 推单WMS
             updateDelOutbound.setRefOrderNo(refOrderNo);
 
-            if(StringUtils.isNotEmpty(delOutbound.getAmazonLogisticsRouteId())){
-                updateDelOutbound.setAmazonLogisticsRouteId(delOutbound.getAmazonLogisticsRouteId());
-            }
+
 
             delOutboundService.bringVerifySuccess(updateDelOutbound);
             // 处理发货条件
