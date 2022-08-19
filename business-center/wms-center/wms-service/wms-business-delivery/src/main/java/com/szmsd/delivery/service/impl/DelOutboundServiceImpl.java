@@ -97,6 +97,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.Base64Utils;
+import org.springframework.util.StopWatch;
 
 import javax.annotation.Resource;
 import javax.servlet.ServletOutputStream;
@@ -626,6 +627,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     }
 
     private DelOutboundAddResponse createDelOutbound(DelOutboundDto dto) {
+        StopWatch stopWatch = new StopWatch();
         logger.info(">>>>>[创建出库单]1.0 开始创建出库单");
         TimeInterval timer = DateUtil.timer();
         DelOutboundAddResponse response = new DelOutboundAddResponse();
@@ -671,42 +673,57 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             if (DelOutboundConstant.REASSIGN_TYPE_Y.equals(dto.getReassignType())) {
                 prefix = "RE" + prefix;
             }
+            long shettTime = System.currentTimeMillis();
+
             delOutbound.setOrderNo(orderNo = (prefix + sellerCode + this.serialNumberClientService.generateNumber(SerialNumberConstant.DEL_OUTBOUND_NO)));
+            logger.info(">>>>>[创建出库单{}]3.0创建出库单流水号时间，耗时{}", delOutbound.getOrderNo(), System.currentTimeMillis()-shettTime);
+
+
             // 默认状态
             delOutbound.setState(DelOutboundStateEnum.REVIEWED.getCode());
             // 默认异常状态
             delOutbound.setExceptionState(DelOutboundExceptionStateEnum.NORMAL.getCode());
-            logger.info(">>>>>[创建出库单]3.1 出库单对象赋值，生成流水号，{}", timer.intervalRestart());
+//            logger.info(">>>>>[创建出库单{}]3.1 出库单对象赋值，生成流水号，{}", delOutbound.getOrderNo(), timer.intervalRestart());
             // 计算发货类型
+            long shipmentTypeTime = System.currentTimeMillis();
+
             delOutbound.setShipmentType(this.buildShipmentType(dto));
-            logger.info(">>>>>[创建出库单]3.2 计算发货类型，{}", timer.intervalRestart());
+            logger.info(">>>>>[创建出库单{}]3.1.5sku属性获取时间，耗时{}", delOutbound.getOrderNo(), System.currentTimeMillis()-shipmentTypeTime);
+
+            logger.info(">>>>>[创建出库单{}]3.2 计算发货类型，{}", delOutbound.getOrderNo(), timer.intervalRestart());
             // 计算包裹大小
             this.countPackageSize(delOutbound, dto);
-            logger.info(">>>>>[创建出库单]3.3 计算包裹大小，{}", timer.intervalRestart());
+            logger.info(">>>>>[创建出库单{}]3.3 计算包裹大小，{}", delOutbound.getOrderNo(), timer.intervalRestart());
             // 保存出库单
             int insert = baseMapper.insert(delOutbound);
-            logger.info(">>>>>[创建出库单]3.4 保存出库单，{}", timer.intervalRestart());
+            logger.info(">>>>>[创建出库单{}]3.4 保存出库单，{}", delOutbound.getOrderNo(), timer.intervalRestart());
             if (insert == 0) {
                 throw new CommonException("400", "保存出库单失败！");
             }
             DelOutboundOperationLogEnum.CREATE.listener(delOutbound);
             // 保存地址
             this.saveAddress(dto, delOutbound.getOrderNo());
-            logger.info(">>>>>[创建出库单]3.5 保存地址信息，{}", timer.intervalRestart());
+            logger.info(">>>>>[创建出库单{}]3.5 保存地址信息，{}", delOutbound.getOrderNo(), timer.intervalRestart());
 
             if (DelOutboundOrderTypeEnum.MULTIPLE_PIECES.getCode().equals(delOutbound.getOrderType())) {
                 //如果明细中商标为空，系统自动生成
+                stopWatch.start();
 
                 for (DelOutboundDetailDto detailDto : dto.getDetails()) {
                     if (StringUtils.isEmpty(detailDto.getBoxMark())) {
                         detailDto.setBoxMark(this.serialNumberClientService.generateNumber(SerialNumberConstant.BOX_MARK));
                     }
                 }
+                stopWatch.stop();
+                logger.info(">>>>>[创建出库单{}]3.55一票多件，{}, 耗时{}", delOutbound.getOrderNo(), timer.intervalRestart(), stopWatch.getLastTaskInfo().getTimeMillis());
+
             }
 
             // 保存明细
+            stopWatch.start();
             this.saveDetail(dto, delOutbound.getOrderNo());
-            logger.info(">>>>>[创建出库单]3.6 保存明细信息，{}", timer.intervalRestart());
+            stopWatch.stop();
+            logger.info(">>>>>[创建出库单{}]3.6 保存明细信息，{}, 耗时{}", delOutbound.getOrderNo(), timer.intervalRestart(), stopWatch.getLastTaskInfo().getTimeMillis());
 
 
             if(DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())){
@@ -809,6 +826,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             response.setOrderNo(orderNo);
             return response;
         } catch (Exception e) {
+            e.printStackTrace();
             logger.error(e.getMessage(), e);
             // 返回异常错误信息
             response.setStatus(false);
@@ -872,6 +890,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         // 转运特殊处理
         List<DelOutboundDetailDto> details = dto.getDetails();
         if (DelOutboundOrderTypeEnum.PACKAGE_TRANSFER.getCode().equals(delOutbound.getOrderType())) {
+            logger.info(">>>>>[创建出库单]3.4.5  计算包裹大小，转运特殊处理");
+
             double length = Utils.defaultValue(dto.getLength());
             double width = Utils.defaultValue(dto.getWidth());
             double height = Utils.defaultValue(dto.getHeight());
@@ -911,6 +931,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             delOutbound.setWeight(weight.doubleValue());
 
         }else {
+            logger.info(">>>>>[创建出库单]3.4.5  计算包裹大小，转运特殊处理else。。。。。");
+
             // 查询包材的信息
             Set<String> skus = new HashSet<>();
             for (DelOutboundDetailDto detail : details) {
@@ -1751,18 +1773,22 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         }
         int result = 0;
         for (Long id : ids) {
-            DelOutbound delOutbound = this.getById(id);
-            DelOutboundOperationLogEnum.HANDLER.listener(delOutbound);
-            if (DelOutboundStateEnum.WHSE_COMPLETED.getCode().equals(delOutbound.getState())) {
-                // 仓库发货，调用完成的接口
-                this.delOutboundAsyncService.completed(delOutbound.getOrderNo());
-                result++;
-            } else if (DelOutboundStateEnum.WHSE_CANCELLED.getCode().equals(delOutbound.getState())) {
-                // 仓库取消，调用取消的接口
-                this.delOutboundAsyncService.cancelled(delOutbound.getOrderNo());
-                result++;
-            } else {
-                result = result + this.delOutboundAsyncService.shipmentPacking(id);
+            try {
+                DelOutbound delOutbound = this.getById(id);
+                DelOutboundOperationLogEnum.HANDLER.listener(delOutbound);
+                if (DelOutboundStateEnum.WHSE_COMPLETED.getCode().equals(delOutbound.getState())) {
+                    // 仓库发货，调用完成的接口
+                    this.delOutboundAsyncService.completed(delOutbound.getOrderNo());
+                    result++;
+                } else if (DelOutboundStateEnum.WHSE_CANCELLED.getCode().equals(delOutbound.getState())) {
+                    // 仓库取消，调用取消的接口
+                    this.delOutboundAsyncService.cancelled(delOutbound.getOrderNo());
+                    result++;
+                } else {
+                    result = result + this.delOutboundAsyncService.shipmentPacking(id);
+                }
+            } catch (Exception e) {
+                logger.error(e.getMessage(), e);
             }
         }
         return result;
@@ -1796,32 +1822,98 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         if (null == delOutbound) {
             throw new CommonException("400", "单据不存在");
         }
-        if (StringUtils.isEmpty(delOutbound.getShipmentOrderNumber())) {
-            throw new CommonException("400", "未获取承运商标签");
+        if("0".equals(dto.getType())){
+
+            if(StringUtils.isEmpty(delOutbound.getShipmentRetryLabel())){
+                throw new CommonException("400", "标签文件不存在");
+
+            }
+            String pathname = DelOutboundServiceImplUtil.getPackageTransferLabelFilePath(delOutbound) + "/" + delOutbound.getOrderNo() + ".pdf";
+            File labelFile = new File(pathname);
+            if (!labelFile.exists()) {
+                String orderNo = delOutbound.getOrderNo();
+                // 查询地址信息
+                DelOutboundAddress delOutboundAddress = this.delOutboundAddressService.getByOrderNo(orderNo);
+                try {
+                    // 查询SKU信息
+                    List<String> nos = new ArrayList<>();
+                    nos.add(orderNo);
+                    Map<String, String> skuLabelMap = this.delOutboundDetailService.queryDetailsLabelByNos(nos);
+                    String skuLabel = skuLabelMap.get(orderNo);
+                    ByteArrayOutputStream byteArrayOutputStream = DelOutboundServiceImplUtil.renderPackageTransfer(delOutbound, delOutboundAddress, skuLabel);
+                    byte[] fb = null;
+                    FileUtils.writeByteArrayToFile(labelFile, fb = byteArrayOutputStream.toByteArray(), false);
+                    ServletOutputStream outputStream = null;
+                    InputStream inputStream = null;
+                    try {
+                        outputStream = response.getOutputStream();
+                        //response为HttpServletResponse对象
+                        response.setContentType("application/pdf;charset=utf-8");
+                        //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
+                        response.setHeader("Content-Disposition", "attachment;filename=" + delOutbound.getOrderNo() + ".pdf");
+                        IOUtils.copy(new ByteArrayInputStream(fb), outputStream);
+                    } catch (IOException e) {
+                        logger.error(e.getMessage(), e);
+                        throw new CommonException("500", "读取标签文件失败");
+                    } finally {
+                        IoUtil.flush(outputStream);
+                        IoUtil.close(outputStream);
+                        IoUtil.close(inputStream);
+                    }
+                    return;
+
+                } catch (Exception e) {
+                    throw new CommonException("400", "标签文件不存在");
+                }
+
+            }
+            ServletOutputStream outputStream = null;
+            InputStream inputStream = null;
+            try {
+                outputStream = response.getOutputStream();
+                //response为HttpServletResponse对象
+                response.setContentType("application/pdf;charset=utf-8");
+                //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
+                response.setHeader("Content-Disposition", "attachment;filename=" + delOutbound.getOrderNo() + ".pdf");
+                inputStream = new FileInputStream(labelFile);
+                IOUtils.copy(inputStream, outputStream);
+            } catch (IOException e) {
+                logger.error(e.getMessage(), e);
+                throw new CommonException("500", "读取标签文件失败");
+            } finally {
+                IoUtil.flush(outputStream);
+                IoUtil.close(outputStream);
+                IoUtil.close(inputStream);
+            }
+        }else{
+            if (StringUtils.isEmpty(delOutbound.getShipmentOrderNumber())) {
+                throw new CommonException("400", "未获取承运商标签");
+            }
+            String pathname = DelOutboundServiceImplUtil.getLabelFilePath(delOutbound) + "/" + delOutbound.getShipmentOrderNumber() + ".pdf";
+            File labelFile = new File(pathname);
+            if (!labelFile.exists()) {
+                throw new CommonException("400", "标签文件不存在");
+            }
+            ServletOutputStream outputStream = null;
+            InputStream inputStream = null;
+            try {
+                outputStream = response.getOutputStream();
+                //response为HttpServletResponse对象
+                response.setContentType("application/pdf;charset=utf-8");
+                //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
+                response.setHeader("Content-Disposition", "attachment;filename=" + delOutbound.getShipmentOrderNumber() + ".pdf");
+                inputStream = new FileInputStream(labelFile);
+                IOUtils.copy(inputStream, outputStream);
+            } catch (IOException e) {
+                logger.error(e.getMessage(), e);
+                throw new CommonException("500", "读取标签文件失败");
+            } finally {
+                IoUtil.flush(outputStream);
+                IoUtil.close(outputStream);
+                IoUtil.close(inputStream);
+            }
         }
-        String pathname = DelOutboundServiceImplUtil.getLabelFilePath(delOutbound) + "/" + delOutbound.getShipmentOrderNumber() + ".pdf";
-        File labelFile = new File(pathname);
-        if (!labelFile.exists()) {
-            throw new CommonException("400", "标签文件不存在");
-        }
-        ServletOutputStream outputStream = null;
-        InputStream inputStream = null;
-        try {
-            outputStream = response.getOutputStream();
-            //response为HttpServletResponse对象
-            response.setContentType("application/pdf;charset=utf-8");
-            //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
-            response.setHeader("Content-Disposition", "attachment;filename=" + delOutbound.getShipmentOrderNumber() + ".pdf");
-            inputStream = new FileInputStream(labelFile);
-            IOUtils.copy(inputStream, outputStream);
-        } catch (IOException e) {
-            logger.error(e.getMessage(), e);
-            throw new CommonException("500", "读取标签文件失败");
-        } finally {
-            IoUtil.flush(outputStream);
-            IoUtil.close(outputStream);
-            IoUtil.close(inputStream);
-        }
+
     }
 
     @Override
@@ -2264,5 +2356,66 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         return results.get();
     }
 
+    @Override
+    public int receiveLabel(DelOutboundReceiveLabelDto dto) {
+
+        LambdaQueryWrapper<DelOutbound> queryWrapper = Wrappers.lambdaQuery();
+        if(StringUtils.isNotEmpty(dto.getOrderNo())){
+            queryWrapper.eq(DelOutbound::getOrderNo, dto.getOrderNo());
+
+        }else if(StringUtils.isNotEmpty(dto.getOrderNo())){
+            queryWrapper.eq(DelOutbound::getRefNo, dto.getRefNo());
+
+        }else if(StringUtils.isNotEmpty(dto.getOrderNo())){
+            queryWrapper.eq(DelOutbound::getTrackingNo, dto.getTrackingNo());
+        }else{
+            throw new CommonException("400", "唯一标识必须有值");
+        }
+        DelOutbound data = this.getOne(queryWrapper);
+        if(data == null){
+            throw new CommonException("400", "出库单未匹配");
+        }
+        if(StringUtils.isNotEmpty(dto.getTraceId())){
+            data.setTraceId(dto.getTraceId());
+        }
+        if(StringUtils.isNotEmpty(dto.getRemark())){
+            data.setRemark(dto.getRemark());
+
+        }
+
+        data.setShipmentOrderLabelUrl(delOutboundBringVerifyService.saveShipmentLabel(dto.getFileStream(), data));
+        this.updateById(data);
+        return 1;
+    }
+
+    @Override
+    public int boxStatus(DelOutboundBoxStatusDto dto) {
+        LambdaQueryWrapper<DelOutboundDetail> queryWrapper = Wrappers.lambdaQuery();
+        queryWrapper.eq(DelOutboundDetail::getOrderNo, dto.getOrderNo());
+        queryWrapper.eq(DelOutboundDetail::getBoxMark, dto.getBoxNo());
+        List<DelOutboundDetail> dataDelOutboundDetailList = delOutboundDetailService.list(queryWrapper);
+        if(dataDelOutboundDetailList.size() == 0){
+            throw new CommonException("400", "没有匹配的箱号数据");
+        }
+        for (DelOutboundDetail detail: dataDelOutboundDetailList){
+            detail.setOperationType(dto.getOperationType());
+        }
+        delOutboundDetailService.updateBatchById(dataDelOutboundDetailList);
+
+        int i = 0;
+        for (DelOutboundDetail detail: dataDelOutboundDetailList){
+            if("Completed".equals(detail.getOperationType())){
+                i++;
+            }
+        }
+        if(i == dataDelOutboundDetailList.size()){
+            //该订单全部接收完成后，调用PRC
+            ApplicationContext context = delOutboundBringVerifyService.initContext(this.getByOrderNo(dto.getOrderNo()));
+            ApplicationContainer applicationContainer = new ApplicationContainer(context, BringVerifyEnum.PRC_PRICING, BringVerifyEnum.PRODUCT_INFO, BringVerifyEnum.PRC_PRICING);
+            applicationContainer.action();
+
+        }
+        return 1;
+    }
 }
 
