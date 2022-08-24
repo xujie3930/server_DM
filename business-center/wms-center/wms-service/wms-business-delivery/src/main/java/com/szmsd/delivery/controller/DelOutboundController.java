@@ -120,7 +120,6 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * 出库管理
@@ -165,6 +164,13 @@ public class DelOutboundController extends BaseController {
         return getDataTable(this.delOutboundService.selectDelOutboundList(queryDto));
     }
 
+
+    @PostMapping("/manualTrackingYee")
+    @ApiOperation(value = "手动推TY", position = 100)
+    public R ManualTrackingYee(@RequestBody List<String> list) {
+        delOutboundService.manualTrackingYee(list);
+        return R.ok();
+    }
 
 
     @PreAuthorize("@ss.hasPermi('inventory:queryFinishList')")
@@ -704,13 +710,6 @@ public class DelOutboundController extends BaseController {
 
             String len = getLen();
 
-            if (Objects.nonNull(SecurityUtils.getLoginUser())) {
-                String cusCode = StringUtils.isNotEmpty(SecurityUtils.getLoginUser().getSellerCode()) ? SecurityUtils.getLoginUser().getSellerCode() : "";
-                if (StringUtils.isEmpty(queryDto.getCustomCode())) {
-                    queryDto.setCustomCode(cusCode);
-                }
-            }
-
             // 查询出库类型数据
             Map<String, List<BasSubWrapperVO>> listMap = this.basSubClientService.getSub("063,065,066,099,059");
             DelOutboundExportContext exportContext = new DelOutboundExportContext(this.basWarehouseClientService, this.basRegionFeignService, len);
@@ -900,6 +899,22 @@ public class DelOutboundController extends BaseController {
         this.delOutboundService.update(null, lambdaUpdateWrapper);
         return R.ok(true);
     }
-    
+    @PreAuthorize("@ss.hasPermi('DelOutbound:DelOutbound:receiveLabel')")
+    @Log(title = "出库单模块", businessType = BusinessType.UPDATE)
+    @PostMapping("/receiveLabel")
+    @ApiOperation(value = "出库管理 - 接收供应商系统传回的标签", position = 400)
+    @ApiImplicitParam(name = "dto", value = "出库单", dataType = "DelOutboundDto")
+    public R<Integer> receiveLabel(@RequestBody @Validated(ValidationUpdateGroup.class) DelOutboundReceiveLabelDto dto) {
+        return R.ok(delOutboundService.receiveLabel(dto));
+    }
+
+    @PreAuthorize("@ss.hasPermi('DelOutbound:DelOutbound:receiveLabel')")
+    @Log(title = "出库单模块", businessType = BusinessType.UPDATE)
+    @PostMapping("/box/status")
+    @ApiOperation(value = "出库管理 - 接收供应商系统传回的标签", position = 400)
+    @ApiImplicitParam(name = "dto", value = "出库单", dataType = "DelOutboundDto")
+    public R<Integer> boxStatus(@RequestBody DelOutboundBoxStatusDto dto) {
+        return R.ok(delOutboundService.boxStatus(dto));
+    }
 
 }
