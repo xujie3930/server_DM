@@ -119,6 +119,8 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
                 if (sellerCodeList.size()>0){
                     queryWrapper.in(AccountBalance::getCusCode, sellerCodeList);
 
+                } else if (sellerCodeList.size()==0){
+                    queryWrapper.in(AccountBalance::getCusCode, "");
                 }
                 if (StringUtils.isNotEmpty(dto.getCurrencyCode())) {
                     queryWrapper.eq(AccountBalance::getCurrencyCode, dto.getCurrencyCode());
@@ -127,7 +129,13 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
             }
             if (null != loginUser && loginUser.getUsername().equals("admin")){
                 sellerCodeList=accountBalanceMapper.selectsellerCodes();
-                queryWrapper.eq(AccountBalance::getCurrencyCode, dto.getCurrencyCode());
+                if (sellerCodeList.size()>0){
+                    queryWrapper.in(AccountBalance::getCusCode, sellerCodeList);
+
+                }
+                if (StringUtils.isNotEmpty(dto.getCurrencyCode())) {
+                    queryWrapper.eq(AccountBalance::getCurrencyCode, dto.getCurrencyCode());
+                }
 
             }
             //设置分页参数
