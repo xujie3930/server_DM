@@ -3,6 +3,7 @@ package com.szmsd.delivery.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.szmsd.common.core.annotation.Excel;
 import com.szmsd.common.core.web.domain.BaseEntity;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -139,6 +140,13 @@ public class DelOutbound extends BaseEntity {
     @ApiModelProperty(value = "异常描述")
     private String exceptionMessage;
 
+
+    @ApiModelProperty(value = "异常状态WMS")
+    private String exceptionStateWms;
+
+    @ApiModelProperty(value = "异常描述WMS")
+    private String exceptionMessageWms;
+
     @ApiModelProperty(value = "发货类型")
     private String shipmentType;
 
@@ -247,10 +255,11 @@ public class DelOutbound extends BaseEntity {
     @ApiModelProperty(value = "供应商计价id（线路图id或者物流服务id）")
     private String supplierCalcId;
 
-    @ApiModelProperty(value = "邮箱")
-    private String email;
 
-    @ApiModelProperty(value = "shopify订单号")
+
+    @ApiModelProperty(value = "邮箱")
+    private String email;    
+	@ApiModelProperty(value = "shopify订单号")
     private String shopifyOrderNo;
 
     @ApiModelProperty(value = "伙伴编码")
@@ -292,4 +301,9 @@ public class DelOutbound extends BaseEntity {
 
     @ApiModelProperty(value = "仓库选择")
     private String warehouseSelection;
+
+
+
+    @ApiModelProperty(value = "亚马逊物流服务id")
+    private String amazonLogisticsRouteId;
 }

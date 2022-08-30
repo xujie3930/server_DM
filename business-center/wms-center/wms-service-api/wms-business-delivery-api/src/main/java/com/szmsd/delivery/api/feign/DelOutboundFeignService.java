@@ -247,6 +247,7 @@ public interface DelOutboundFeignService {
     @ApiImplicitParam(name = "dto", value = "出库单", dataType = "UpdateWeightDelOutboundDto")
     R<Integer> updateWeightDelOutbound(@RequestBody UpdateWeightDelOutboundDto dto);
 
+    
 
     @PostMapping("/api/outbound/bringVerifyByOrderNo")
     @ApiOperation(value = "出库管理 - 提审", position = 600)
@@ -259,4 +260,14 @@ public interface DelOutboundFeignService {
      */
     @PostMapping(value = "/api/outbound/open/notifyBringVerify")
     R<String> notifyBringVerify();
+
+    /**
+     * 通知获取亚马逊挂号定时任务执行任务
+     * @return
+     */
+    @PostMapping(value = "/api/outbound/open/notifyAmazonLogisticsRouteIdy")
+    R<String> notifyAmazonLogisticsRouteId();
+
+    @PostMapping(value = "/api/outbound/open/notifyWMS")
+    R<String> notifyWMS();
 }

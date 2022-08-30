@@ -32,6 +32,7 @@ import com.szmsd.common.core.web.page.TableDataInfo;
 import com.szmsd.common.log.annotation.Log;
 import com.szmsd.common.log.enums.BusinessType;
 import com.szmsd.common.plugin.annotation.AutoValue;
+import com.szmsd.common.security.utils.SecurityUtils;
 import com.szmsd.delivery.domain.DelOutbound;
 import com.szmsd.delivery.dto.*;
 import com.szmsd.delivery.enums.DelOutboundOperationTypeEnum;
@@ -162,6 +163,15 @@ public class DelOutboundController extends BaseController {
         startPage(queryDto);
         return getDataTable(this.delOutboundService.selectDelOutboundList(queryDto));
     }
+
+
+    @PostMapping("/manualTrackingYee")
+    @ApiOperation(value = "手动推TY", position = 100)
+    public R ManualTrackingYee(@RequestBody List<String> list) {
+        delOutboundService.manualTrackingYee(list);
+        return R.ok();
+    }
+
 
     @PreAuthorize("@ss.hasPermi('inventory:queryFinishList')")
     @PostMapping("/queryFinishList")
@@ -889,5 +899,4 @@ public class DelOutboundController extends BaseController {
         this.delOutboundService.update(null, lambdaUpdateWrapper);
         return R.ok(true);
     }
-
 }
