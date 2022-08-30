@@ -247,16 +247,7 @@ public interface DelOutboundFeignService {
     @ApiImplicitParam(name = "dto", value = "出库单", dataType = "UpdateWeightDelOutboundDto")
     R<Integer> updateWeightDelOutbound(@RequestBody UpdateWeightDelOutboundDto dto);
 
-    @PostMapping("/api/outbound/receiveLabel")
-    @ApiOperation(value = "出库管理 - 接收供应商系统传回的标签", position = 400)
-    @ApiImplicitParam(name = "dto", value = "出库单", dataType = "receiveLabel")
-    R<Integer> receiveLabel(DelOutboundReceiveLabelDto dto);
-
-    @PostMapping("/api/outbound/box/status")
-    @ApiOperation(value = "出库管理 - 更新箱子状态接口  (可以用作记录箱子的到仓时间)", position = 400)
-    @ApiImplicitParam(name = "dto", value = "出库单", dataType = "boxStatus")
-    R<Integer> boxStatus(DelOutboundBoxStatusDto dto);
-
+    
 
     @PostMapping("/api/outbound/bringVerifyByOrderNo")
     @ApiOperation(value = "出库管理 - 提审", position = 600)

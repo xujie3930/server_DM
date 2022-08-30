@@ -1620,7 +1620,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Override
-    public void saveShipmentOrderNumber(DelOutbound delOutbound) {
+    public void updateByIdTransactional(DelOutbound delOutbound) {
         this.updateById(delOutbound);
     }
 
@@ -2366,8 +2366,6 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         this.delOutboundAddressService.updateReassignImportedData(delOutboundAddressList);
         return results.get();
     }
-
-
 
     @Override
     public void manualTrackingYee(List<String> list) {
