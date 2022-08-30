@@ -2367,67 +2367,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         return results.get();
     }
 
-    @Override
-    public int receiveLabel(DelOutboundReceiveLabelDto dto) {
 
-        LambdaQueryWrapper<DelOutbound> queryWrapper = Wrappers.lambdaQuery();
-        if(StringUtils.isNotEmpty(dto.getOrderNo())){
-            queryWrapper.eq(DelOutbound::getOrderNo, dto.getOrderNo());
-
-        }else if(StringUtils.isNotEmpty(dto.getOrderNo())){
-            queryWrapper.eq(DelOutbound::getRefNo, dto.getRefNo());
-
-        }else if(StringUtils.isNotEmpty(dto.getOrderNo())){
-            queryWrapper.eq(DelOutbound::getTrackingNo, dto.getTrackingNo());
-        }else{
-            throw new CommonException("400", "唯一标识必须有值");
-        }
-        DelOutbound data = this.getOne(queryWrapper);
-        if(data == null){
-            throw new CommonException("400", "出库单未匹配");
-        }
-        if(StringUtils.isNotEmpty(dto.getTraceId())){
-            data.setTraceId(dto.getTraceId());
-        }
-        if(StringUtils.isNotEmpty(dto.getRemark())){
-            data.setRemark(dto.getRemark());
-
-        }
-
-        data.setShipmentOrderLabelUrl(delOutboundBringVerifyService.saveShipmentLabel(dto.getFileStream(), data));
-        this.updateById(data);
-        return 1;
-    }
-
-    @Override
-    public int boxStatus(DelOutboundBoxStatusDto dto) {
-        LambdaQueryWrapper<DelOutboundDetail> queryWrapper = Wrappers.lambdaQuery();
-        queryWrapper.eq(DelOutboundDetail::getOrderNo, dto.getOrderNo());
-        queryWrapper.eq(DelOutboundDetail::getBoxMark, dto.getBoxNo());
-        List<DelOutboundDetail> dataDelOutboundDetailList = delOutboundDetailService.list(queryWrapper);
-        if(dataDelOutboundDetailList.size() == 0){
-            throw new CommonException("400", "没有匹配的箱号数据");
-        }
-        for (DelOutboundDetail detail: dataDelOutboundDetailList){
-            detail.setOperationType(dto.getOperationType());
-        }
-        delOutboundDetailService.updateBatchById(dataDelOutboundDetailList);
-
-        int i = 0;
-        for (DelOutboundDetail detail: dataDelOutboundDetailList){
-            if("Completed".equals(detail.getOperationType())){
-                i++;
-            }
-        }
-        if(i == dataDelOutboundDetailList.size()){
-            //该订单全部接收完成后，调用PRC
-            ApplicationContext context = delOutboundBringVerifyService.initContext(this.getByOrderNo(dto.getOrderNo()));
-            ApplicationContainer applicationContainer = new ApplicationContainer(context, BringVerifyEnum.PRC_PRICING, BringVerifyEnum.PRODUCT_INFO, BringVerifyEnum.PRC_PRICING);
-            applicationContainer.action();
-
-        }
-        return 1;
-    }
 
     @Override
     public void manualTrackingYee(List<String> list) {
@@ -2441,6 +2381,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     public void TraYee(DelOutboundListQueryDto delOutboundListQueryDto){
         boolean success = false;
         String responseBody;
+        logger.info("手动推送TY{}",delOutboundListQueryDto);
         try {
             Map<String, Object> requestBodyMap = new HashMap<>();
             List<Map<String, Object>> shipments = new ArrayList<>();
