@@ -228,7 +228,7 @@ public interface IDelOutboundService extends IService<DelOutbound> {
      */
     void shipmentSuccess(DelOutbound delOutbound);
 
-    void saveShipmentOrderNumber(DelOutbound delOutbound);
+    void updateByIdTransactional(DelOutbound delOutbound);
 
 
     /**

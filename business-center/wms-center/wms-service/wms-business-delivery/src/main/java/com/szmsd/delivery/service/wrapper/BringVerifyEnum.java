@@ -15,18 +15,10 @@ import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.exception.com.CommonException;
 import com.szmsd.common.core.utils.SpringUtils;
 import com.szmsd.common.core.utils.StringUtils;
-import com.szmsd.delivery.domain.DelOutbound;
-import com.szmsd.delivery.domain.DelOutboundCharge;
-import com.szmsd.delivery.domain.DelOutboundDetail;
-import com.szmsd.delivery.enums.DelOutboundConstant;
-import com.szmsd.delivery.enums.DelOutboundOperationTypeEnum;
-import com.szmsd.delivery.enums.DelOutboundOrderTypeEnum;
-import com.szmsd.delivery.enums.DelOutboundStateEnum;
-import com.szmsd.delivery.enums.DelOutboundTrackingAcquireTypeEnum;
+import com.szmsd.delivery.domain.*;
+import com.szmsd.delivery.enums.*;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
-import com.szmsd.delivery.service.IDelOutboundChargeService;
-import com.szmsd.delivery.service.IDelOutboundCompletedService;
-import com.szmsd.delivery.service.IDelOutboundService;
+import com.szmsd.delivery.service.*;
 import com.szmsd.delivery.service.impl.DelOutboundServiceImplUtil;
 import com.szmsd.delivery.util.Utils;
 import com.szmsd.delivery.vo.DelOutboundOperationDetailVO;
@@ -336,7 +328,9 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                     delOutbound.setSupplierCalcType(data.getSupplierCalcType());
                     delOutbound.setSupplierCalcId(data.getSupplierCalcId());
 
-
+                    if(StringUtils.isNotBlank(data.getAmazonLogisticsRouteId())){
+                        delOutbound.setAmazonLogisticsRouteId(data.getAmazonLogisticsRouteId());
+                    }
                     // 计费重信息
                     Weight calcWeight = packageInfo.getCalcWeight();
                     delOutbound.setCalcWeight(calcWeight.getValue());
@@ -408,6 +402,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setShipmentOrderLabelUrl("");
             // 推单WMS
             updateDelOutbound.setRefOrderNo("");
+
 
 
             // 提审失败
@@ -636,6 +631,10 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
 
             DelOutboundWrapperContext delOutboundWrapperContext = (DelOutboundWrapperContext) context;
             DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
+
+
+
+
             logger.info("{}-创建承运商物流订单：{}", delOutbound.getOrderNo(), JSONObject.toJSONString(delOutbound));
             // 判断是否需要创建物流订单
             if (DelOutboundTrackingAcquireTypeEnum.ORDER_SUPPLIER.getCode().equals(delOutbound.getTrackingAcquireType())) {
@@ -648,18 +647,29 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                 delOutbound.setTrackingNo(shipmentOrderResult.getMainTrackingNumber());
                 delOutbound.setShipmentOrderNumber(shipmentOrderResult.getOrderNumber());
                 delOutbound.setShipmentOrderLabelUrl(shipmentOrderResult.getOrderLabelUrl());
-
-                IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
-                DelOutbound updateDelOutbound = new DelOutbound();
-                updateDelOutbound.setId(delOutbound.getId());
-                updateDelOutbound.setTrackingNo(shipmentOrderResult.getMainTrackingNumber());
-                updateDelOutbound.setShipmentOrderNumber(shipmentOrderResult.getOrderNumber());
-                updateDelOutbound.setShipmentOrderLabelUrl(shipmentOrderResult.getOrderLabelUrl());
-                delOutboundService.saveShipmentOrderNumber(updateDelOutbound);
-
-
                 DelOutboundOperationLogEnum.BRV_SHIPMENT_ORDER.listener(delOutbound);
             }
+
+
+            if(StringUtils.isNotBlank(delOutbound.getAmazonLogisticsRouteId())){
+
+                // 提交一个亚马逊获取标签的任务
+                stopWatch.start();
+                IDelOutboundThirdPartyService delOutboundThirdPartyService = SpringUtils.getBean(IDelOutboundThirdPartyService.class);
+                DelOutboundThirdParty delOutboundThirdParty = new DelOutboundThirdParty();
+                delOutboundThirdParty.setOrderNo(delOutbound.getOrderNo());
+                delOutboundThirdParty.setState(DelOutboundCompletedStateEnum.INIT.getCode());
+                delOutboundThirdParty.setOperationType(DelOutboundConstant.DELOUTBOUND_OPERATION_TYPE_THIRD_PARTY);
+                delOutboundThirdParty.setKeyInfo(delOutbound.getAmazonLogisticsRouteId());
+                delOutboundThirdPartyService.save(delOutboundThirdParty);
+                stopWatch.stop();
+                logger.info(">>>>>[创建出库单{}]提交一个第三方承运商订单任务,耗时{}", delOutbound.getOrderNo(), stopWatch.getLastTaskTimeMillis());
+
+            }
+
+
+
+
         }
 
         @Override
@@ -865,6 +875,50 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             logger.info(">>>>>[创建出库单{}]冻结操作费用 耗时{}", delOutbound.getOrderNo(), stopWatch.getLastTaskInfo().getTimeMillis());
 
             DelOutboundServiceImplUtil.freezeOperationThrowErrorMessage(r);
+
+                IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
+
+                DelOutbound updateDelOutbound = new DelOutbound();
+
+
+                updateDelOutbound.setId(delOutbound.getId());
+                updateDelOutbound.setBringVerifyState(END.name());
+                // PRC计费
+                updateDelOutbound.setLength(delOutbound.getLength());
+                updateDelOutbound.setWidth(delOutbound.getWidth());
+                updateDelOutbound.setHeight(delOutbound.getHeight());
+                updateDelOutbound.setSupplierCalcType(delOutbound.getSupplierCalcType());
+                updateDelOutbound.setSupplierCalcId(delOutbound.getSupplierCalcId());
+                // 规格，长*宽*高
+                updateDelOutbound.setSpecifications(delOutbound.getLength() + "*" + delOutbound.getWidth() + "*" + delOutbound.getHeight());
+                updateDelOutbound.setCalcWeight(delOutbound.getCalcWeight());
+                updateDelOutbound.setCalcWeightUnit(delOutbound.getCalcWeightUnit());
+                updateDelOutbound.setAmount(delOutbound.getAmount());
+                updateDelOutbound.setCurrencyCode(delOutbound.getCurrencyCode());
+                // 产品信息
+                updateDelOutbound.setTrackingAcquireType(delOutbound.getTrackingAcquireType());
+                updateDelOutbound.setShipmentService(delOutbound.getShipmentService());
+                updateDelOutbound.setLogisticsProviderCode(delOutbound.getLogisticsProviderCode());
+                updateDelOutbound.setProductShipmentRule(delOutbound.getProductShipmentRule());
+                updateDelOutbound.setPackingRule(delOutbound.getPackingRule());
+                // 创建承运商物流订单
+                updateDelOutbound.setTrackingNo(delOutbound.getTrackingNo());
+                updateDelOutbound.setShipmentOrderNumber(delOutbound.getShipmentOrderNumber());
+                updateDelOutbound.setShipmentOrderLabelUrl(delOutbound.getShipmentOrderLabelUrl());
+                delOutboundService.bringVerifySuccess(updateDelOutbound);
+
+                // 提交一个WMS任务
+                stopWatch.start();
+                IDelOutboundThirdPartyService delOutboundThirdPartyService = SpringUtils.getBean(IDelOutboundThirdPartyService.class);
+                DelOutboundThirdParty delOutboundThirdParty = new DelOutboundThirdParty();
+                delOutboundThirdParty.setOrderNo(delOutbound.getOrderNo());
+                delOutboundThirdParty.setState(DelOutboundCompletedStateEnum.INIT.getCode());
+                delOutboundThirdParty.setOperationType(DelOutboundConstant.DELOUTBOUND_OPERATION_TYPE_WMS);
+                delOutboundThirdPartyService.save(delOutboundThirdParty);
+                stopWatch.stop();
+                logger.info(">>>>>[创建出库单{}]提交一个WMS订单任务,耗时{}", delOutbound.getOrderNo(), stopWatch.getLastTaskTimeMillis());
+
+
         }
 
         @Override
@@ -887,12 +941,13 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
 
 
 
+
             super.rollback(context);
         }
 
         @Override
         public ApplicationState nextState() {
-            return SHIPMENT_CREATE;
+            return END;
         }
     }
 
@@ -900,7 +955,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
 
         @Override
         public ApplicationState preState() {
-            return FREEZE_OPERATION;
+            return SHIPMENT_CREATE;
         }
 
         @Override
@@ -930,39 +985,15 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                 delOutbound.setRefOrderNo(refOrderNo);
                 DelOutboundOperationLogEnum.BRV_SHIPMENT_CREATE.listener(delOutbound);
             }
+
             // 保存信息
             IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
             DelOutbound updateDelOutbound = new DelOutbound();
             updateDelOutbound.setId(delOutbound.getId());
-            updateDelOutbound.setBringVerifyState(END.name());
-            // PRC计费
-            updateDelOutbound.setLength(delOutbound.getLength());
-            updateDelOutbound.setWidth(delOutbound.getWidth());
-            updateDelOutbound.setHeight(delOutbound.getHeight());
-            updateDelOutbound.setSupplierCalcType(delOutbound.getSupplierCalcType());
-            updateDelOutbound.setSupplierCalcId(delOutbound.getSupplierCalcId());
-            // 规格，长*宽*高
-            updateDelOutbound.setSpecifications(delOutbound.getLength() + "*" + delOutbound.getWidth() + "*" + delOutbound.getHeight());
-            updateDelOutbound.setCalcWeight(delOutbound.getCalcWeight());
-            updateDelOutbound.setCalcWeightUnit(delOutbound.getCalcWeightUnit());
-            updateDelOutbound.setAmount(delOutbound.getAmount());
-            updateDelOutbound.setCurrencyCode(delOutbound.getCurrencyCode());
-            // 产品信息
-            updateDelOutbound.setTrackingAcquireType(delOutbound.getTrackingAcquireType());
-            updateDelOutbound.setShipmentService(delOutbound.getShipmentService());
-            updateDelOutbound.setLogisticsProviderCode(delOutbound.getLogisticsProviderCode());
-            updateDelOutbound.setProductShipmentRule(delOutbound.getProductShipmentRule());
-            updateDelOutbound.setPackingRule(delOutbound.getPackingRule());
-            // 创建承运商物流订单
-            updateDelOutbound.setTrackingNo(delOutbound.getTrackingNo());
-            updateDelOutbound.setShipmentOrderNumber(delOutbound.getShipmentOrderNumber());
-            updateDelOutbound.setShipmentOrderLabelUrl(delOutbound.getShipmentOrderLabelUrl());
             // 推单WMS
             updateDelOutbound.setRefOrderNo(refOrderNo);
+            delOutboundService.updateByIdTransactional(updateDelOutbound);
 
-
-
-            delOutboundService.bringVerifySuccess(updateDelOutbound);
             // 处理发货条件
             TaskConfigInfo taskConfigInfo = delOutboundWrapperContext.getTaskConfigInfo();
             if (null != taskConfigInfo) {
