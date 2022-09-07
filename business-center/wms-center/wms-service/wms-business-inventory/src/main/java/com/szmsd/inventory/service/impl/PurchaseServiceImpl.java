@@ -44,7 +44,6 @@ import com.szmsd.system.api.domain.SysUser;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
-import org.apache.commons.lang3.StringEscapeUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContext;
@@ -356,6 +355,7 @@ public class PurchaseServiceImpl extends ServiceImpl<PurchaseMapper, Purchase> i
 
             SysUser loginUserInfo = remoteComponent.getLoginUserInfo();
             String sellerCode = loginUserInfo.getSellerCode();
+            log.info("保存出库单sellerCode:"+ sellerCode+",customCode:"+transportWarehousingAddDTO.getCustomCode());
             sellerCode = Optional.ofNullable(sellerCode).orElse(transportWarehousingAddDTO.getCustomCode());
             //获取sku信息
 //            List<DelOutboundDetailVO> transshipmentProductData = new ArrayList<>();
@@ -427,6 +427,10 @@ public class PurchaseServiceImpl extends ServiceImpl<PurchaseMapper, Purchase> i
         });
         return 0;
     }
+
+
+
+
 
     @Override
     public List<PurchaseInfoDetailExcle> selectPurchaseInfoDetailEx(Integer id) {

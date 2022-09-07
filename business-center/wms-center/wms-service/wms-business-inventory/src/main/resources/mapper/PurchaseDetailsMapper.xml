@@ -48,5 +48,4 @@
         FROM purchase_details
         WHERE association_id = #{assId}
     </select>
-
 </mapper>

@@ -62,6 +62,10 @@ public interface IPurchaseService extends IService<Purchase> {
 
     Map  importPurchaseInfoDetailExcle(List<PurchaseInfoDetailExcle> list,String associationId,String purchaseNo);
 
+    List<PurchaseInfoDetailExcle>  selectPurchaseInfoDetailEx(Integer id);
+
+    Map  importPurchaseInfoDetailExcle(List<PurchaseInfoDetailExcle> list,String associationId,String purchaseNo);
+
     List<PurchaseInfoDetailExcle> exportusAbnormal(Integer id);
 
     void deletePurchaseStorageDetails(Integer id);
