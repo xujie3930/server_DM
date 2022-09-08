@@ -25,4 +25,5 @@ public interface PurchaseDetailsMapper extends BaseMapper<PurchaseDetails> {
 
 
 
+
 }
