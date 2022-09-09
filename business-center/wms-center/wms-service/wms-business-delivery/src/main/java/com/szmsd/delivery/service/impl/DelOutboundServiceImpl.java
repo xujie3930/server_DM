@@ -2015,6 +2015,12 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     }
 
     @Override
+    public List<DelOutboundTarckOn> selectDelOutboundTarckList(DelOutboundTarckOn delOutboundTarckOn) {
+
+        return delOutboundTarckOnMapper.selectByPrimaryKey(delOutboundTarckOn);
+    }
+
+    @Override
     public List<DelOutboundLabelResponse> labelBase64(DelOutboundLabelDto dto) {
         List<String> orderNos = dto.getOrderNos();
         if (CollectionUtils.isEmpty(orderNos)) {
