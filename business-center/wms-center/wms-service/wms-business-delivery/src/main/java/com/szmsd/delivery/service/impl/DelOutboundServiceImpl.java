@@ -35,10 +35,7 @@ import com.szmsd.common.core.exception.web.BaseException;
 import com.szmsd.common.core.utils.StringUtils;
 import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.common.security.utils.SecurityUtils;
-import com.szmsd.delivery.domain.DelOutbound;
-import com.szmsd.delivery.domain.DelOutboundAddress;
-import com.szmsd.delivery.domain.DelOutboundCharge;
-import com.szmsd.delivery.domain.DelOutboundDetail;
+import com.szmsd.delivery.domain.*;
 import com.szmsd.delivery.dto.*;
 import com.szmsd.delivery.enums.DelOutboundConstant;
 import com.szmsd.delivery.enums.DelOutboundExceptionStateEnum;
@@ -48,6 +45,7 @@ import com.szmsd.delivery.enums.DelOutboundPackingTypeConstant;
 import com.szmsd.delivery.enums.DelOutboundStateEnum;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
 import com.szmsd.delivery.mapper.DelOutboundMapper;
+import com.szmsd.delivery.mapper.DelOutboundTarckOnMapper;
 import com.szmsd.delivery.service.IDelOutboundAddressService;
 import com.szmsd.delivery.service.IDelOutboundChargeService;
 import com.szmsd.delivery.service.IDelOutboundCombinationService;
@@ -74,10 +72,12 @@ import com.szmsd.delivery.vo.DelOutboundThirdPartyVO;
 import com.szmsd.delivery.vo.DelOutboundVO;
 import com.szmsd.finance.dto.QueryChargeDto;
 import com.szmsd.finance.vo.QueryChargeVO;
+import com.szmsd.http.api.feign.HtpOutboundFeignService;
 import com.szmsd.http.api.service.IHtpOutboundClientService;
 import com.szmsd.http.api.service.IHtpRmiClientService;
 import com.szmsd.http.dto.HttpRequestDto;
 import com.szmsd.http.dto.ShipmentCancelRequestDto;
+import com.szmsd.http.dto.ShipmentTrackingChangeRequestDto;
 import com.szmsd.http.enums.DomainEnum;
 import com.szmsd.http.vo.HttpResponseVO;
 import com.szmsd.http.vo.ResponseVO;
@@ -176,6 +176,12 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
     @Autowired
     private IHtpRmiClientService htpRmiClientService;
+
+    @Autowired
+    private DelOutboundTarckOnMapper delOutboundTarckOnMapper;
+
+    @Autowired
+    private HtpOutboundFeignService htpOutboundFeignService;
     /**
      * 查询出库单模块
      *
@@ -1342,7 +1348,21 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 resultList.add(result);
                 continue;
             }
+            //导入挂号记录表
+            DelOutbound delOutbound=baseMapper.selectTrackingNo(updateTrackingNoDto.getOrderNo());
+            DelOutboundTarckOn delOutboundTarckOn=new DelOutboundTarckOn();
+            delOutboundTarckOn.setOrderNo(delOutbound.getOrderNo());
+            delOutboundTarckOn.setTrackingNo(delOutbound.getTrackingNo());
+            delOutboundTarckOn.setUpdateTime(new Date());
+            delOutboundTarckOn.setTrackingNoNew(updateTrackingNoDto.getTrackingNo());
             int u = super.baseMapper.updateTrackingNo(updateTrackingNoDto);
+            delOutboundTarckOnMapper.insertSelective(delOutboundTarckOn);
+            ShipmentTrackingChangeRequestDto shipmentTrackingChangeRequestDto=new ShipmentTrackingChangeRequestDto();
+            shipmentTrackingChangeRequestDto.setTrackingNo(updateTrackingNoDto.getTrackingNo());
+            shipmentTrackingChangeRequestDto.setOrderNo(delOutbound.getOrderNo());
+            shipmentTrackingChangeRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
+            R<ResponseVO> r= htpOutboundFeignService.shipmentTracking(shipmentTrackingChangeRequestDto);
+
             if (u < 1) {
                 Map<String, Object> result = new HashMap<>();
                 result.put("msg", "第 " + (i + 1) + " 行，出库单号不存在。");
@@ -1983,6 +2003,12 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     }
 
     @Override
+    public List<DelOutboundTarckOn> selectDelOutboundTarckList(DelOutboundTarckOn delOutboundTarckOn) {
+
+        return delOutboundTarckOnMapper.selectByPrimaryKey(delOutboundTarckOn);
+    }
+
+    @Override
     public List<DelOutboundLabelResponse> labelBase64(DelOutboundLabelDto dto) {
         List<String> orderNos = dto.getOrderNos();
         if (CollectionUtils.isEmpty(orderNos)) {
@@ -2420,6 +2446,68 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         });
         this.delOutboundAddressService.updateReassignImportedData(delOutboundAddressList);
         return results.get();
+    }
+
+    @Override
+    public int receiveLabel(DelOutboundReceiveLabelDto dto) {
+
+        LambdaQueryWrapper<DelOutbound> queryWrapper = Wrappers.lambdaQuery();
+        if(StringUtils.isNotEmpty(dto.getOrderNo())){
+            queryWrapper.eq(DelOutbound::getOrderNo, dto.getOrderNo());
+
+        }else if(StringUtils.isNotEmpty(dto.getOrderNo())){
+            queryWrapper.eq(DelOutbound::getRefNo, dto.getRefNo());
+
+        }else if(StringUtils.isNotEmpty(dto.getOrderNo())){
+            queryWrapper.eq(DelOutbound::getTrackingNo, dto.getTrackingNo());
+        }else{
+            throw new CommonException("400", "唯一标识必须有值");
+        }
+        DelOutbound data = this.getOne(queryWrapper);
+        if(data == null){
+            throw new CommonException("400", "出库单未匹配");
+        }
+        if(StringUtils.isNotEmpty(dto.getTraceId())){
+            data.setTraceId(dto.getTraceId());
+        }
+        if(StringUtils.isNotEmpty(dto.getRemark())){
+            data.setRemark(dto.getRemark());
+
+        }
+
+        data.setShipmentOrderLabelUrl(delOutboundBringVerifyService.saveShipmentLabel(dto.getFileStream(), data));
+        this.updateById(data);
+        return 1;
+    }
+
+    @Override
+    public int boxStatus(DelOutboundBoxStatusDto dto) {
+        LambdaQueryWrapper<DelOutboundDetail> queryWrapper = Wrappers.lambdaQuery();
+        queryWrapper.eq(DelOutboundDetail::getOrderNo, dto.getOrderNo());
+        queryWrapper.eq(DelOutboundDetail::getBoxMark, dto.getBoxNo());
+        List<DelOutboundDetail> dataDelOutboundDetailList = delOutboundDetailService.list(queryWrapper);
+        if(dataDelOutboundDetailList.size() == 0){
+            throw new CommonException("400", "没有匹配的箱号数据");
+        }
+        for (DelOutboundDetail detail: dataDelOutboundDetailList){
+            detail.setOperationType(dto.getOperationType());
+        }
+        delOutboundDetailService.updateBatchById(dataDelOutboundDetailList);
+
+        int i = 0;
+        for (DelOutboundDetail detail: dataDelOutboundDetailList){
+            if("Completed".equals(detail.getOperationType())){
+                i++;
+            }
+        }
+        if(i == dataDelOutboundDetailList.size()){
+            //该订单全部接收完成后，调用PRC
+            ApplicationContext context = delOutboundBringVerifyService.initContext(this.getByOrderNo(dto.getOrderNo()));
+            ApplicationContainer applicationContainer = new ApplicationContainer(context, BringVerifyEnum.PRC_PRICING, BringVerifyEnum.PRODUCT_INFO, BringVerifyEnum.PRC_PRICING);
+            applicationContainer.action();
+
+        }
+        return 1;
     }
 
     @Override
