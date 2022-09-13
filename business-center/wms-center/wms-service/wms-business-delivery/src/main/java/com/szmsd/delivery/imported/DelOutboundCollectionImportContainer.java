@@ -19,14 +19,14 @@ import java.util.stream.Collectors;
  */
 public class DelOutboundCollectionImportContainer extends DelOutboundCollectionImportContext {
 
-    private final List<DelOutboundDetailImportDto2> detailList;
-    private final Map<Integer, List<DelOutboundDetailImportDto2>> detailMapList;
+    private final List<DelOutboundCollectionDetailImportDto2> detailList;
+    private final Map<Integer, List<DelOutboundCollectionDetailImportDto2>> detailMapList;
     private final ImportValidationData importValidationData;
     private final String sellerCode;
 
     public DelOutboundCollectionImportContainer(List<DelOutboundCollectionImportDto> dataList,
                                                 List<BasRegionSelectListVO> countryList,
-                                                List<DelOutboundDetailImportDto2> detailList,
+                                                List<DelOutboundCollectionDetailImportDto2> detailList,
                                                 ImportValidationData importValidationData,
                                                 String sellerCode) {
         super(dataList, countryList);
@@ -53,6 +53,10 @@ public class DelOutboundCollectionImportContainer extends DelOutboundCollectionI
             outboundDto.setAddress(this.buildAddress(dto));
             outboundDto.setDetails(this.buildDetails(dto));
             outboundDto.setSourceType(DelOutboundConstant.SOURCE_TYPE_IMP);
+            outboundDto.setRefNo(dto.getRefNo());
+            outboundDto.setRemark(dto.getRemark());
+            outboundDto.setCodAmount(dto.getCodAmount());
+            outboundDto.setIoss(dto.getIoss());
             outboundDtoList.add(outboundDto);
         }
         return outboundDtoList;
@@ -61,44 +65,43 @@ public class DelOutboundCollectionImportContainer extends DelOutboundCollectionI
     public DelOutboundAddressDto buildAddress(DelOutboundCollectionImportDto dto) {
         DelOutboundAddressDto address = new DelOutboundAddressDto();
         address.setConsignee(dto.getConsignee());
-        address.setCountryCode(super.getCountryCodeCache(dto.getCountry(), this.countryCodeCache, this.countryCache));
-        address.setCountry(super.getCountryNameCache(dto.getCountry(), this.countryCodeCache, this.countryCache));
+        address.setCountryCode(super.getCountryCodeCache(dto.getCountry(), this.countryCache, this.countryEnCache));
+        address.setCountry(super.getCountryNameCache(dto.getCountry(), this.countryCodeCache, this.countryCache, this.countryEnCache));
         address.setStateOrProvince(dto.getStateOrProvince());
         address.setCity(dto.getCity());
         address.setStreet1(dto.getStreet1());
         address.setStreet2(dto.getStreet2());
         address.setPostCode(super.stringNumber(dto.getPostCode()));
         address.setPhoneNo(super.stringNumber(dto.getPhoneNo()));
+        address.setEmail(dto.getEmail());
         return address;
     }
 
     public List<DelOutboundDetailDto> buildDetails(DelOutboundCollectionImportDto dto) {
         List<DelOutboundDetailDto> details = new ArrayList<>();
-        List<DelOutboundDetailImportDto2> list = this.detailMapList.get(dto.getSort());
+        List<DelOutboundCollectionDetailImportDto2> list = this.detailMapList.get(dto.getSort());
         if (CollectionUtils.isEmpty(list)) {
             return details;
         }
-        String warehouseCode = dto.getWarehouseCode();
-        for (DelOutboundDetailImportDto2 dto2 : list) {
+        for (DelOutboundCollectionDetailImportDto2 dto2 : list) {
             DelOutboundDetailDto detail = new DelOutboundDetailDto();
-            String sku = dto2.getSku();
-            detail.setSku(sku);
+            detail.setProductName(dto2.getProductName());
+            detail.setProductNameChinese(dto2.getProductNameChinese());
+            detail.setDeclaredValue(dto2.getDeclaredValue());
             detail.setQty(Long.valueOf(dto2.getQty()));
-            InventoryAvailableListVO vo = this.importValidationData.get(warehouseCode, sku);
-            detail.setBindCode(vo.getBindCode());
-            detail.setLength(vo.getLength());
-            detail.setWidth(vo.getWidth());
-            detail.setHeight(vo.getHeight());
-            detail.setWeight(vo.getWeight());
+            detail.setProductAttribute(dto2.getProductAttribute());
+            detail.setElectrifiedMode(dto2.getElectrifiedMode());
+            detail.setBatteryPackaging(dto2.getBatteryPackaging());
+            detail.setHsCode(dto2.getHsCode());
             details.add(detail);
         }
         return details;
     }
 
-    private Map<Integer, List<DelOutboundDetailImportDto2>> detailToMapList() {
+    private Map<Integer, List<DelOutboundCollectionDetailImportDto2>> detailToMapList() {
         if (null == this.detailList) {
             return Collections.emptyMap();
         }
-        return this.detailList.stream().collect(Collectors.groupingBy(DelOutboundDetailImportDto2::getSort));
+        return this.detailList.stream().collect(Collectors.groupingBy(DelOutboundCollectionDetailImportDto2::getSort));
     }
 }

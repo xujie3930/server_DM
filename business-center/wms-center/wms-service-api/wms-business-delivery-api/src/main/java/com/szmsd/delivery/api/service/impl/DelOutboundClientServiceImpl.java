@@ -152,6 +152,16 @@ public class DelOutboundClientServiceImpl implements DelOutboundClientService {
         return R.getDataAndException(this.delOutboundFeignService.updateWeightDelOutbound(dto));
     }
 
+    @Override
+    public int receiveLabel(DelOutboundReceiveLabelDto dto) {
+        return R.getDataAndException(this.delOutboundFeignService.receiveLabel(dto));
+
+    }
+
+    @Override
+    public int boxStatus(DelOutboundBoxStatusDto dto) {
+        return R.getDataAndException(this.delOutboundFeignService.boxStatus(dto));
+    }
 
     @Override
     public List<DelOutboundBringVerifyVO> bringVerifyByOrderNo(DelOutboundBringVerifyNoDto dto) {

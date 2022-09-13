@@ -190,7 +190,9 @@ public interface DelOutboundClientService {
 
     int updateWeightDelOutbound(UpdateWeightDelOutboundDto dto);
 
+    int receiveLabel(DelOutboundReceiveLabelDto dto);
 
+    int boxStatus(DelOutboundBoxStatusDto dto);
 
     List<DelOutboundBringVerifyVO> bringVerifyByOrderNo(DelOutboundBringVerifyNoDto dto);
 }

@@ -350,8 +350,10 @@ public class HttpClientHelper {
             }
             return new HttpResponseBody.HttpResponseBodyWrapper(status, result);
         } catch (Exception e) {
-            if(e instanceof  org.apache.http.conn.ConnectTimeoutException && timeout != null){
-                throw new RuntimeException(e);
+            log.error("http异常"+e+":"+e.getMessage());
+            log.error("e:"+e.toString()+",timeout:"+timeout);
+            if((e.toString().equals("java.net.SocketTimeoutException: Read timed out") || e instanceof  org.apache.http.conn.ConnectTimeoutException)){
+                return new HttpResponseBody.HttpResponseBodyWrapper(408, "{\"status\":408,\"Errors\":[{\"Code\":408,\"Message\":\"请求超时\"}]}");
             }
             try {
                 if (null != response)

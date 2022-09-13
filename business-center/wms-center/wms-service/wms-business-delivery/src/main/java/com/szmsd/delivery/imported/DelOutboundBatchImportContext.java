@@ -14,8 +14,8 @@ public class DelOutboundBatchImportContext extends ImportContext<DelOutboundBatc
 
     protected CacheContext<String, String> countryCache;
     protected CacheContext<String, String> countryCodeCache;
-
-    protected CacheContext<String, String> shipmentChannelCache;
+    protected CacheContext<String, String> countryEnCache;
+    protected CacheContext<String, String>  shipmentChannelCache;
     protected CacheContext<String, Boolean> confirmCache;
 
     public DelOutboundBatchImportContext(List<DelOutboundBatchImportDto> dataList,
@@ -23,19 +23,20 @@ public class DelOutboundBatchImportContext extends ImportContext<DelOutboundBatc
                                          List<BasSubWrapperVO> shipmentChannelList) {
         super(dataList);
          this.countryCache = new MapCacheContext<>();
-        this.countryCodeCache = new MapCacheContext<>();
+         this.countryEnCache = new MapCacheContext<>();        this.countryCodeCache = new MapCacheContext<>();
         this.shipmentChannelCache = new MapCacheContext<>();
         this.confirmCache = new MapCacheContext<>();
         if (CollectionUtils.isNotEmpty(countryList)) {
             for (BasRegionSelectListVO country : countryList) {
                 this.countryCache.put(country.getName(), country.getAddressCode());
+                this.countryEnCache.put(country.getEnName(), country.getAddressCode());
                 this.countryCodeCache.put(country.getAddressCode(), country.getName());
 
             }
         }
         if (CollectionUtils.isNotEmpty(shipmentChannelList)) {
             for (BasSubWrapperVO vo : shipmentChannelList) {
-                this.shipmentChannelCache.put(vo.getSubName(), vo.getSubCode());
+                this.shipmentChannelCache.put(vo.getSubName(), vo.getSubValue());
             }
         }
         this.confirmCache.put("是", true);

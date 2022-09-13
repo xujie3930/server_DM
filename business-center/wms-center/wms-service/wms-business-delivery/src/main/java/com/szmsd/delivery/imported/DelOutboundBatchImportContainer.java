@@ -53,6 +53,8 @@ public class DelOutboundBatchImportContainer extends DelOutboundBatchImportConte
             outboundDto.setDeliveryInfo(dto.getDeliveryInfo());
             outboundDto.setRemark(dto.getRemark());
             outboundDto.setSourceType(DelOutboundConstant.SOURCE_TYPE_IMP);
+            outboundDto.setEmail(dto.getEmail());
+
             outboundDtoList.add(outboundDto);
         }
         return outboundDtoList;
@@ -61,14 +63,15 @@ public class DelOutboundBatchImportContainer extends DelOutboundBatchImportConte
     public DelOutboundAddressDto buildAddress(DelOutboundBatchImportDto dto) {
         DelOutboundAddressDto address = new DelOutboundAddressDto();
         address.setConsignee(dto.getConsignee());
-        address.setCountryCode(super.getCountryCodeCache(dto.getCountry(), this.countryCodeCache, this.countryCache));
-        address.setCountry(super.getCountryNameCache(dto.getCountry(), this.countryCodeCache, this.countryCache));
+        address.setCountryCode(super.getCountryCodeCache(dto.getCountry(), this.countryCache, this.countryEnCache));
+        address.setCountry(super.getCountryNameCache(dto.getCountry(), this.countryCodeCache, this.countryCache, this.countryEnCache));
         address.setStateOrProvince(dto.getStateOrProvince());
         address.setCity(dto.getCity());
         address.setStreet1(dto.getStreet1());
         address.setStreet2(dto.getStreet2());
         address.setPostCode(super.stringNumber(dto.getPostCode()));
         address.setPhoneNo(super.stringNumber(dto.getPhoneNo()));
+        address.setEmail(dto.getEmail());
         return address;
     }
 

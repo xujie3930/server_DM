@@ -769,6 +769,10 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             // 计算包裹大小
             this.countPackageSize(delOutbound, dto);
             logger.info(">>>>>[创建出库单{}]3.3 计算包裹大小，{}", delOutbound.getOrderNo(), timer.intervalRestart());
+
+            //同步更新计泡拦截重量
+            delOutbound.setForecastWeight(delOutbound.getWeight());
+            
             // 保存出库单
             int insert = baseMapper.insert(delOutbound);
             logger.info(">>>>>[创建出库单{}]3.4 保存出库单，{}", delOutbound.getOrderNo(), timer.intervalRestart());
@@ -1255,6 +1259,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
                 }
             }
+            //同步更新计泡拦截重量
+            inputDelOutbound.setForecastWeight(inputDelOutbound.getWeight());
 
             // 更新
             int i = baseMapper.updateById(inputDelOutbound);
@@ -1548,7 +1554,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
     @Transactional
     @Override
-    public int shipmentPacking(ShipmentPackingMaterialRequestDto dto, String orderType) {
+    public int shipmentPacking(ShipmentPackingMaterialRequestDto dto, String orderType,ShipmentEnum shipmentState) {
         LambdaUpdateWrapper<DelOutbound> updateWrapper = Wrappers.lambdaUpdate();
         if (StringUtils.isNotEmpty(dto.getWarehouseCode())) {
             updateWrapper.eq(DelOutbound::getWarehouseCode, dto.getWarehouseCode());
@@ -1570,6 +1576,10 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         updateWrapper.set(DelOutbound::getSpecifications, length + "*" + width + "*" + height);
         // 修改状态为处理中
         updateWrapper.set(DelOutbound::getState, DelOutboundStateEnum.PROCESSING.getCode());
+
+        if (shipmentState != null) {
+            updateWrapper.set(DelOutbound::getShipmentState, shipmentState);
+        }
         return this.baseMapper.update(null, updateWrapper);
     }
 
@@ -2006,21 +2016,69 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     }
 
     @Override
-    public List<DelOutboundTarckOn> selectDelOutboundTarckList(DelOutboundTarckOn delOutboundTarckOn) {
+    public void labelSelfPick(HttpServletResponse response, DelOutboundLabelDto dto) {
+        DelOutbound delOutbound = this.getById(dto.getId());
+        if (null == delOutbound) {
+            throw new CommonException("400", "单据不存在");
+        }
+        String pathname = DelOutboundServiceImplUtil.getSelfPickLabelFilePath(delOutbound) + "/" + delOutbound.getOrderNo() + ".pdf";
+        File labelFile = new File(pathname);
+        if (!labelFile.exists()) {
+            String orderNo = delOutbound.getOrderNo();
+            // 查询地址信息
+            List<DelOutboundDetail> delOutboundDetailList = this.delOutboundDetailService.listByOrderNo(delOutbound.getOrderNo());
+            try {
+                ByteArrayOutputStream byteArrayOutputStream = DelOutboundServiceImplUtil.renderSelfPick(delOutbound, delOutboundDetailList, null);
+                byte[] fb = null;
+                FileUtils.writeByteArrayToFile(labelFile, fb = byteArrayOutputStream.toByteArray(), false);
+                ServletOutputStream outputStream = null;
+                InputStream inputStream = null;
+                try {
+                    outputStream = response.getOutputStream();
+                    //response为HttpServletResponse对象
+                    response.setContentType("application/pdf;charset=utf-8");
+                    //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
+                    response.setHeader("Content-Disposition", "attachment;filename=" + delOutbound.getOrderNo() + ".pdf");
+                    IOUtils.copy(new ByteArrayInputStream(fb), outputStream);
+                } catch (IOException e) {
+                    logger.error(e.getMessage(), e);
+                    throw new CommonException("500", "读取自提标签文件失败");
+                } finally {
+                    IoUtil.flush(outputStream);
+                    IoUtil.close(outputStream);
+                    IoUtil.close(inputStream);
+                }
+                return;
 
-        return delOutboundTarckOnMapper.selectByPrimaryKey(delOutboundTarckOn);
-    }
+            } catch (Exception e) {
+                throw new CommonException("400", "自提标签文件不存在");
+            }
 
-    @Override
-    public List<DelOutboundTarckOn> selectDelOutboundTarckList(DelOutboundTarckOn delOutboundTarckOn) {
+        }
 
-        return delOutboundTarckOnMapper.selectByPrimaryKey(delOutboundTarckOn);
-    }
+        if(response == null){
+            return;
+        }
+        ServletOutputStream outputStream = null;
+        InputStream inputStream = null;
+        try {
+            outputStream = response.getOutputStream();
+            //response为HttpServletResponse对象
+            response.setContentType("application/pdf;charset=utf-8");
+            //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
+            response.setHeader("Content-Disposition", "attachment;filename=" + delOutbound.getOrderNo() + ".pdf");
+            inputStream = new FileInputStream(labelFile);
+            IOUtils.copy(inputStream, outputStream);
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+            throw new CommonException("500", "读取自提标签文件失败");
+        } finally {
+            IoUtil.flush(outputStream);
+            IoUtil.close(outputStream);
+            IoUtil.close(inputStream);
+        }
 
-    @Override
-    public List<DelOutboundTarckOn> selectDelOutboundTarckList(DelOutboundTarckOn delOutboundTarckOn) {
 
-        return delOutboundTarckOnMapper.selectByPrimaryKey(delOutboundTarckOn);
     }
 
     @Override
@@ -2543,7 +2601,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     public void TraYee(DelOutboundListQueryDto delOutboundListQueryDto){
         boolean success = false;
         String responseBody;
-        logger.info("手动推送TY{}",delOutboundListQueryDto);
+        logger.info("手动推送TY{}");
         try {
             Map<String, Object> requestBodyMap = new HashMap<>();
             List<Map<String, Object>> shipments = new ArrayList<>();

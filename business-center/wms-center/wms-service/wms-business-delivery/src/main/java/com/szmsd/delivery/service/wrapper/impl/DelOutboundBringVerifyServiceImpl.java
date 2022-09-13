@@ -2,7 +2,6 @@ package com.szmsd.delivery.service.wrapper.impl;
 
 import cn.hutool.crypto.digest.MD5;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.szmsd.bas.api.domain.BasAttachment;
 import com.szmsd.bas.api.domain.dto.BasAttachmentQueryDTO;
 import com.szmsd.bas.api.domain.vo.BasRegionSelectListVO;
@@ -26,6 +25,7 @@ import com.szmsd.delivery.domain.DelOutboundDetail;
 import com.szmsd.delivery.domain.DelOutboundPacking;
 import com.szmsd.delivery.dto.DelOutboundBringVerifyDto;
 import com.szmsd.delivery.dto.DelOutboundBringVerifyNoDto;
+import com.szmsd.delivery.dto.DelOutboundLabelDto;
 import com.szmsd.delivery.enums.DelOutboundConstant;
 import com.szmsd.delivery.enums.DelOutboundOperationTypeEnum;
 import com.szmsd.delivery.enums.DelOutboundOrderTypeEnum;
@@ -749,6 +749,9 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);
             }
+            if("[408]请求超时".equals(exceptionMessage)){
+                throw new CommonException("408", exceptionMessage);
+            }
             throw new CommonException("400", exceptionMessage);
         }
     }
@@ -885,6 +888,9 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         }
         if (!responseObjectWrapper.isSuccess()) {
             String exceptionMessage = Utils.defaultValue(ProblemDetails.getErrorMessageOrNull(responseObjectWrapper.getError()), "创建承运商物流订单失败，调用承运商系统失败");
+            if("[408]请求超时".equals(exceptionMessage)){
+                throw new CommonException("408", exceptionMessage);
+            }
             throw new CommonException("400", exceptionMessage);
         }
         // 保存挂号
@@ -1080,6 +1086,19 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
             return;
         }
         DelOutboundOperationLogEnum.SMT_SHIPMENT_LABEL.listener(delOutbound);
+
+
+        String selfPickLabelFilePath = null;
+        if (DelOutboundOrderTypeEnum.SELF_PICK.getCode().equals(delOutbound.getOrderType())) {
+            DelOutboundLabelDto dto = new DelOutboundLabelDto();
+            dto.setId(delOutbound.getId());
+            //生成下自提标签文件，如果有就不生成
+            delOutboundService.labelSelfPick(null, dto);
+            selfPickLabelFilePath = DelOutboundServiceImplUtil.getSelfPickLabelFilePath(delOutbound) + "/" + delOutbound.getOrderNo() + ".pdf";
+        }
+
+
+
         String pathname = null;
         // 如果是批量出库，将批量出库上传的文件和标签文件合并在一起传过去
         if (DelOutboundOrderTypeEnum.BATCH.getCode().equals(delOutbound.getOrderType())) {
@@ -1141,7 +1160,7 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 }
                 // 合并文件
                 try {
-                    if (PdfUtil.merge(mergeFilePath, boxFilePath, labelFilePath, uploadBoxLabel)) {
+                    if (PdfUtil.merge(mergeFilePath, boxFilePath, labelFilePath, uploadBoxLabel, selfPickLabelFilePath)) {
                         pathname = mergeFilePath;
                     }
                 } catch (IOException e) {
@@ -1167,9 +1186,9 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 }
                 String mergeFilePath = mergeFileDirPath + "/" + delOutbound.getOrderNo();
                 File mergeFile = new File(mergeFilePath);
-                logger.info(mergeFilePath + "," + pathname + "," + uploadBoxLabel);
+                logger.info(mergeFilePath + "," + pathname + "," + uploadBoxLabel + ","+selfPickLabelFilePath);
                 try {
-                    if (PdfUtil.merge(mergeFilePath, pathname, uploadBoxLabel)) {
+                    if (PdfUtil.merge(mergeFilePath, pathname, uploadBoxLabel, selfPickLabelFilePath)) {
                         pathname = mergeFilePath;
                     }
                 } catch (IOException e) {
@@ -1177,6 +1196,32 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                     logger.error(e.getMessage(), e);
                     throw new CommonException("500", "合并箱标文件，标签文件失败");
                 }
+            }else{
+
+                if(selfPickLabelFilePath != null){
+                    String mergeFileDirPath = DelOutboundServiceImplUtil.getBatchMergeFilePath(delOutbound);
+                    File mergeFileDir = new File(mergeFileDirPath);
+                    if (!mergeFileDir.exists()) {
+                        try {
+                            FileUtils.forceMkdir(mergeFileDir);
+                        } catch (IOException e) {
+                            logger.error(e.getMessage(), e);
+                            throw new CommonException("500", "创建文件夹失败，" + e.getMessage());
+                        }
+                    }
+                    String mergeFilePath = mergeFileDirPath + "/" + delOutbound.getOrderNo();
+                    logger.info(mergeFilePath + "," + pathname + "," + selfPickLabelFilePath);
+                    try {
+                        if (PdfUtil.merge(mergeFilePath, pathname, selfPickLabelFilePath)) {
+                            pathname = mergeFilePath;
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        logger.error(e.getMessage(), e);
+                        throw new CommonException("500", "合并箱标文件，标签文件失败");
+                    }
+                }
+
             }
 
         }
@@ -1205,7 +1250,8 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         }
     }
 
-    private String getBoxLabel(DelOutbound delOutbound){
+    @Override
+    public String getBoxLabel(DelOutbound delOutbound){
         BasAttachmentQueryDTO basAttachmentQueryDTO = new BasAttachmentQueryDTO();
         basAttachmentQueryDTO.setBusinessCode(AttachmentTypeEnum.ONE_PIECE_ISSUED_ON_BEHALF.getBusinessCode());
         basAttachmentQueryDTO.setRemark(delOutbound.getOrderNo());

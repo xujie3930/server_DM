@@ -429,10 +429,6 @@ public class PurchaseServiceImpl extends ServiceImpl<PurchaseMapper, Purchase> i
         return 0;
     }
 
-
-
-
-
     @Override
     public List<PurchaseInfoDetailExcle> selectPurchaseInfoDetailEx(Integer id) {
         List<PurchaseInfoDetailExcle> list=purchaseDetailsMapper.selectPurchaseInfoDetailExcleListByAssId(id);

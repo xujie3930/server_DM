@@ -255,11 +255,7 @@ public class DelOutbound extends BaseEntity {
     @ApiModelProperty(value = "供应商计价id（线路图id或者物流服务id）")
     private String supplierCalcId;
 
-
-
-    @ApiModelProperty(value = "邮箱")
-    private String email;    
-	@ApiModelProperty(value = "shopify订单号")
+    @ApiModelProperty(value = "shopify订单号")
     private String shopifyOrderNo;
 
     @ApiModelProperty(value = "伙伴编码")
@@ -303,7 +299,27 @@ public class DelOutbound extends BaseEntity {
     private String warehouseSelection;
 
 
+    @ApiModelProperty(value = "订单推送状态(大货) null 未推送 1.已推送wms 2.推送失败")
+    private String pushOrderState;
+
+    @ApiModelProperty(value = "妥投时间")
+    @Excel(name = "妥投时间")
+    private Date deliveredDime;
+
+    @ApiModelProperty(value = "时间差")
+    @Excel(name = "时间差  ")
+    private Integer timeDifference;
 
     @ApiModelProperty(value = "亚马逊物流服务id")
     private String amazonLogisticsRouteId;
+
+
+
+
+    @ApiModelProperty(value = "houseNo")
+    private String houseNo;
+
+
+    @ApiModelProperty(value = "计泡重量")
+    private Double forecastWeight;
 }

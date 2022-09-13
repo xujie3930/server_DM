@@ -22,15 +22,10 @@ public interface PurchaseStorageDetailsMapper extends BaseMapper<PurchaseStorage
 
     List<PurchaseStorageDetailsExcle> selectPurchaseStorageDetailsExcleListByAssId(@Param("productName") String productName,@Param("assId") Integer assId);
 
-
-
-    List<PurchaseStorageDetailsVO>  selectPurchaseStorageDetailsVO(PurchaseStorageDetailsExcle purchaseStorageDetailsExcle);
-
-
-
     List<PurchaseStorageDetailsExcle> selectPurchaseStorageDetailsExcleListByAssIds(@Param("productName") String productName,@Param("assId") Integer assId);
 
 
+    List<PurchaseStorageDetailsVO>  selectPurchaseStorageDetailsVO(PurchaseStorageDetailsExcle purchaseStorageDetailsExcle);
 
     int insertSelectiveus(PurchaseStorageDetails purchaseStorageDetails);
 

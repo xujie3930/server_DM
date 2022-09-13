@@ -2,10 +2,12 @@ package com.szmsd.http.service.impl;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.szmsd.common.core.domain.R;
 import com.szmsd.http.config.HttpConfig;
 import com.szmsd.http.dto.*;
 import com.szmsd.http.service.IOutboundService;
 import com.szmsd.http.service.http.WmsRequest;
+import com.szmsd.http.util.HttpResponseVOUtils;
 import com.szmsd.http.vo.CreateShipmentResponseVO;
 import com.szmsd.http.vo.ResponseVO;
 import lombok.extern.slf4j.Slf4j;
@@ -66,5 +68,10 @@ public class OutboundServiceImpl extends WmsRequest implements IOutboundService 
     public ResponseVO shipmentMultiboxrelation(ShipmentMultiboxrelationRequestDto dto) {
         String text = httpPut(dto.getWarehouseCode(), "outbound.multiboxrelation", dto);
         return ResponseVO.build(text);
+    }
+
+    @Override
+    public R shipmentBoxtransfer(BulkOrderRequestDto dto) {
+        return HttpResponseVOUtils.transformation(httpPostBody(null, "outbound.boxtransfer", dto));
     }
 }

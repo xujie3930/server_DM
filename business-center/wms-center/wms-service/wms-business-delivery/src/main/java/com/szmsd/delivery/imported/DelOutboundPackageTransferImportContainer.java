@@ -55,7 +55,6 @@ public class DelOutboundPackageTransferImportContainer extends DelOutboundPackag
             outboundDto.setSourceType(DelOutboundConstant.SOURCE_TYPE_IMP);
             outboundDto.setRefNo(dto.getRefNo());
             outboundDto.setRemark(dto.getRemark());
-            outboundDto.setEmail(dto.getEmail());
             outboundDto.setCodAmount(dto.getCodAmount());
             outboundDto.setIoss(dto.getIoss());
             outboundDtoList.add(outboundDto);
@@ -66,14 +65,16 @@ public class DelOutboundPackageTransferImportContainer extends DelOutboundPackag
     public DelOutboundAddressDto buildAddress(DelOutboundPackageTransferImportDto dto) {
         DelOutboundAddressDto address = new DelOutboundAddressDto();
         address.setConsignee(dto.getConsignee());
-        address.setCountryCode(super.getCountryCodeCache(dto.getCountry(), this.countryCodeCache, this.countryCache));
-        address.setCountry(super.getCountryNameCache(dto.getCountry(), this.countryCodeCache, this.countryCache));
+        address.setCountryCode(super.getCountryCodeCache(dto.getCountry(), this.countryCache, this.countryEnCache));
+        address.setCountry(super.getCountryNameCache(dto.getCountry(), this.countryCodeCache, this.countryCache, this.countryEnCache));
         address.setStateOrProvince(dto.getStateOrProvince());
         address.setCity(dto.getCity());
         address.setStreet1(dto.getStreet1());
         address.setStreet2(dto.getStreet2());
         address.setPostCode(super.stringNumber(dto.getPostCode()));
         address.setPhoneNo(super.stringNumber(dto.getPhoneNo()));
+        address.setEmail(dto.getEmail());
+
         return address;
     }
 

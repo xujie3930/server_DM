@@ -58,8 +58,6 @@ public interface IPurchaseService extends IService<Purchase> {
 
     int transportWarehousingSubmit(TransportWarehousingAddDTO transportWarehousingAddDTO);
 
-
-
     List<PurchaseInfoDetailExcle>  selectPurchaseInfoDetailEx(Integer id);
 
     Map  importPurchaseInfoDetailExcle(List<PurchaseInfoDetailExcle> list,String associationId,String purchaseNo);
