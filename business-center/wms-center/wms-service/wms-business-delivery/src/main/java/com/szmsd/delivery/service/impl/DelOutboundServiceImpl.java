@@ -35,10 +35,7 @@ import com.szmsd.common.core.exception.web.BaseException;
 import com.szmsd.common.core.utils.StringUtils;
 import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.common.security.utils.SecurityUtils;
-import com.szmsd.delivery.domain.DelOutbound;
-import com.szmsd.delivery.domain.DelOutboundAddress;
-import com.szmsd.delivery.domain.DelOutboundCharge;
-import com.szmsd.delivery.domain.DelOutboundDetail;
+import com.szmsd.delivery.domain.*;
 import com.szmsd.delivery.dto.*;
 import com.szmsd.delivery.enums.DelOutboundConstant;
 import com.szmsd.delivery.enums.DelOutboundExceptionStateEnum;
@@ -48,6 +45,7 @@ import com.szmsd.delivery.enums.DelOutboundPackingTypeConstant;
 import com.szmsd.delivery.enums.DelOutboundStateEnum;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
 import com.szmsd.delivery.mapper.DelOutboundMapper;
+import com.szmsd.delivery.mapper.DelOutboundTarckOnMapper;
 import com.szmsd.delivery.service.IDelOutboundAddressService;
 import com.szmsd.delivery.service.IDelOutboundChargeService;
 import com.szmsd.delivery.service.IDelOutboundCombinationService;
@@ -74,10 +72,12 @@ import com.szmsd.delivery.vo.DelOutboundThirdPartyVO;
 import com.szmsd.delivery.vo.DelOutboundVO;
 import com.szmsd.finance.dto.QueryChargeDto;
 import com.szmsd.finance.vo.QueryChargeVO;
+import com.szmsd.http.api.feign.HtpOutboundFeignService;
 import com.szmsd.http.api.service.IHtpOutboundClientService;
 import com.szmsd.http.api.service.IHtpRmiClientService;
 import com.szmsd.http.dto.HttpRequestDto;
 import com.szmsd.http.dto.ShipmentCancelRequestDto;
+import com.szmsd.http.dto.ShipmentTrackingChangeRequestDto;
 import com.szmsd.http.enums.DomainEnum;
 import com.szmsd.http.vo.HttpResponseVO;
 import com.szmsd.http.vo.ResponseVO;
@@ -112,17 +112,9 @@ import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -184,6 +176,12 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
     @Autowired
     private IHtpRmiClientService htpRmiClientService;
+
+    @Autowired
+    private DelOutboundTarckOnMapper delOutboundTarckOnMapper;
+
+    @Autowired
+    private HtpOutboundFeignService htpOutboundFeignService;
     /**
      * 查询出库单模块
      *
@@ -200,6 +198,31 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     public DelOutboundVO selectDelOutboundByOrderNo(String orderNo) {
         LambdaQueryWrapper<DelOutbound> queryWrapper = Wrappers.lambdaQuery();
         queryWrapper.eq(DelOutbound::getOrderNo, orderNo);
+        DelOutbound delOutbound = super.getOne(queryWrapper);
+        return this.selectDelOutboundVO(delOutbound);
+    }
+
+    @Override
+    public DelOutboundVO selectDelOutboundByOrderNous(String orderNo,int operationType) {
+        LambdaQueryWrapper<DelOutbound> queryWrapper = Wrappers.lambdaQuery();
+        if (operationType!=1){
+            queryWrapper.isNotNull(DelOutbound::getShipmentsTime);
+            queryWrapper.isNotNull(DelOutbound::getTrackingTime);
+        }
+
+//        queryWrapper.eq(DelOutbound::getOrderNo, orderNo).or().eq(DelOutbound::getRefNo,orderNo).or().eq(DelOutbound::getTrackingNo,orderNo);
+//        queryWrapper.and((wrapper)->{
+//
+//
+//
+//        });
+
+        queryWrapper.and(wrapper ->
+                wrapper.eq(DelOutbound::getOrderNo, orderNo).or().eq(DelOutbound::getRefNo,orderNo).or().eq(DelOutbound::getTrackingNo,orderNo)
+        );
+
+
+        queryWrapper.last("LIMIT 1");
         DelOutbound delOutbound = super.getOne(queryWrapper);
         return this.selectDelOutboundVO(delOutbound);
     }
@@ -223,11 +246,52 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         return delOutboundThirdPartyVO;
     }
 
+
     private DelOutboundVO selectDelOutboundVO(DelOutbound delOutbound) {
         if (Objects.isNull(delOutbound)) {
             throw new CommonException("400", "单据不存在");
         }
+        //判断时间不为空的情况
+
         DelOutboundVO delOutboundVO = BeanMapperUtil.map(delOutbound, DelOutboundVO.class);
+
+        if (Optional.ofNullable(delOutbound.getShipmentsTime()).isPresent()&&Optional.ofNullable(delOutbound.getTrackingTime()).isPresent()){
+            Date a=new Date(System.currentTimeMillis());
+            long s=(a.getTime()-delOutbound.getShipmentsTime().getTime());
+            TimeUnit time=TimeUnit.DAYS;
+            long day1=time.convert(s,TimeUnit.MILLISECONDS);
+
+            long q=(a.getTime()-delOutbound.getTrackingTime().getTime());
+
+            long day2=time.convert(q,TimeUnit.MILLISECONDS);
+            delOutboundVO.setDelDays(day1);
+            delOutboundVO.setTrackingDays(day2);
+
+            //根据物流服务查询 配置列表的两个天数
+            if (Optional.ofNullable(delOutbound.getShipmentRule()).isPresent()){
+
+                Map  mapSettings=baseMapper.selectQuerySettings(delOutbound.getShipmentRule());
+                if (mapSettings!=null) {
+                    //配置表的发货天数
+                    Long queryseShipmentDays = Long.valueOf(mapSettings.get("shipmentDays").toString());
+                    //配置表的轨迹天数
+                    Long querysetrackStayDays = Long.valueOf(mapSettings.get("trackStayDays").toString());
+                    delOutboundVO.setQueryseShipmentDays(queryseShipmentDays);
+                    delOutboundVO.setQuerysetrackStayDays(querysetrackStayDays);
+                    if ( queryseShipmentDays>delOutboundVO.getDelDays() && querysetrackStayDays>delOutboundVO.getTrackingDays() ) {
+                        delOutboundVO.setCheckFlag(0L);
+                    } else {
+                        delOutboundVO.setCheckFlag(1L);
+                    }
+                }else {
+                    delOutboundVO.setCheckFlag(1L);
+                }
+
+            }
+
+
+
+        }
         String orderNo = delOutbound.getOrderNo();
         DelOutboundAddress delOutboundAddress = delOutboundAddressService.getByOrderNo(orderNo);
         if (Objects.nonNull(delOutboundAddress)) {
@@ -705,6 +769,10 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             // 计算包裹大小
             this.countPackageSize(delOutbound, dto);
             logger.info(">>>>>[创建出库单{}]3.3 计算包裹大小，{}", delOutbound.getOrderNo(), timer.intervalRestart());
+
+            //同步更新计泡拦截重量
+            delOutbound.setForecastWeight(delOutbound.getWeight());
+            
             // 保存出库单
             int insert = baseMapper.insert(delOutbound);
             logger.info(">>>>>[创建出库单{}]3.4 保存出库单，{}", delOutbound.getOrderNo(), timer.intervalRestart());
@@ -1191,6 +1259,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
                 }
             }
+            //同步更新计泡拦截重量
+            inputDelOutbound.setForecastWeight(inputDelOutbound.getWeight());
 
             // 更新
             int i = baseMapper.updateById(inputDelOutbound);
@@ -1287,7 +1357,21 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 resultList.add(result);
                 continue;
             }
+            //导入挂号记录表
+            DelOutbound delOutbound=baseMapper.selectTrackingNo(updateTrackingNoDto.getOrderNo());
+            DelOutboundTarckOn delOutboundTarckOn=new DelOutboundTarckOn();
+            delOutboundTarckOn.setOrderNo(delOutbound.getOrderNo());
+            delOutboundTarckOn.setTrackingNo(delOutbound.getTrackingNo());
+            delOutboundTarckOn.setUpdateTime(new Date());
+            delOutboundTarckOn.setTrackingNoNew(updateTrackingNoDto.getTrackingNo());
             int u = super.baseMapper.updateTrackingNo(updateTrackingNoDto);
+            delOutboundTarckOnMapper.insertSelective(delOutboundTarckOn);
+            ShipmentTrackingChangeRequestDto shipmentTrackingChangeRequestDto=new ShipmentTrackingChangeRequestDto();
+            shipmentTrackingChangeRequestDto.setTrackingNo(updateTrackingNoDto.getTrackingNo());
+            shipmentTrackingChangeRequestDto.setOrderNo(delOutbound.getOrderNo());
+            shipmentTrackingChangeRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
+            R<ResponseVO> r= htpOutboundFeignService.shipmentTracking(shipmentTrackingChangeRequestDto);
+
             if (u < 1) {
                 Map<String, Object> result = new HashMap<>();
                 result.put("msg", "第 " + (i + 1) + " 行，出库单号不存在。");
@@ -1470,7 +1554,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
     @Transactional
     @Override
-    public int shipmentPacking(ShipmentPackingMaterialRequestDto dto, String orderType) {
+    public int shipmentPacking(ShipmentPackingMaterialRequestDto dto, String orderType,ShipmentEnum shipmentState) {
         LambdaUpdateWrapper<DelOutbound> updateWrapper = Wrappers.lambdaUpdate();
         if (StringUtils.isNotEmpty(dto.getWarehouseCode())) {
             updateWrapper.eq(DelOutbound::getWarehouseCode, dto.getWarehouseCode());
@@ -1492,6 +1576,10 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         updateWrapper.set(DelOutbound::getSpecifications, length + "*" + width + "*" + height);
         // 修改状态为处理中
         updateWrapper.set(DelOutbound::getState, DelOutboundStateEnum.PROCESSING.getCode());
+
+        if (shipmentState != null) {
+            updateWrapper.set(DelOutbound::getShipmentState, shipmentState);
+        }
         return this.baseMapper.update(null, updateWrapper);
     }
 
@@ -1925,6 +2013,78 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             }
         }
 
+    }
+
+    @Override
+    public void labelSelfPick(HttpServletResponse response, DelOutboundLabelDto dto) {
+        DelOutbound delOutbound = this.getById(dto.getId());
+        if (null == delOutbound) {
+            throw new CommonException("400", "单据不存在");
+        }
+        String pathname = DelOutboundServiceImplUtil.getSelfPickLabelFilePath(delOutbound) + "/" + delOutbound.getOrderNo() + ".pdf";
+        File labelFile = new File(pathname);
+        if (!labelFile.exists()) {
+            String orderNo = delOutbound.getOrderNo();
+            // 查询地址信息
+            List<DelOutboundDetail> delOutboundDetailList = this.delOutboundDetailService.listByOrderNo(delOutbound.getOrderNo());
+            try {
+                ByteArrayOutputStream byteArrayOutputStream = DelOutboundServiceImplUtil.renderSelfPick(delOutbound, delOutboundDetailList, null);
+                byte[] fb = null;
+                FileUtils.writeByteArrayToFile(labelFile, fb = byteArrayOutputStream.toByteArray(), false);
+                ServletOutputStream outputStream = null;
+                InputStream inputStream = null;
+                try {
+                    outputStream = response.getOutputStream();
+                    //response为HttpServletResponse对象
+                    response.setContentType("application/pdf;charset=utf-8");
+                    //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
+                    response.setHeader("Content-Disposition", "attachment;filename=" + delOutbound.getOrderNo() + ".pdf");
+                    IOUtils.copy(new ByteArrayInputStream(fb), outputStream);
+                } catch (IOException e) {
+                    logger.error(e.getMessage(), e);
+                    throw new CommonException("500", "读取自提标签文件失败");
+                } finally {
+                    IoUtil.flush(outputStream);
+                    IoUtil.close(outputStream);
+                    IoUtil.close(inputStream);
+                }
+                return;
+
+            } catch (Exception e) {
+                throw new CommonException("400", "自提标签文件不存在");
+            }
+
+        }
+
+        if(response == null){
+            return;
+        }
+        ServletOutputStream outputStream = null;
+        InputStream inputStream = null;
+        try {
+            outputStream = response.getOutputStream();
+            //response为HttpServletResponse对象
+            response.setContentType("application/pdf;charset=utf-8");
+            //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
+            response.setHeader("Content-Disposition", "attachment;filename=" + delOutbound.getOrderNo() + ".pdf");
+            inputStream = new FileInputStream(labelFile);
+            IOUtils.copy(inputStream, outputStream);
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+            throw new CommonException("500", "读取自提标签文件失败");
+        } finally {
+            IoUtil.flush(outputStream);
+            IoUtil.close(outputStream);
+            IoUtil.close(inputStream);
+        }
+
+
+    }
+
+    @Override
+    public List<DelOutboundTarckOn> selectDelOutboundTarckList(DelOutboundTarckOn delOutboundTarckOn) {
+
+        return delOutboundTarckOnMapper.selectByPrimaryKey(delOutboundTarckOn);
     }
 
     @Override
@@ -2368,6 +2528,68 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     }
 
     @Override
+    public int receiveLabel(DelOutboundReceiveLabelDto dto) {
+
+        LambdaQueryWrapper<DelOutbound> queryWrapper = Wrappers.lambdaQuery();
+        if(StringUtils.isNotEmpty(dto.getOrderNo())){
+            queryWrapper.eq(DelOutbound::getOrderNo, dto.getOrderNo());
+
+        }else if(StringUtils.isNotEmpty(dto.getOrderNo())){
+            queryWrapper.eq(DelOutbound::getRefNo, dto.getRefNo());
+
+        }else if(StringUtils.isNotEmpty(dto.getOrderNo())){
+            queryWrapper.eq(DelOutbound::getTrackingNo, dto.getTrackingNo());
+        }else{
+            throw new CommonException("400", "唯一标识必须有值");
+        }
+        DelOutbound data = this.getOne(queryWrapper);
+        if(data == null){
+            throw new CommonException("400", "出库单未匹配");
+        }
+        if(StringUtils.isNotEmpty(dto.getTraceId())){
+            data.setTraceId(dto.getTraceId());
+        }
+        if(StringUtils.isNotEmpty(dto.getRemark())){
+            data.setRemark(dto.getRemark());
+
+        }
+
+        data.setShipmentOrderLabelUrl(delOutboundBringVerifyService.saveShipmentLabel(dto.getFileStream(), data));
+        this.updateById(data);
+        return 1;
+    }
+
+    @Override
+    public int boxStatus(DelOutboundBoxStatusDto dto) {
+        LambdaQueryWrapper<DelOutboundDetail> queryWrapper = Wrappers.lambdaQuery();
+        queryWrapper.eq(DelOutboundDetail::getOrderNo, dto.getOrderNo());
+        queryWrapper.eq(DelOutboundDetail::getBoxMark, dto.getBoxNo());
+        List<DelOutboundDetail> dataDelOutboundDetailList = delOutboundDetailService.list(queryWrapper);
+        if(dataDelOutboundDetailList.size() == 0){
+            throw new CommonException("400", "没有匹配的箱号数据");
+        }
+        for (DelOutboundDetail detail: dataDelOutboundDetailList){
+            detail.setOperationType(dto.getOperationType());
+        }
+        delOutboundDetailService.updateBatchById(dataDelOutboundDetailList);
+
+        int i = 0;
+        for (DelOutboundDetail detail: dataDelOutboundDetailList){
+            if("Completed".equals(detail.getOperationType())){
+                i++;
+            }
+        }
+        if(i == dataDelOutboundDetailList.size()){
+            //该订单全部接收完成后，调用PRC
+            ApplicationContext context = delOutboundBringVerifyService.initContext(this.getByOrderNo(dto.getOrderNo()));
+            ApplicationContainer applicationContainer = new ApplicationContainer(context, BringVerifyEnum.PRC_PRICING, BringVerifyEnum.PRODUCT_INFO, BringVerifyEnum.PRC_PRICING);
+            applicationContainer.action();
+
+        }
+        return 1;
+    }
+
+    @Override
     public void manualTrackingYee(List<String> list) {
         list.forEach(x->{
             DelOutboundListQueryDto delOutboundListQueryDto=baseMapper.pageLists(x);
@@ -2379,7 +2601,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     public void TraYee(DelOutboundListQueryDto delOutboundListQueryDto){
         boolean success = false;
         String responseBody;
-        logger.info("手动推送TY{}",delOutboundListQueryDto);
+        logger.info("手动推送TY{}");
         try {
             Map<String, Object> requestBodyMap = new HashMap<>();
             List<Map<String, Object>> shipments = new ArrayList<>();

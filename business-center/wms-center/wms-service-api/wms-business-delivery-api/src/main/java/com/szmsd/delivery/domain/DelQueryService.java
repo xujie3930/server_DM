@@ -1,6 +1,7 @@
 package com.szmsd.delivery.domain;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.szmsd.common.core.web.domain.BaseEntity;
 import com.baomidou.mybatisplus.annotation.TableId;
 import io.swagger.annotations.ApiModel;
@@ -106,6 +107,34 @@ public class DelQueryService extends BaseEntity {
     @ApiModelProperty(value = "状态名称")
     @Excel(name = "状态名称")
     private String stateName;
+
+    @ApiModelProperty(value = "发货天数")
+    private Long delDays;
+
+    @ApiModelProperty(value = "轨迹停留天数")
+    private Long trackingDays;
+
+    @ApiModelProperty(value = "查件标识(0是红色,1是绿色)")
+    private Long checkFlag;
+
+    @ApiModelProperty(value = "允查发货天数")
+    private Long queryseShipmentDays;
+
+    @ApiModelProperty(value = "允查轨迹停留天数")
+    private Long querysetrackStayDays;
+
+    @ApiModelProperty(value = "反馈类容描述")
+    @TableField(exist = false)
+    private String feedReason;
+
+    @ApiModelProperty(value = "操作类型(0表示管理端,1表示客户端)")
+    @TableField(exist = false)
+    private int operationType=0;
+
+
+//    @ApiModelProperty(value = "查件标识(0是红色,1是绿色)")
+//    //@TableField(exist = false)
+//    private Long checkFlag;
 
 
 }

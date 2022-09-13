@@ -34,6 +34,7 @@ import com.szmsd.common.log.enums.BusinessType;
 import com.szmsd.common.plugin.annotation.AutoValue;
 import com.szmsd.common.security.utils.SecurityUtils;
 import com.szmsd.delivery.domain.DelOutbound;
+import com.szmsd.delivery.domain.DelOutboundTarckOn;
 import com.szmsd.delivery.dto.*;
 import com.szmsd.delivery.enums.DelOutboundOperationTypeEnum;
 import com.szmsd.delivery.enums.DelOutboundStateEnum;
@@ -76,6 +77,7 @@ import com.szmsd.delivery.vo.DelOutboundThirdPartyVO;
 import com.szmsd.delivery.vo.DelOutboundVO;
 import com.szmsd.finance.dto.QueryChargeDto;
 import com.szmsd.finance.vo.QueryChargeVO;
+import com.szmsd.http.api.feign.HtpOutboundFeignService;
 import com.szmsd.inventory.api.service.InventoryFeignClientService;
 import com.szmsd.inventory.domain.dto.QueryFinishListDTO;
 import com.szmsd.inventory.domain.vo.QueryFinishListVO;
@@ -120,6 +122,7 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 出库管理
@@ -155,6 +158,7 @@ public class DelOutboundController extends BaseController {
     @Autowired
     private IDelOutboundCompletedService delOutboundCompletedService;
 
+
     @PreAuthorize("@ss.hasPermi('DelOutbound:DelOutbound:list')")
     @PostMapping("/page")
     @ApiOperation(value = "出库管理 - 分页", position = 100)
@@ -162,6 +166,15 @@ public class DelOutboundController extends BaseController {
     public TableDataInfo<DelOutboundListVO> page(@RequestBody DelOutboundListQueryDto queryDto) {
         startPage(queryDto);
         return getDataTable(this.delOutboundService.selectDelOutboundList(queryDto));
+    }
+
+    //@PreAuthorize("@ss.hasPermi('DelOutbound:DelOutbound:list')")
+    @PostMapping("/pageDelTarck")
+    @ApiOperation(value = "出库挂号更新日志 - 分页", position = 100)
+    @AutoValue
+    public TableDataInfo<DelOutboundTarckOn> pageDelTarck(@RequestBody DelOutboundTarckOn delOutboundTarckOn) {
+        startPage(delOutboundTarckOn);
+        return getDataTable(this.delOutboundService.selectDelOutboundTarckList(delOutboundTarckOn));
     }
 
 
@@ -663,6 +676,14 @@ public class DelOutboundController extends BaseController {
         this.delOutboundService.label(response, dto);
     }
 
+    @PreAuthorize("@ss.hasPermi('DelOutbound:DelOutbound:SelfPick')")
+    @PostMapping("/labelSelfPick")
+    @ApiOperation(value = "出库管理 - 获取自提标签", position = 1300)
+    @ApiImplicitParam(name = "dto", value = "出库单", dataType = "DelOutboundLabelDto")
+    public void labelSelfPick(HttpServletResponse response, @RequestBody @Validated DelOutboundLabelDto dto) {
+        this.delOutboundService.labelSelfPick(response, dto);
+    }
+
     @PreAuthorize("@ss.hasPermi('DelOutbound:DelOutbound:labelBase64')")
     @PostMapping("/labelBase64")
     @ApiOperation(value = "出库管理 - 获取标签（根据订单号批量查询，DOC支持）", position = 1301)
@@ -709,6 +730,13 @@ public class DelOutboundController extends BaseController {
         try {
 
             String len = getLen();
+
+            if (Objects.nonNull(SecurityUtils.getLoginUser())) {
+                String cusCode = StringUtils.isNotEmpty(SecurityUtils.getLoginUser().getSellerCode()) ? SecurityUtils.getLoginUser().getSellerCode() : "";
+                if (StringUtils.isEmpty(queryDto.getCustomCode())) {
+                    queryDto.setCustomCode(cusCode);
+                }
+            }
 
             // 查询出库类型数据
             Map<String, List<BasSubWrapperVO>> listMap = this.basSubClientService.getSub("063,065,066,099,059");
@@ -899,4 +927,22 @@ public class DelOutboundController extends BaseController {
         this.delOutboundService.update(null, lambdaUpdateWrapper);
         return R.ok(true);
     }
+    @PreAuthorize("@ss.hasPermi('DelOutbound:DelOutbound:receiveLabel')")
+    @Log(title = "出库单模块", businessType = BusinessType.UPDATE)
+    @PostMapping("/receiveLabel")
+    @ApiOperation(value = "出库管理 - 接收供应商系统传回的标签", position = 400)
+    @ApiImplicitParam(name = "dto", value = "出库单", dataType = "DelOutboundDto")
+    public R<Integer> receiveLabel(@RequestBody @Validated(ValidationUpdateGroup.class) DelOutboundReceiveLabelDto dto) {
+        return R.ok(delOutboundService.receiveLabel(dto));
+    }
+
+    @PreAuthorize("@ss.hasPermi('DelOutbound:DelOutbound:receiveLabel')")
+    @Log(title = "出库单模块", businessType = BusinessType.UPDATE)
+    @PostMapping("/box/status")
+    @ApiOperation(value = "出库管理 - 接收供应商系统传回的标签", position = 400)
+    @ApiImplicitParam(name = "dto", value = "出库单", dataType = "DelOutboundDto")
+    public R<Integer> boxStatus(@RequestBody DelOutboundBoxStatusDto dto) {
+        return R.ok(delOutboundService.boxStatus(dto));
+    }
+
 }

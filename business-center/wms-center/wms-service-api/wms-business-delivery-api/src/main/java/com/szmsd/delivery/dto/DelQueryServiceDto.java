@@ -27,7 +27,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
 @ApiModel(value="查件服务", description="DelQueryService对象")
-public class DelQueryServiceDto extends BaseEntity {
+public class DelQueryServiceDto extends BaseEntity{
 
     private static final long serialVersionUID = 1L;
 
@@ -128,6 +128,36 @@ public class DelQueryServiceDto extends BaseEntity {
     private List<DelQueryServiceFeedback> delQueryServiceFeedbackList;
 
     private String queryNoOne;
+
+    @ApiModelProperty(value = "发货天数")
+    private Long delDays;
+
+    @ApiModelProperty(value = "轨迹停留天数")
+    private Long trackingDays;
+
+    @ApiModelProperty(value = "查件标识(0是红色,1是绿色)")
+    private Long checkFlag;
+
+    @ApiModelProperty(value = "允查发货天数")
+    private Long queryseShipmentDays;
+
+    @ApiModelProperty(value = "允查轨迹停留天数")
+    private Long querysetrackStayDays;
+
+    @ApiModelProperty(value = "客户端的code")
+    @TableField(exist = false)
+   private String currencyCode;
+
+    @ApiModelProperty(value = "分页数")
+    @TableField(exist = false)
+    private int pageNum = 1;
+
+    @ApiModelProperty(value = "每页大小")
+    @TableField(exist = false)
+    private int pageSize = 10;
+
+
+
 
 
 

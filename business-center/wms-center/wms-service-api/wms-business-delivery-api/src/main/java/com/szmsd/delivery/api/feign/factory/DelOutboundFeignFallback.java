@@ -207,7 +207,16 @@ public class DelOutboundFeignFallback implements FallbackFactory<DelOutboundFeig
                 return R.convertResultJson(throwable);
             }
 
-          
+            @Override
+            public R<Integer> receiveLabel(DelOutboundReceiveLabelDto dto) {
+                return R.convertResultJson(throwable);
+            }
+
+            @Override
+            public R<Integer> boxStatus(DelOutboundBoxStatusDto dto) {
+                return R.convertResultJson(throwable);
+            }
+
             @Override
             public R<List<DelOutboundBringVerifyVO>> bringVerifyByOrderNo(DelOutboundBringVerifyNoDto dto) {
                 return R.convertResultJson(throwable);
