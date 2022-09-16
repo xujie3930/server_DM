@@ -1,16 +1,16 @@
 package com.szmsd.delivery.service.impl;
 
+import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.szmsd.bas.api.domain.BasSub;
+import com.szmsd.bas.api.domain.vo.BasRegionSelectListVO;
 import com.szmsd.bas.api.feign.BasSellerFeignService;
 import com.szmsd.bas.api.feign.BasSubFeignService;
-import com.szmsd.bas.api.feign.BasTranslateFeignService;
 import com.szmsd.bas.vo.BasSellerInfoVO;
-import com.szmsd.common.core.constant.HttpStatus;
 import com.szmsd.common.core.exception.com.CommonException;
 import com.szmsd.common.core.utils.StringToolkit;
 import com.szmsd.common.core.utils.StringUtils;
@@ -31,7 +31,6 @@ import com.szmsd.delivery.service.*;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.szmsd.delivery.vo.DelOutboundVO;
 import com.szmsd.finance.domain.AccountBalance;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -56,7 +55,6 @@ import java.util.Optional;
 * @since 2022-06-08
 */
 @Service
-@Slf4j
 public class DelQueryServiceServiceImpl extends ServiceImpl<DelQueryServiceMapper, DelQueryService> implements IDelQueryServiceService {
 
     @Resource
@@ -81,8 +79,6 @@ public class DelQueryServiceServiceImpl extends ServiceImpl<DelQueryServiceMappe
 
     @Autowired
     private DelQueryServiceFeedbackMapper delQueryServiceFeedbackMapper;
-    @Autowired
-    private BasTranslateFeignService basTranslateFeignService;
 
 
 
@@ -236,6 +232,142 @@ public class DelQueryServiceServiceImpl extends ServiceImpl<DelQueryServiceMappe
     @Override
     public   List<DelQueryServiceExc> selectDelQueryServiceListex(DelQueryServiceDto delQueryService){
 
+        QueryWrapper<DelQueryService> queryWrapper = new QueryWrapper<DelQueryService>();
+
+        LambdaQueryWrapper<DelQueryService> where = queryWrapper.lambda();
+
+        String queryNo = delQueryService.getQueryNoOne();
+
+        if (com.szmsd.common.core.utils.StringUtils.isNotEmpty(queryNo)) {
+            try {
+                queryNo = URLDecoder.decode(delQueryService.getQueryNoOne(),"UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
+            }
+            List<String> queryNoList = DelOutboundServiceImplUtil.splitToArray(queryNo, "[\n,]");
+
+            where.and(wrapper ->
+                    wrapper.in(DelQueryService::getOrderNo, queryNoList)
+                            .or().in(DelQueryService::getTraceId, queryNoList)
+                            .or().in(DelQueryService::getRefNo,queryNoList)
+            );
+//                where.in(DelQueryService::getOrderNo, queryNoList)
+//                        .or().in(DelQueryService::getTraceId, queryNoList)
+//                        .or().in(DelQueryService::getRefNo,queryNoList);
+        }
+
+        if(StringUtils.isNotEmpty(delQueryService.getOrderNo())){
+            where.in(DelQueryService::getOrderNo, StringToolkit.getCodeByArray(delQueryService.getOrderNo()));
+        }
+
+
+        if(StringUtils.isNotEmpty(delQueryService.getTraceId())){
+            where.in(DelQueryService::getTraceId, StringToolkit.getCodeByArray(delQueryService.getTraceId()));
+        }
+        if(StringUtils.isNotEmpty(delQueryService.getRefNo())){
+            where.in(DelQueryService::getRefNo, StringToolkit.getCodeByArray(delQueryService.getRefNo()));
+        }
+
+        LoginUser loginUser = SecurityUtils.getLoginUser();
+
+        List<String> sellerCodeList=null;
+        if (null != loginUser && !loginUser.getUsername().equals("admin")) {
+            String username = loginUser.getUsername();
+            sellerCodeList=baseMapper.selectsellerCode(username);
+
+            if (sellerCodeList.size()>0){
+                where.in(DelQueryService::getSellerCode, sellerCodeList);
+
+            }
+            if (StringUtils.isNotEmpty(delQueryService.getCurrencyCode())) {
+                where.eq(DelQueryService::getSellerCode, delQueryService.getCurrencyCode());
+            }
+
+        }
+        if (null != loginUser && loginUser.getUsername().equals("admin")){
+            sellerCodeList=baseMapper.selectsellerCodes();
+
+        }
+
+
+
+        if(StringUtils.isNotEmpty(delQueryService.getServiceStaff())){
+            where.like(DelQueryService::getServiceStaff, delQueryService.getServiceStaff());
+        }
+        if(StringUtils.isNotEmpty(delQueryService.getServiceManager())){
+            where.like(DelQueryService::getServiceManager, delQueryService.getServiceManager());
+        }
+
+        if(StringUtils.isNotEmpty(delQueryService.getServiceStaffNickName())){
+            where.like(DelQueryService::getServiceStaffNickName, delQueryService.getServiceStaffNickName());
+        }
+
+
+        if(StringUtils.isNotEmpty(delQueryService.getShipmentRule())){
+            where.eq(DelQueryService::getShipmentRule, delQueryService.getShipmentRule());
+        }
+
+        if(StringUtils.isNotEmpty(delQueryService.getShipmentService())){
+            where.eq(DelQueryService::getShipmentService, delQueryService.getShipmentService());
+        }
+
+        if(StringUtils.isNotEmpty(delQueryService.getCountry())){
+            where.eq(DelQueryService::getCountry, delQueryService.getCountry());
+        }
+        if(StringUtils.isNotEmpty(delQueryService.getCountryCode())){
+            where.eq(DelQueryService::getCountryCode, delQueryService.getCountryCode());
+        }
+
+        if(StringUtils.isNotEmpty(delQueryService.getCreateBy())){
+            where.eq(DelQueryService::getCreateBy, delQueryService.getCreateBy());
+        }
+
+        if(StringUtils.isNotEmpty(delQueryService.getCreateByName())){
+            where.eq(DelQueryService::getCreateByName, delQueryService.getCreateByName());
+        }
+
+
+
+        if(StringUtils.isNotEmpty(delQueryService.getState())){
+            where.eq(DelQueryService::getState, delQueryService.getState());
+        }
+
+        if(StringUtils.isNotEmpty(delQueryService.getIds())){
+            where.in(DelQueryService::getId, delQueryService.getIds());
+        }
+
+        if(delQueryService.getFeedbacks() != null && delQueryService.getFeedbacks().length > 1){
+            where.apply("id in(SELECT main_id FROM del_query_service_feedback where create_time BETWEEN {0} and {1})",
+                    delQueryService.getFeedbacks()[0], delQueryService.getFeedbacks()[1]);
+        }
+        QueryWrapperUtil.filterDate(queryWrapper, "create_time", delQueryService.getCreateTimes());
+
+
+        where.orderByDesc(DelQueryService::getCreateTime);
+        List<DelQueryService> list=baseMapper.selectList(where);
+        List<DelQueryServiceExc> list1=new ArrayList<>();
+        list.forEach(x->{
+            DelQueryServiceExc delQueryServiceExc=new DelQueryServiceExc();
+            BeanUtils.copyProperties(x,delQueryServiceExc);
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            delQueryServiceExc.setCreateTime(format.format(x.getCreateTime()));
+            list1.add(delQueryServiceExc);
+
+        });
+
+        list1.forEach(s->{
+           List<DelQueryServiceFeedbackExc>  list2=delQueryServiceFeedbackMapper.selectLists(s.getId());
+           s.setDelQueryServiceFeedbackExcs(list2);
+        });
+
+
+        return list1;
+    }
+
+
+
+    @Override
+    public R<PageInfo<DelQueryService>> selectDelQueryServiceListrs(DelQueryServiceDto delQueryService) {
         QueryWrapper<DelQueryService> queryWrapper = new QueryWrapper<DelQueryService>();
 
         LambdaQueryWrapper<DelQueryService> where = queryWrapper.lambda();

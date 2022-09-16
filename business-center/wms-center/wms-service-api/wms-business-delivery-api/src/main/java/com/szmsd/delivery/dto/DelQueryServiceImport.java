@@ -1,5 +1,6 @@
 package com.szmsd.delivery.dto;
 
+import com.alibaba.excel.annotation.ExcelProperty;
 import com.baomidou.mybatisplus.annotation.*;
 import com.szmsd.common.core.annotation.Excel;
 import com.szmsd.common.core.annotation.Excel.Type;
