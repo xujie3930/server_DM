@@ -7,15 +7,18 @@ import com.alibaba.excel.event.SyncReadListener;
 import com.github.pagehelper.PageInfo;
 import com.szmsd.bas.api.feign.BasTranslateFeignService;
 import com.szmsd.bas.dto.BasSkuRuleMatchingImportDto;
+import com.szmsd.bas.dto.BasSkuRuleMatchingImportDto;
 import com.szmsd.bas.dto.BaseProductImportDto;
 import com.szmsd.common.core.constant.HttpStatus;
 import com.szmsd.common.core.exception.com.CommonException;
+import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.common.core.web.controller.QueryDto;
 import com.szmsd.common.security.utils.SecurityUtils;
 import com.szmsd.delivery.dto.DelQueryServiceDto;
 import com.szmsd.delivery.dto.DelQueryServiceExc;
 import com.szmsd.delivery.dto.DelQueryServiceImport;
+import com.szmsd.delivery.dto.DelQueryServiceImportExcle;
 import com.szmsd.delivery.service.IDelOutboundService;
 import com.szmsd.exception.dto.ExceptionInfoExportDto;
 import com.szmsd.finance.domain.AccountBalance;
@@ -61,8 +64,6 @@ public class DelQueryServiceController extends BaseController{
 
      @Resource
      private IDelQueryServiceService delQueryServiceService;
-
-
 
 
      /**
@@ -127,7 +128,6 @@ public class DelQueryServiceController extends BaseController{
 
         list.forEach(x->{
             x.setOperationType(Integer.parseInt(httpServletRequest.getParameter("operationType")));
-
         });
         return delQueryServiceService.importData(list);
     }
