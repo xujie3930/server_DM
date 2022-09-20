@@ -1,16 +1,16 @@
 package com.szmsd.delivery.service.impl;
 
-import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.szmsd.bas.api.domain.BasSub;
-import com.szmsd.bas.api.domain.vo.BasRegionSelectListVO;
 import com.szmsd.bas.api.feign.BasSellerFeignService;
 import com.szmsd.bas.api.feign.BasSubFeignService;
+import com.szmsd.bas.api.feign.BasTranslateFeignService;
 import com.szmsd.bas.vo.BasSellerInfoVO;
+import com.szmsd.common.core.constant.HttpStatus;
 import com.szmsd.common.core.exception.com.CommonException;
 import com.szmsd.common.core.utils.StringToolkit;
 import com.szmsd.common.core.utils.StringUtils;
@@ -79,6 +79,8 @@ public class DelQueryServiceServiceImpl extends ServiceImpl<DelQueryServiceMappe
 
     @Autowired
     private DelQueryServiceFeedbackMapper delQueryServiceFeedbackMapper;
+    @Autowired
+    private BasTranslateFeignService basTranslateFeignService;
 
 
 

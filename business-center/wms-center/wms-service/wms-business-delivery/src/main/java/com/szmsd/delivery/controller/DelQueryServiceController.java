@@ -5,7 +5,12 @@ import cn.afterturn.easypoi.excel.entity.ExportParams;
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.event.SyncReadListener;
 import com.github.pagehelper.PageInfo;
+import com.szmsd.bas.api.feign.BasTranslateFeignService;
+import com.szmsd.bas.dto.BasSkuRuleMatchingImportDto;
 import com.szmsd.bas.dto.BaseProductImportDto;
+import com.szmsd.common.core.constant.HttpStatus;
+import com.szmsd.common.core.exception.com.CommonException;
+import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.common.core.web.controller.QueryDto;
 import com.szmsd.common.security.utils.SecurityUtils;
 import com.szmsd.delivery.dto.DelQueryServiceDto;
@@ -65,6 +70,8 @@ public class DelQueryServiceController extends BaseController{
      private IDelQueryServiceService delQueryServiceService;
 
 
+
+
      /**
        * 查询查件服务模块列表
      */
@@ -115,8 +122,14 @@ public class DelQueryServiceController extends BaseController{
     @PostMapping("/importData")
     @ApiOperation(httpMethod = "POST", value = "导入查件服务数据")
     public R importData(MultipartFile file, HttpServletRequest httpServletRequest) throws Exception {
-        ExcelUtil<DelQueryServiceImport> util = new ExcelUtil<DelQueryServiceImport>(DelQueryServiceImport.class);
-        List<DelQueryServiceImport> list = util.importExcel(file.getInputStream());
+
+        List<DelQueryServiceImportExcle> list1 = EasyExcel.read(file.getInputStream(), DelQueryServiceImportExcle.class, new SyncReadListener()).sheet().doReadSync();
+
+//        ExcelUtil<DelQueryServiceImport> util = new ExcelUtil<DelQueryServiceImport>(DelQueryServiceImport.class);
+//        List<DelQueryServiceImport> list = util.importExcel(file.getInputStream());
+
+        //集合之间的拷贝
+        List<DelQueryServiceImport> list = BeanMapperUtil.mapList(list1, DelQueryServiceImport.class);
 
 
         list.forEach(x->{
