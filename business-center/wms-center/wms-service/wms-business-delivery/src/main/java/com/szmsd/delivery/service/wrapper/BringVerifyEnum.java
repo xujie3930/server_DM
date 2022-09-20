@@ -13,19 +13,14 @@ import com.szmsd.chargerules.api.feign.OperationFeignService;
 import com.szmsd.common.core.constant.Constants;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.exception.com.CommonException;
+import com.szmsd.common.core.utils.MessageUtil;
 import com.szmsd.common.core.utils.SpringUtils;
 import com.szmsd.common.core.utils.StringUtils;
-import com.szmsd.delivery.domain.DelOutbound;
-import com.szmsd.delivery.domain.DelOutboundCharge;
-import com.szmsd.delivery.domain.DelOutboundDetail;
-import com.szmsd.delivery.domain.DelOutboundThirdParty;
+import com.szmsd.delivery.domain.*;
 import com.szmsd.delivery.dto.DelOutboundLabelDto;
 import com.szmsd.delivery.enums.*;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
-import com.szmsd.delivery.service.IDelOutboundChargeService;
-import com.szmsd.delivery.service.IDelOutboundCompletedService;
-import com.szmsd.delivery.service.IDelOutboundService;
-import com.szmsd.delivery.service.IDelOutboundThirdPartyService;
+import com.szmsd.delivery.service.*;
 import com.szmsd.delivery.service.impl.DelOutboundServiceImplUtil;
 import com.szmsd.delivery.util.PdfUtil;
 import com.szmsd.delivery.util.Utils;
@@ -35,7 +30,19 @@ import com.szmsd.finance.api.feign.RechargesFeignService;
 import com.szmsd.finance.dto.CusFreezeBalanceDTO;
 import com.szmsd.http.api.service.IHtpOutboundClientService;
 import com.szmsd.http.api.service.IHtpPricedProductClientService;
-import com.szmsd.http.dto.*;
+import com.szmsd.http.dto.ChargeCategory;
+import com.szmsd.http.dto.ChargeItem;
+import com.szmsd.http.dto.ChargeWrapper;
+import com.szmsd.http.dto.Money;
+import com.szmsd.http.dto.Packing;
+import com.szmsd.http.dto.PricingPackageInfo;
+import com.szmsd.http.dto.ProblemDetails;
+import com.szmsd.http.dto.ResponseObject;
+import com.szmsd.http.dto.ShipmentChargeInfo;
+import com.szmsd.http.dto.ShipmentLabelChangeRequestDto;
+import com.szmsd.http.dto.ShipmentOrderResult;
+import com.szmsd.http.dto.TaskConfigInfo;
+import com.szmsd.http.dto.Weight;
 import com.szmsd.http.vo.PricedProductInfo;
 import com.szmsd.http.vo.ResponseVO;
 import com.szmsd.inventory.api.service.InventoryFeignClientService;
@@ -50,7 +57,6 @@ import org.springframework.util.StopWatch;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -207,7 +213,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             DelOutbound updateDelOutbound = new DelOutbound();
             updateDelOutbound.setId(delOutbound.getId());
             // 提审失败
-            String exceptionMessage = Utils.defaultValue(throwable.getMessage(), "提审操作失败");
+            String exceptionMessage = Utils.defaultValue(throwable.getMessage(), MessageUtil.to("提审操作失败", "Review operation failed"));
 
             if(BringVerifyEnum.SHIPMENT_CREATE.equals(currentState) || BringVerifyEnum.SHIPMENT_LABEL.equals(currentState)){
                 // 推单WMS
@@ -304,8 +310,6 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             DelOutboundWrapperContext delOutboundWrapperContext = (DelOutboundWrapperContext) context;
             DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
             logger.info(">>>>>[创建出库单{}]-开始执行Pricing", delOutbound.getOrderNo());
-
-
 
             PricingEnum pricingEnum;
             if (DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())) {
@@ -523,9 +527,6 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
 
                     logger.info(">>>>>[创建出库单{}]结束冻结费用, 数据:{} ,耗时{}", delOutbound.getOrderNo(), JSONObject.toJSONString(cusFreezeBalanceDTO), stopWatch.getLastTaskInfo().getTimeMillis());
                 }
-            }
-
-
 
             }catch (Exception e){
                 logger.info("冻结费用异常，加锁失败");
@@ -623,19 +624,18 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             stopWatch.stop();
 
             logger.info(">>>>>[创建出库单{}]获取产品信息 耗时{}", delOutbound.getOrderNo(), stopWatch.getLastTaskInfo().getTimeMillis());
-            if (null != pricedProductInfo) {
-                // 从PRC返回进行取值，这里作废
-                // delOutbound.setShipmentService(pricedProductInfo.getLogisticsRouteId());
-                delOutbound.setTrackingAcquireType(pricedProductInfo.getTrackingAcquireType());
-                // 这两个字段从PRC返回赋值了
-                // delOutbound.setProductShipmentRule(pricedProductInfo.getShipmentRule());
-                // delOutbound.setPackingRule(pricedProductInfo.getPackingRule());
-                delOutbound.setPrcProductCode(prcProductCode);
-                DelOutboundOperationLogEnum.BRV_PRODUCT_INFO.listener(delOutbound);
-            } else {
-                // 异常信息
-                throw new CommonException("400", "查询产品[" + productCode + "]信息失败");
+            if (null == pricedProductInfo) {
+                throw new CommonException("400", MessageUtil.to("查询产品[" + productCode + "]信息失败","Failed to query product ["+productCode+"] information" ));
             }
+
+            // 从PRC返回进行取值，这里作废
+            // delOutbound.setShipmentService(pricedProductInfo.getLogisticsRouteId());
+            delOutbound.setTrackingAcquireType(pricedProductInfo.getTrackingAcquireType());
+            // 这两个字段从PRC返回赋值了
+            // delOutbound.setProductShipmentRule(pricedProductInfo.getShipmentRule());
+            // delOutbound.setPackingRule(pricedProductInfo.getPackingRule());
+            delOutbound.setPrcProductCode(prcProductCode);
+            DelOutboundOperationLogEnum.BRV_PRODUCT_INFO.listener(delOutbound);
         }
 
         @Override
@@ -847,7 +847,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                 throw e;
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);
-                throw new CommonException("400", "冻结库存操作失败，" + e.getMessage());
+                throw new CommonException("400", MessageUtil.to("冻结库存操作失败，" + e.getMessage(), "Failed to freeze the inventory,"+e.getMessage()));
             }
         }
 
@@ -922,14 +922,14 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                 }
                 // 没有查询到SKU信息
                 if (null == productMap) {
-                    throw new CommonException("400", "查询SKU信息失败");
+                    throw new CommonException("400", MessageUtil.to("查询SKU信息失败", "Failed to query SKU information"));
                 }
                 // 处理操作费用参数
                 for (DelOutboundDetail detail : details) {
                     String sku = detail.getSku();
                     BaseProduct product = productMap.get(sku);
                     if (null == product) {
-                        throw new CommonException("400", "SKU[" + sku + "]信息不存在");
+                        throw new CommonException("400", MessageUtil.to("SKU[" + sku + "]信息不存在", "SKU ["+sku+"] information does not exist"));
                     }
                     // 操作费对象
                     DelOutboundOperationDetailVO detailVO = new DelOutboundOperationDetailVO();
@@ -1140,7 +1140,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
 
                 File labelFile = new File(filePath);
                 if (!labelFile.exists()) {
-                    throw new CommonException("500", "出库单文件不存在");
+                    throw new CommonException("500", MessageUtil.to("出库单文件不存在", "The delivery order file does not exist"));
                 }
             }
             IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
@@ -1172,7 +1172,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                         FileUtils.forceMkdir(mergeFileDir);
                     } catch (IOException e) {
                         logger.error(e.getMessage(), e);
-                        throw new CommonException("500", "创建文件夹失败，" + e.getMessage());
+                        throw new CommonException("500", MessageUtil.to("创建文件夹失败，", "Failed to create folder,") + e.getMessage());
                     }
                 }
                 String mergeFilePath = mergeFileDirPath + "/" + delOutbound.getOrderNo();
@@ -1183,7 +1183,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                 } catch (IOException e) {
                     e.printStackTrace();
                     logger.error(e.getMessage(), e);
-                    throw new CommonException("500", "出库单合并文件失败");
+                    throw new CommonException("500", MessageUtil.to("出库单合并文件失败", "Failed to merge the delivery order file"));
                 }
 
                 if(labelFile == null){
@@ -1201,14 +1201,14 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                     IHtpOutboundClientService htpOutboundClientService = SpringUtils.getBean(IHtpOutboundClientService.class);
                     ResponseVO responseVO = htpOutboundClientService.shipmentLabel(shipmentLabelChangeRequestDto);
                     if (null == responseVO || null == responseVO.getSuccess()) {
-                        throw new CommonException("500", "更新标签失败");
+                        throw new CommonException("500", MessageUtil.to("更新标签失败", "Failed to update label"));
                     }
                     if (!responseVO.getSuccess()) {
-                        throw new CommonException("500", Utils.defaultValue(responseVO.getMessage(), "更新标签失败2"));
+                        throw new CommonException("500", Utils.defaultValue(responseVO.getMessage(), MessageUtil.to("更新标签失败", "Failed to update label")+"2"));
                     }
                 } catch (IOException e) {
                     logger.error("读取标签文件失败, {}", e.getMessage(), e);
-                    throw new CommonException("500", "读取标签文件失败");
+                    throw new CommonException("500", MessageUtil.to("读取标签文件失败", "Failed to read label file"));
                 }
 
             }

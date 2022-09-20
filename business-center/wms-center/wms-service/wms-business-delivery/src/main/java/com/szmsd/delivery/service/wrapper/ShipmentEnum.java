@@ -1,15 +1,21 @@
 package com.szmsd.delivery.service.wrapper;
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSONObject;
 import com.szmsd.bas.api.feign.BasMeteringConfigFeignService;
 import com.szmsd.bas.dto.BasMeteringConfigDto;
+import com.szmsd.chargerules.vo.OperationRuleVO;
 import com.szmsd.common.core.constant.Constants;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.exception.com.CommonException;
+import com.szmsd.common.core.utils.MessageUtil;
 import com.szmsd.common.core.utils.SpringUtils;
+import com.szmsd.common.core.utils.bean.BeanUtils;
 import com.szmsd.delivery.domain.DelOutbound;
 import com.szmsd.delivery.domain.DelOutboundCharge;
 import com.szmsd.delivery.domain.DelOutboundDetail;
+import com.szmsd.delivery.dto.DelOutboundChargeData;
 import com.szmsd.delivery.enums.DelOutboundConstant;
 import com.szmsd.delivery.enums.DelOutboundExceptionStateEnum;
 import com.szmsd.delivery.enums.DelOutboundOrderTypeEnum;
@@ -118,7 +124,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
             DelOutboundOrderTypeEnum orderTypeEnum = DelOutboundOrderTypeEnum.get(delOutbound.getOrderType());
             if (null == orderTypeEnum) {
-                throw new CommonException("400", "不存在的类型[" + delOutbound.getOrderType() + "]");
+                throw new CommonException("400", MessageUtil.to("不存在的类型[" + delOutbound.getOrderType() + "]", "Non-existent type ["+delOutbound. getOrderType()+"]"));
             }
             // 先判断规则
             boolean condition = ApplicationRuleConfig.shipmentCondition(orderTypeEnum, currentState.name());
@@ -170,7 +176,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setId(delOutbound.getId());
             updateDelOutbound.setShipmentState(currentState.name());
             // 出库失败
-            String exceptionMessage = Utils.defaultValue(throwable.getMessage(), "出库操作失败");
+            String exceptionMessage = Utils.defaultValue(throwable.getMessage(), MessageUtil.to("出库操作失败", "Failed to issue"));
             exceptionMessage = StringUtils.substring(exceptionMessage, 0, 255);
             updateDelOutbound.setExceptionMessage(exceptionMessage);
             // 创建承运商物流订单
@@ -183,6 +189,9 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setHeight(delOutbound.getHeight());
             updateDelOutbound.setSupplierCalcType(delOutbound.getSupplierCalcType());
             updateDelOutbound.setSupplierCalcId(delOutbound.getSupplierCalcId());
+
+            updateDelOutbound.setShipmentService(delOutbound.getShipmentService());
+
             // 规格，长*宽*高
             updateDelOutbound.setSpecifications(delOutbound.getLength() + "*" + delOutbound.getWidth() + "*" + delOutbound.getHeight());
             updateDelOutbound.setCalcWeight(delOutbound.getCalcWeight());
@@ -212,9 +221,11 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                 shipmentUpdateRequestDto.setPackingRule(delOutbound.getPackingRule());
                 shipmentUpdateRequestDto.setIsEx(true);
                 shipmentUpdateRequestDto.setExType(exType);
+
                 String  exRemark = throwable.getMessage();
                 exRemark = ProblemDetails.getErrorMessageOrNullFormat(exRemark);
                 logger.info("单号{}，shipmentShipping异常信息{}", delOutbound.getOrderNo(), exRemark);
+
                 shipmentUpdateRequestDto.setExRemark(Utils.defaultValue(exRemark, "操作失败"));
                 shipmentUpdateRequestDto.setIsNeedShipmentLabel(false);
                 IHtpOutboundClientService htpOutboundClientService = SpringUtils.getBean(IHtpOutboundClientService.class);
@@ -335,10 +346,11 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             IHtpOutboundClientService htpOutboundClientService = SpringUtils.getBean(IHtpOutboundClientService.class);
             ResponseVO responseVO = htpOutboundClientService.shipmentTracking(shipmentTrackingChangeRequestDto);
             if (null == responseVO || null == responseVO.getSuccess()) {
-                throw new CommonException("400", "更新挂号失败，请求无响应");
+                throw new CommonException("400", MessageUtil.to("更新挂号失败，请求无响应", "Failed to update registration, no response to the request"));
             }
             if (!responseVO.getSuccess()) {
-                throw new CommonException("400", "更新挂号失败，" + Utils.defaultValue(responseVO.getMessage(), ""));
+                throw new CommonException("400", MessageUtil.to("更新挂号失败，", "Failed to update registration,")
+                        + Utils.defaultValue(responseVO.getMessage(), ""));
             }
         }
 
@@ -565,7 +577,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                 // 调用冻结费用接口
                 R<?> thawBalanceR = rechargesFeignService.thawBalance(cusFreezeBalanceDTO);
                 if (null == thawBalanceR) {
-                    throw new CommonException("400", "取消冻结费用失败");
+                    throw new CommonException("400", MessageUtil.to("取消冻结费用失败", "Failed to cancel freezing expenses"));
                 }
                 if (Constants.SUCCESS != thawBalanceR.getCode()) {
                     // 异常信息
@@ -577,9 +589,10 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                 }
 
             }
-            logger.info("出库单{}-取消冻结费用结束：{}", delOutbound.getOrderNo(), JSONObject.toJSONString(delOutbound));
+
+
+
             // 清除费用信息
-            IDelOutboundChargeService delOutboundChargeService = SpringUtils.getBean(IDelOutboundChargeService.class);
             delOutboundChargeService.clearCharges(delOutbound.getOrderNo());
         }
 
@@ -679,9 +692,12 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                     .setLogisticsErvicesCode(chargeWrapper.getData().getProductCode())
                     .setLogisticsErvicesName(chargeWrapper.getData().getProductName())
                     .setCustomerCode(delOutbound.getSellerCode())
+                    //下单重量
                     .setWeight(delOutbound.getForecastWeight() != null ? new BigDecimal(delOutbound.getForecastWeight()) : BigDecimal.ZERO)
+                    //PRC返回的计费重
                     .setCalcWeight(packageInfo.getCalcWeight().getValue())
-                    .setVolume(packageInfo.getVolumeWeight().getValue());
+                    //仓库返回的实重
+                    .setVolume(delOutbound.getWeight() != null ? new BigDecimal(delOutbound.getWeight()): null);
 
             if(delOutboundWrapperContext.getAddress() != null){
                 dto.setCountryCode(delOutboundWrapperContext.getAddress().getCountryCode())
@@ -707,7 +723,14 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             }
             delOutbound.setAmount(totalAmount);
             delOutbound.setCurrencyCode(totalCurrencyCode);
-            DelOutboundOperationLogEnum.SMT_PRC_PRICING.listener(delOutbound);
+
+            /**
+             * 特殊化日志记录，分币别
+             */
+            DelOutboundChargeData delOutboundChargeData = new DelOutboundChargeData();
+            BeanUtil.copyProperties(delOutbound, delOutboundChargeData);
+            delOutboundChargeData.setDelOutboundCharges(delOutboundCharges);
+            DelOutboundOperationLogEnum.SMT_PRC_PRICING.listener(delOutboundChargeData);
         }
 
         @Override
@@ -869,7 +892,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                 throw e;
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);
-                throw new CommonException("400", "冻结库存操作失败，" + e.getMessage());
+                throw new CommonException("400", MessageUtil.to("冻结库存操作失败，" + e.getMessage(), "Failed to freeze the inventory,"+e.getMessage()));
             }
         }
 
@@ -904,28 +927,34 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
         public void handle(ApplicationContext context) {
             DelOutboundWrapperContext delOutboundWrapperContext = (DelOutboundWrapperContext) context;
             DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
-            // 修改为异步执行
-            /*ShipmentUpdateRequestDto shipmentUpdateRequestDto = new ShipmentUpdateRequestDto();
-            shipmentUpdateRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
-            shipmentUpdateRequestDto.setRefOrderNo(delOutbound.getOrderNo());
-            if (DelOutboundOrderTypeEnum.BATCH.getCode().equals(delOutbound.getOrderType()) && "SelfPick".equals(delOutbound.getShipmentChannel())) {
-                shipmentUpdateRequestDto.setShipmentRule(delOutbound.getDeliveryAgent());
-            } else {
-                shipmentUpdateRequestDto.setShipmentRule(delOutbound.getShipmentRule());
+
+
+            if(delOutboundWrapperContext.getExecShipmentShipping()){
+                logger.info("核重更新发货指令{}", delOutbound.getOrderNo());
+                // 修改为异步执行
+                ShipmentUpdateRequestDto shipmentUpdateRequestDto = new ShipmentUpdateRequestDto();
+                shipmentUpdateRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
+                shipmentUpdateRequestDto.setRefOrderNo(delOutbound.getOrderNo());
+                if (DelOutboundOrderTypeEnum.BATCH.getCode().equals(delOutbound.getOrderType()) && "SelfPick".equals(delOutbound.getShipmentChannel())) {
+                    shipmentUpdateRequestDto.setShipmentRule(delOutbound.getDeliveryAgent());
+                } else {
+                    shipmentUpdateRequestDto.setShipmentRule(delOutbound.getShipmentRule());
+                }
+                shipmentUpdateRequestDto.setPackingRule(delOutbound.getPackingRule());
+                shipmentUpdateRequestDto.setIsEx(false);
+                shipmentUpdateRequestDto.setExType(null);
+                shipmentUpdateRequestDto.setExRemark(null);
+                shipmentUpdateRequestDto.setIsNeedShipmentLabel(false);
+                IHtpOutboundClientService htpOutboundClientService = SpringUtils.getBean(IHtpOutboundClientService.class);
+                ResponseVO responseVO = htpOutboundClientService.shipmentShipping(shipmentUpdateRequestDto);
+                if (null == responseVO || null == responseVO.getSuccess()) {
+                    throw new CommonException("400", "更新发货指令失败");
+                }
+                if (!responseVO.getSuccess()) {
+                    throw new CommonException("400", Utils.defaultValue(responseVO.getMessage(), "更新发货指令失败2"));
+                }
             }
-            shipmentUpdateRequestDto.setPackingRule(delOutbound.getPackingRule());
-            shipmentUpdateRequestDto.setIsEx(false);
-            shipmentUpdateRequestDto.setExType(null);
-            shipmentUpdateRequestDto.setExRemark(null);
-            shipmentUpdateRequestDto.setIsNeedShipmentLabel(false);
-            IHtpOutboundClientService htpOutboundClientService = SpringUtils.getBean(IHtpOutboundClientService.class);
-            ResponseVO responseVO = htpOutboundClientService.shipmentShipping(shipmentUpdateRequestDto);
-            if (null == responseVO || null == responseVO.getSuccess()) {
-                throw new CommonException("400", "更新发货指令失败");
-            }
-            if (!responseVO.getSuccess()) {
-                throw new CommonException("400", Utils.defaultValue(responseVO.getMessage(), "更新发货指令失败2"));
-            }*/
+
             // 修改出库单相关信息
             IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
             DelOutbound updateDelOutbound = new DelOutbound();
@@ -947,6 +976,15 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setCalcWeightUnit(delOutbound.getCalcWeightUnit());
             updateDelOutbound.setAmount(delOutbound.getAmount());
             updateDelOutbound.setCurrencyCode(delOutbound.getCurrencyCode());
+
+            if(delOutboundWrapperContext.getExecShipmentShipping()) {
+                updateDelOutbound.setShipmentService(delOutbound.getShipmentService());
+//                updateDelOutbound.setPackingRule(delOutbound.getPackingRule());
+//                updateDelOutbound.setShipmentRule(delOutbound.getShipmentRule());
+            }
+
+
+
             delOutboundService.shipmentSuccess(updateDelOutbound);
             // 提交一个获取标签的任务
             IDelOutboundRetryLabelService delOutboundRetryLabelService = SpringUtils.getBean(IDelOutboundRetryLabelService.class);
