@@ -196,6 +196,7 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                 logger.info("(2)初始化上下文信息，timer:{}", timer.intervalRestart());
                 if (context != null) {
                     context.setShipmentShipping(shipmentShipping);
+                    context.setExecShipmentShipping(true);
                 }
                 ShipmentEnum currentState;
                 String shipmentState = delOutbound.getShipmentState();
@@ -304,45 +305,62 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                 }
                 if ("FEE_DE".equals(completedState)) {
                     if (fee) {
-                        // 扣减费用
-                        CustPayDTO custPayDTO = new CustPayDTO();
-                        custPayDTO.setCusCode(delOutbound.getSellerCode());
-                        custPayDTO.setCurrencyCode(delOutbound.getCurrencyCode());
-                        custPayDTO.setAmount(delOutbound.getAmount());
-                        custPayDTO.setNo(delOutbound.getOrderNo());
-                        custPayDTO.setPayMethod(BillEnum.PayMethod.BALANCE_DEDUCTIONS);
-                        // 查询费用明细
+
                         List<DelOutboundCharge> chargeList = this.delOutboundChargeService.listCharges(orderNo);
-                        if (CollectionUtils.isNotEmpty(chargeList)) {
-                            List<AccountSerialBillDTO> serialBillInfoList = new ArrayList<>(chargeList.size());
-                            for (DelOutboundCharge charge : chargeList) {
-                                AccountSerialBillDTO serialBill = new AccountSerialBillDTO();
-                                serialBill.setNo(orderNo);
-                                serialBill.setTrackingNo(delOutbound.getTrackingNo());
-                                serialBill.setCusCode(delOutbound.getSellerCode());
-                                serialBill.setCurrencyCode(charge.getCurrencyCode());
-                                serialBill.setAmount(charge.getAmount());
-                                serialBill.setWarehouseCode(delOutbound.getWarehouseCode());
-                                serialBill.setChargeCategory(charge.getChargeNameCn());
-                                serialBill.setChargeType(charge.getChargeNameCn());
-                                serialBill.setOrderTime(delOutbound.getCreateTime());
-                                serialBill.setPaymentTime(delOutbound.getShipmentsTime());
-                                serialBill.setProductCode(delOutbound.getShipmentRule());
-                                serialBillInfoList.add(serialBill);
+
+
+                        Map<String, List<DelOutboundCharge>> groupByCharge =
+                                chargeList.stream().collect(Collectors.groupingBy(DelOutboundCharge::getCurrencyCode));
+                        for (String currencyCode: groupByCharge.keySet()) {
+                            BigDecimal bigDecimal = new BigDecimal(0);
+                            for (DelOutboundCharge c : groupByCharge.get(currencyCode)) {
+                                if (c.getAmount() != null) {
+                                    bigDecimal = bigDecimal.add(c.getAmount());
+                                }
                             }
-                            custPayDTO.setSerialBillInfoList(serialBillInfoList);
-                        }
-                        custPayDTO.setOrderType("Freight");
-                        R<?> r = this.rechargesFeignService.feeDeductions(custPayDTO);
-                        if (null == r || Constants.SUCCESS != r.getCode()) {
-                            String message;
-                            if (null != r) {
-                                message = "扣减费用失败，" + r.getMsg();
-                            } else {
-                                message = "扣减费用失败";
+
+                            // 扣减费用
+                            CustPayDTO custPayDTO = new CustPayDTO();
+                            custPayDTO.setCusCode(delOutbound.getSellerCode());
+                            custPayDTO.setCurrencyCode(currencyCode);
+                            custPayDTO.setAmount(bigDecimal);
+                            custPayDTO.setNo(delOutbound.getOrderNo());
+                            custPayDTO.setPayMethod(BillEnum.PayMethod.BALANCE_DEDUCTIONS);
+                            // 查询费用明细
+                            if (CollectionUtils.isNotEmpty(groupByCharge.get(currencyCode))) {
+                                List<AccountSerialBillDTO> serialBillInfoList = new ArrayList<>(chargeList.size());
+                                for (DelOutboundCharge charge : groupByCharge.get(currencyCode)) {
+                                    AccountSerialBillDTO serialBill = new AccountSerialBillDTO();
+                                    serialBill.setNo(orderNo);
+                                    serialBill.setTrackingNo(delOutbound.getTrackingNo());
+                                    serialBill.setCusCode(delOutbound.getSellerCode());
+                                    serialBill.setCurrencyCode(charge.getCurrencyCode());
+                                    serialBill.setAmount(charge.getAmount());
+                                    serialBill.setWarehouseCode(delOutbound.getWarehouseCode());
+                                    serialBill.setChargeCategory(charge.getChargeNameCn());
+                                    serialBill.setChargeType(charge.getChargeNameCn());
+                                    serialBill.setOrderTime(delOutbound.getCreateTime());
+                                    serialBill.setPaymentTime(delOutbound.getShipmentsTime());
+                                    serialBill.setProductCode(delOutbound.getShipmentRule());
+                                    serialBillInfoList.add(serialBill);
+                                }
+                                custPayDTO.setSerialBillInfoList(serialBillInfoList);
                             }
-                            throw new CommonException("500", message);
+                            custPayDTO.setOrderType("Freight");
+                            R<?> r = this.rechargesFeignService.feeDeductions(custPayDTO);
+                            if (null == r || Constants.SUCCESS != r.getCode()) {
+                                String message;
+                                if (null != r) {
+                                    message = "扣减"+custPayDTO.getCurrencyCode()+"费用失败，" + r.getMsg();
+                                } else {
+                                    message = "扣减"+custPayDTO.getCurrencyCode()+"费用失败";
+                                }
+                                throw new CommonException("500", message);
+                            }
+
                         }
+
+
                     }
                     completedState = "OP_FEE_DE";
                 }
@@ -682,21 +700,40 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                 }
                 if ("UN_FEE".equals(cancelledState)) {
                     if (fee) {
+
+
+
                         // 存在费用
                         if (null != delOutbound.getAmount() && delOutbound.getAmount().doubleValue() > 0.0D) {
-                            CusFreezeBalanceDTO cusFreezeBalanceDTO = new CusFreezeBalanceDTO();
-                            cusFreezeBalanceDTO.setAmount(delOutbound.getAmount());
-                            cusFreezeBalanceDTO.setCurrencyCode(delOutbound.getCurrencyCode());
-                            cusFreezeBalanceDTO.setCusCode(delOutbound.getSellerCode());
-                            cusFreezeBalanceDTO.setNo(delOutbound.getOrderNo());
-                            cusFreezeBalanceDTO.setOrderType("Freight");
-                            R<?> thawBalanceR = this.rechargesFeignService.thawBalance(cusFreezeBalanceDTO);
-                            if (null == thawBalanceR) {
-                                throw new CommonException("400", "取消冻结费用失败");
+
+                            List<DelOutboundCharge> delOutboundChargeList = delOutboundChargeService.listCharges(delOutbound.getOrderNo());
+                            Map<String, List<DelOutboundCharge>> groupByCharge =
+                                    delOutboundChargeList.stream().collect(Collectors.groupingBy(DelOutboundCharge::getCurrencyCode));
+                            for (String currencyCode: groupByCharge.keySet()) {
+                                BigDecimal bigDecimal = new BigDecimal(0);
+                                for (DelOutboundCharge c : groupByCharge.get(currencyCode)) {
+                                    if (c.getAmount() != null) {
+                                        bigDecimal = bigDecimal.add(c.getAmount());
+                                    }
+                                }
+                                CusFreezeBalanceDTO cusFreezeBalanceDTO = new CusFreezeBalanceDTO();
+                                cusFreezeBalanceDTO.setAmount(bigDecimal);
+                                cusFreezeBalanceDTO.setCurrencyCode(currencyCode);
+                                cusFreezeBalanceDTO.setCusCode(delOutbound.getSellerCode());
+                                cusFreezeBalanceDTO.setNo(delOutbound.getOrderNo());
+                                cusFreezeBalanceDTO.setOrderType("Freight");
+                                R<?> thawBalanceR = this.rechargesFeignService.thawBalance(cusFreezeBalanceDTO);
+                                if (null == thawBalanceR) {
+                                    throw new CommonException("400", "取消冻结费用失败");
+                                }
+                                if (Constants.SUCCESS != thawBalanceR.getCode()) {
+                                    throw new CommonException("400", Utils.defaultValue(thawBalanceR.getMsg(), "取消冻结费用失败2"));
+                                }
+
                             }
-                            if (Constants.SUCCESS != thawBalanceR.getCode()) {
-                                throw new CommonException("400", Utils.defaultValue(thawBalanceR.getMsg(), "取消冻结费用失败2"));
-                            }
+
+
+
                         }
                     }
                     cancelledState = "UN_OP_FEE";

@@ -4,6 +4,7 @@ import com.szmsd.finance.enums.CreditConstant;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
+import javax.validation.Valid;
 import java.math.BigDecimal;
 import java.util.function.BiFunction;
 
@@ -32,6 +33,11 @@ public class BalanceDTO {
     @ApiModelProperty(value = "授信信息")
     private CreditInfoBO creditInfoBO;
 
+    @ApiModelProperty(value = "单号")
+    private String orderNo;
+
+    private Long version;
+
     private BalanceDTO() {
     }
 
@@ -51,14 +57,16 @@ public class BalanceDTO {
      * @param amount 余额
      * @return 处理结果
      */
-    public Boolean checkAndSetAmountAndCreditAnd(BigDecimal amount, boolean updateCredit, BiFunction<BalanceDTO, BigDecimal, Boolean> function) {
+    public Boolean checkAndSetAmountAndCreditAnd(final BigDecimal amount, boolean updateCredit, BiFunction<BalanceDTO, BigDecimal, Boolean> function) {
         CreditInfoBO creditInfoBO = this.creditInfoBO;
         Integer creditStatus = creditInfoBO.getCreditStatus();
         if (CreditConstant.CreditStatusEnum.ACTIVE.getValue().equals(creditStatus)) {
             if (this.currentBalance.compareTo(amount) >= 0) {
                 this.actualDeduction = amount;
                 this.creditUseAmount = BigDecimal.ZERO;
-                if (null != function) return function.apply(this, amount);
+                if (null != function){
+                    return function.apply(this, amount);
+                }
             } else {
                 boolean b = false;
                 // 余额不足扣减，使用授信额度
@@ -67,14 +75,18 @@ public class BalanceDTO {
                 this.actualDeduction = currentBalance.min(amount).max(BigDecimal.ZERO);
                 BigDecimal needDeducted = amount.subtract(currentBalance.max(BigDecimal.ZERO));
                 this.creditUseAmount = needDeducted;
-                if (null != function) function.apply(this, amount);
+                if (null != function){
+                    function.apply(this, amount);
+                }
                 b = this.creditInfoBO.changeCreditAmount(needDeducted, updateCredit);
                 return b;
             }
         } else {
             this.actualDeduction = amount;
             //正常逻辑走
-            if (null != function) return function.apply(this, amount);
+            if (null != function){
+                return function.apply(this, amount);
+            }
         }
         return false;
     }

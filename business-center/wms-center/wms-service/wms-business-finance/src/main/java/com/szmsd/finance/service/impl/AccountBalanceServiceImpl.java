@@ -27,15 +27,17 @@ import com.szmsd.finance.enums.BillEnum;
 import com.szmsd.finance.enums.CreditConstant;
 import com.szmsd.finance.factory.abstractFactory.AbstractPayFactory;
 import com.szmsd.finance.factory.abstractFactory.PayFactoryBuilder;
+import com.szmsd.finance.handler.FreezeBalanceConsumer;
+import com.szmsd.finance.handler.FreezeBalanceProducer;
 import com.szmsd.finance.mapper.AccountBalanceChangeMapper;
 import com.szmsd.finance.mapper.AccountBalanceMapper;
+import com.szmsd.finance.mapper.ExchangeRateMapper;
 import com.szmsd.finance.service.*;
 import com.szmsd.finance.util.LogUtil;
 import com.szmsd.finance.util.SnowflakeId;
 import com.szmsd.finance.vo.CreditUseInfo;
 import com.szmsd.finance.vo.PreOnlineIncomeVo;
 import com.szmsd.finance.vo.UserCreditInfoVO;
-import com.szmsd.finance.ws.WebSocketServer;
 import com.szmsd.http.api.feign.HttpRechargeFeignService;
 import com.szmsd.http.dto.recharges.RechargesRequestAmountDTO;
 import com.szmsd.http.dto.recharges.RechargesRequestDTO;
@@ -58,8 +60,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
@@ -87,8 +88,8 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
     @Autowired
     ISysDictDataService sysDictDataService;
 
-    @Resource
-    private WebSocketServer webSocketServer;
+    @Autowired
+    ExchangeRateMapper exchangeRateMapper;
     @Resource
     private IAccountSerialBillService accountSerialBillService;
     @Resource
@@ -251,6 +252,11 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
         if (StringUtils.isNotEmpty(dto.getOrderType())) {
             queryWrapper.eq(AccountBalanceChange::getOrderType, dto.getOrderType());
         }
+
+        if(StringUtils.isNotEmpty(dto.getCurrencyCode())){
+            queryWrapper.eq(AccountBalanceChange::getCurrencyCode,dto.getCurrencyCode());
+        }
+
         queryWrapper.orderByDesc(AccountBalanceChange::getCreateTime);
         return accountBalanceChangeMapper.recordListPage(queryWrapper);
     }
@@ -342,14 +348,21 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
     @Transactional
     @Override
     public R feeDeductions(CustPayDTO dto) {
-        if (BigDecimal.ZERO.compareTo(dto.getAmount()) == 0) return R.ok();
+        if (BigDecimal.ZERO.compareTo(dto.getAmount()) == 0){
+            return R.ok();
+        }
         // 校验
         if (checkPayInfo(dto.getCusCode(), dto.getCurrencyCode(), dto.getAmount())) {
             return R.failed("客户编码/币种不能为空且金额必须大于0.01");
         }
 
         boolean b = checkForDuplicateCharges(dto);
-        if (b) return R.ok();
+
+        log.info("feeDeductions 幂等校验 校验重复扣费:{},{}",dto.getNo(),b);
+
+        if (b){
+            return R.ok();
+        }
 
         setCurrencyName(dto);
         dto.setPayMethod(BillEnum.PayMethod.BALANCE_DEDUCTIONS);
@@ -357,7 +370,13 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
         AbstractPayFactory abstractPayFactory = payFactoryBuilder.build(dto.getPayType());
         log.info(LogUtil.format(dto, "费用扣除"));
         Boolean flag = abstractPayFactory.updateBalance(dto);
-        if (Objects.isNull(flag)) return R.ok();
+
+        if (Objects.isNull(flag)){
+            return R.ok();
+        }
+
+        log.info("feeDeductions 费用扣除:{},{}",dto.getNo(),flag);
+
         if (flag) {
             log.info(LogUtil.format(dto, "费用扣除", "添加操作费用表"));
             this.addOptLogAsync(dto);
@@ -423,22 +442,32 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
         });
     }
 
+    private BlockingQueue<CustPayDTO> blockingQueue = new LinkedBlockingDeque();
+
+
+
     @Transactional
     @Override
-    public R freezeBalance(CusFreezeBalanceDTO cfbDTO) {
+    public R freezeBalance(final CusFreezeBalanceDTO cfbDTO) {
+
         CustPayDTO dto = new CustPayDTO();
         BeanUtils.copyProperties(cfbDTO, dto);
-        if (BigDecimal.ZERO.compareTo(dto.getAmount()) == 0) return R.ok();
+        if (BigDecimal.ZERO.compareTo(dto.getAmount()) == 0){
+            return R.ok();
+        }
         if (checkPayInfo(dto.getCusCode(), dto.getCurrencyCode(), dto.getAmount())) {
             return R.failed("客户编码/币种不能为空且金额必须大于0.01");
         }
         setCurrencyName(dto);
         dto.setPayType(BillEnum.PayType.FREEZE);
         dto.setPayMethod(BillEnum.PayMethod.BALANCE_FREEZE);
+
         AbstractPayFactory abstractPayFactory = payFactoryBuilder.build(dto.getPayType());
         log.info(LogUtil.format(cfbDTO, "费用冻结"));
         Boolean flag = abstractPayFactory.updateBalance(dto);
-        if (Objects.isNull(flag)) return R.ok();
+        if (Objects.isNull(flag)){
+            return R.ok();
+        }
         if (flag && "Freight".equals(dto.getOrderType()))
         // 冻结 解冻 需要把费用扣减加到 操作费用表
         {
@@ -453,7 +482,12 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
     public R thawBalance(CusFreezeBalanceDTO cfbDTO) {
         CustPayDTO dto = new CustPayDTO();
         BeanUtils.copyProperties(cfbDTO, dto);
-        if (BigDecimal.ZERO.compareTo(dto.getAmount()) == 0) return R.ok();
+        if (BigDecimal.ZERO.compareTo(dto.getAmount()) == 0){
+            return R.ok();
+        }
+
+        log.info("开始解冻费用：{}",JSONObject.toJSONString(cfbDTO));
+
         if (checkPayInfo(dto.getCusCode(), dto.getCurrencyCode(), dto.getAmount())) {
             return R.failed("客户编码/币种不能为空且金额必须大于0.01");
         }
@@ -462,26 +496,19 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
         setCurrencyName(dto);
         AbstractPayFactory abstractPayFactory = payFactoryBuilder.build(dto.getPayType());
         log.info(LogUtil.format(cfbDTO, "解冻金额"));
+
+        log.info("开始解冻费用updateBalance：{}",JSONObject.toJSONString(abstractPayFactory));
+
         Boolean flag = abstractPayFactory.updateBalance(dto);
-        if (Objects.isNull(flag)) return R.ok();
+        if (Objects.isNull(flag)){
+            return R.ok();
+        }
+
+        log.info("开始解冻费用updateBalance：{}",flag);
+
         if (flag)
         //冻结 解冻 需要把费用扣减加到 操作费用表
         {
-
-//            LambdaQueryWrapper<AccountSerialBill> wr = Wrappers.<AccountSerialBill>lambdaQuery()
-//                    .eq(AccountSerialBill::getNo, dto.getNo())
-//                    .orderByDesc(AccountSerialBill::getId);
-//            List<AccountSerialBill> accountSerialBills = accountSerialBillService.getBaseMapper().selectList(wr);
-//            String s = JSONObject.toJSONString(accountSerialBills);
-//            log.info(" 解冻数据-- {}",s);
-            //if (integer > 1) {
-            // 冻结解冻会产生多笔 物流基础费 实际只扣除一笔，在最外层吧物流基础费删除 物流基础费会先解冻，然后直接扣除
-//            int delete = accountSerialBillService.getBaseMapper().delete(Wrappers.<AccountSerialBill>lambdaUpdate()
-//                    .eq(AccountSerialBill::getNo, dto.getNo())
-//                    .eq(AccountSerialBill::getBusinessCategory, "物流基础费")
-//                    .orderByDesc(AccountSerialBill::getId));
-//            log.info("删除物流基础费 {}条", delete);
-            //}
             log.info(LogUtil.format(cfbDTO, "解冻金额", "操作费用表"));
             this.addOptLogAsync(dto);
         }
@@ -548,6 +575,7 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
             BeanUtils.copyProperties(accountBalance, creditInfoBO);
             balanceDTO.setCreditInfoBO(creditInfoBO);
             balanceDTO.getCreditInfoBO().setCreditUseAmount(creditUseAmount);
+            balanceDTO.setVersion(accountBalance.getVersion());
             return balanceDTO;
         } catch (ExecutionException | InterruptedException e) {
             e.printStackTrace();
@@ -557,23 +585,43 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
     }
 
     @Override
-    @Transactional
     public void setBalance(String cusCode, String currencyCode, BalanceDTO result, boolean needUpdateCredit) {
         log.info("更新余额：{}，{}，{}，{}", cusCode, currencyCode, JSONObject.toJSONString(result), needUpdateCredit);
-        LambdaUpdateWrapper<AccountBalance> lambdaUpdateWrapper = Wrappers.lambdaUpdate();
-        lambdaUpdateWrapper.eq(AccountBalance::getCusCode, cusCode);
-        lambdaUpdateWrapper.eq(AccountBalance::getCurrencyCode, currencyCode);
-        lambdaUpdateWrapper.set(AccountBalance::getCurrentBalance, result.getCurrentBalance());
-        lambdaUpdateWrapper.set(AccountBalance::getFreezeBalance, result.getFreezeBalance());
-        lambdaUpdateWrapper.set(AccountBalance::getTotalBalance, result.getTotalBalance());
+
+
+//        LambdaUpdateWrapper<AccountBalance> lambdaUpdateWrapper = Wrappers.lambdaUpdate();
+//        lambdaUpdateWrapper.eq(AccountBalance::getCusCode, cusCode);
+//        lambdaUpdateWrapper.eq(AccountBalance::getCurrencyCode, currencyCode);
+//        lambdaUpdateWrapper.set(AccountBalance::getCurrentBalance, result.getCurrentBalance());
+//        lambdaUpdateWrapper.set(AccountBalance::getFreezeBalance, result.getFreezeBalance());
+//        lambdaUpdateWrapper.set(AccountBalance::getTotalBalance, result.getTotalBalance());
+//        if (needUpdateCredit && null != result.getCreditInfoBO()) {
+//            lambdaUpdateWrapper.set(AccountBalance::getCreditUseAmount, result.getCreditInfoBO().getCreditUseAmount());
+//            lambdaUpdateWrapper.set(AccountBalance::getCreditStatus, result.getCreditInfoBO().getCreditStatus());
+//            lambdaUpdateWrapper.set(AccountBalance::getCreditBeginTime, result.getCreditInfoBO().getCreditBeginTime());
+//            lambdaUpdateWrapper.set(AccountBalance::getCreditEndTime, result.getCreditInfoBO().getCreditEndTime());
+//            lambdaUpdateWrapper.set(AccountBalance::getCreditBufferTime, result.getCreditInfoBO().getCreditBufferTime());
+//        }
+
+        //int updCount = accountBalanceMapper.update(null, lambdaUpdateWrapper);
+        AccountBalanceUpdateDTO accountBalance = new AccountBalanceUpdateDTO();
+        accountBalance.setCusCode(cusCode);
+        accountBalance.setCurrencyCode(currencyCode);
+        accountBalance.setCurrentBalance(result.getCurrentBalance());
+        accountBalance.setFreezeBalance(result.getFreezeBalance());
+        accountBalance.setTotalBalance(result.getTotalBalance());
+        accountBalance.setVersion(result.getVersion());
         if (needUpdateCredit && null != result.getCreditInfoBO()) {
-            lambdaUpdateWrapper.set(AccountBalance::getCreditUseAmount, result.getCreditInfoBO().getCreditUseAmount());
-            lambdaUpdateWrapper.set(AccountBalance::getCreditStatus, result.getCreditInfoBO().getCreditStatus());
-            lambdaUpdateWrapper.set(AccountBalance::getCreditBeginTime, result.getCreditInfoBO().getCreditBeginTime());
-            lambdaUpdateWrapper.set(AccountBalance::getCreditEndTime, result.getCreditInfoBO().getCreditEndTime());
-            lambdaUpdateWrapper.set(AccountBalance::getCreditBufferTime, result.getCreditInfoBO().getCreditBufferTime());
+            accountBalance.setCreditUseAmount(result.getCreditInfoBO().getCreditUseAmount());
+            accountBalance.setCreditStatus(result.getCreditInfoBO().getCreditStatus());
+            accountBalance.setCreditBeginTime(result.getCreditInfoBO().getCreditBeginTime());
+            accountBalance.setCreditEndTime(result.getCreditInfoBO().getCreditEndTime());
+            accountBalance.setCreditBufferTime(result.getCreditInfoBO().getCreditBufferTime());
         }
-        accountBalanceMapper.update(null, lambdaUpdateWrapper);
+
+        int updCount = accountBalanceMapper.setBalance(accountBalance);
+
+        log.info("更新余额总条数:{},单号：{}",updCount,result.getOrderNo());
     }
 
     @Override
@@ -673,10 +721,15 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
         if (checkPayInfo(dto.getCusCode(), dto.getCurrencyCode2(), dto.getAmount())) {
             return R.failed("客户编码/币种不能为空且金额必须大于0.01");
         }
+
+        //exchangeRateMapper.selectList();
+
         dto.setPayType(BillEnum.PayType.EXCHANGE);
         AbstractPayFactory abstractPayFactory = payFactoryBuilder.build(dto.getPayType());
         Boolean flag = abstractPayFactory.updateBalance(dto);
-        if (Objects.isNull(flag)) return R.ok();
+        if (Objects.isNull(flag)){
+            return R.ok();
+        }
         return flag ? R.ok() : R.failed(Strings.nullToEmpty(dto.getCurrencyName()) + "账户余额不足");
     }
 
