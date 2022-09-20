@@ -5,7 +5,12 @@ import cn.afterturn.easypoi.excel.entity.ExportParams;
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.event.SyncReadListener;
 import com.github.pagehelper.PageInfo;
+import com.szmsd.bas.api.feign.BasTranslateFeignService;
+import com.szmsd.bas.dto.BasSkuRuleMatchingImportDto;
 import com.szmsd.bas.dto.BaseProductImportDto;
+import com.szmsd.common.core.constant.HttpStatus;
+import com.szmsd.common.core.exception.com.CommonException;
+import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.common.core.web.controller.QueryDto;
 import com.szmsd.common.security.utils.SecurityUtils;
 import com.szmsd.delivery.dto.DelQueryServiceDto;
@@ -58,6 +63,8 @@ public class DelQueryServiceController extends BaseController{
      private IDelQueryServiceService delQueryServiceService;
 
 
+
+
      /**
        * 查询查件服务模块列表
      */
@@ -73,19 +80,54 @@ public class DelQueryServiceController extends BaseController{
     @PostMapping("/importTemplate")
     @ApiOperation(httpMethod = "POST", value = "导入模板")
     public void importTemplate(HttpServletResponse response) throws IOException {
-        ExcelUtil<DelQueryServiceImport> util = new ExcelUtil<DelQueryServiceImport>(DelQueryServiceImport.class);
-        util.importTemplateExcel(response, "DelQueryService");
+      String len=getLen().toLowerCase(Locale.ROOT);
+      if (len.equals("zh")){
+          commonExport(response, "DelQueryService");
+      }else if (len.equals("en")){
+          commonExport(response, "CombinedParcelOutboundTemplate");
+      }
+
+//        ExcelUtil<DelQueryServiceImport> util = new ExcelUtil<DelQueryServiceImport>(DelQueryServiceImport.class);
+//        util.importTemplateExcel(response, "DelQueryService");
+    }
+
+    private String getFileName(String fileName) {
+        return String.format("/template/%s_%s.xlsx", fileName, getLen().toLowerCase(Locale.ROOT));
+    }
+
+    private void commonExport(HttpServletResponse response, String fileName) {
+        //"/template/退费申请模板.xls"
+        ClassPathResource classPathResource = new ClassPathResource(getFileName(fileName));
+        try (InputStream inputStream = classPathResource.getInputStream();
+             ServletOutputStream outputStream = response.getOutputStream()) {
+
+            response.setContentType("application/vnd.ms-excel;charset=utf-8");
+            response.setCharacterEncoding("UTF-8");
+            String excelName = URLEncoder.encode(fileName, "UTF-8");
+            response.setHeader("Content-Disposition", "attachment;filename=" + excelName + ".xls");
+            IOUtils.copy(inputStream, outputStream);
+            outputStream.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @PostMapping("/importData")
     @ApiOperation(httpMethod = "POST", value = "导入查件服务数据")
     public R importData(MultipartFile file, HttpServletRequest httpServletRequest) throws Exception {
-        ExcelUtil<DelQueryServiceImport> util = new ExcelUtil<DelQueryServiceImport>(DelQueryServiceImport.class);
-        List<DelQueryServiceImport> list = util.importExcel(file.getInputStream());
+
+        List<DelQueryServiceImportExcle> list1 = EasyExcel.read(file.getInputStream(), DelQueryServiceImportExcle.class, new SyncReadListener()).sheet().doReadSync();
+
+//        ExcelUtil<DelQueryServiceImport> util = new ExcelUtil<DelQueryServiceImport>(DelQueryServiceImport.class);
+//        List<DelQueryServiceImport> list = util.importExcel(file.getInputStream());
+
+        //集合之间的拷贝
+        List<DelQueryServiceImport> list = BeanMapperUtil.mapList(list1, DelQueryServiceImport.class);
 
 
         list.forEach(x->{
             x.setOperationType(Integer.parseInt(httpServletRequest.getParameter("operationType")));
+
         });
         return delQueryServiceService.importData(list);
     }
