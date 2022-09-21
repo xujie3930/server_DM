@@ -1,5 +1,8 @@
 package com.szmsd.delivery.quartz;
 
+import com.szmsd.bas.api.feign.BasSellerFeignService;
+import com.szmsd.bas.vo.BasSellerInfoVO;
+import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.utils.bean.BeanUtils;
 import com.szmsd.delivery.domain.DelOutbound;
 import com.szmsd.delivery.domain.DelQueryService;
@@ -10,6 +13,7 @@ import org.quartz.JobExecutionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.quartz.QuartzJobBean;
 
+import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.List;
 
