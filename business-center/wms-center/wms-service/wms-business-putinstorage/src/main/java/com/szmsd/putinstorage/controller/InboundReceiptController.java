@@ -341,13 +341,13 @@ public class InboundReceiptController extends BaseController {
             //list去掉重复值，并且重复值的数量相加
             inboundReceiptDetailVOS = inboundReceiptDetailVOSex.stream().collect(Collectors.toMap(InboundReceiptDetailVO::getSku, a -> a, (o1,o2)-> {
 
-                if (o1.getDeclareQty()!=null&&o2.getDeclareQty()!=null) {
-                    o1.setDeclareQty(o1.getDeclareQty() + o2.getDeclareQty());
-                }
+                        if (o1.getDeclareQty()!=null&&o2.getDeclareQty()!=null) {
+                            o1.setDeclareQty(o1.getDeclareQty() + o2.getDeclareQty());
+                        }
 
-                return o1;
+                        return o1;
 
-            })).values().stream().collect(Collectors.toList());
+                    })).values().stream().collect(Collectors.toList());
 
 
 
