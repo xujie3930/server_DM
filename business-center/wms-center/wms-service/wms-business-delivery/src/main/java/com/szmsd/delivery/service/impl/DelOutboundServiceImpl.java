@@ -22,9 +22,11 @@ import com.szmsd.bas.api.domain.vo.BasRegionSelectListVO;
 import com.szmsd.bas.api.enums.AttachmentTypeEnum;
 import com.szmsd.bas.api.feign.BasRegionFeignService;
 import com.szmsd.bas.api.feign.RemoteAttachmentService;
+import com.szmsd.bas.api.service.BasWarehouseClientService;
 import com.szmsd.bas.api.service.BaseProductClientService;
 import com.szmsd.bas.api.service.SerialNumberClientService;
 import com.szmsd.bas.constant.SerialNumberConstant;
+import com.szmsd.bas.domain.BasWarehouse;
 import com.szmsd.bas.domain.BaseProduct;
 import com.szmsd.bas.dto.BaseProductConditionQueryDto;
 import com.szmsd.bas.plugin.vo.BasSubWrapperVO;
@@ -182,6 +184,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
     @Autowired
     private HtpOutboundFeignService htpOutboundFeignService;
+    @Autowired
+    private BasWarehouseClientService basWarehouseClientService;
     /**
      * 查询出库单模块
      *
@@ -205,7 +209,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     @Override
     public DelOutboundVO selectDelOutboundByOrderNous(String orderNo,int operationType) {
         LambdaQueryWrapper<DelOutbound> queryWrapper = Wrappers.lambdaQuery();
-        if (operationType!=1){
+        if (operationType==1||operationType==3){
             queryWrapper.isNotNull(DelOutbound::getShipmentsTime);
             queryWrapper.isNotNull(DelOutbound::getTrackingTime);
         }
@@ -224,6 +228,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
         queryWrapper.last("LIMIT 1");
         DelOutbound delOutbound = super.getOne(queryWrapper);
+        if (operationType==3&&delOutbound==null){
+            return null;
+        }
         return this.selectDelOutboundVO(delOutbound);
     }
 
@@ -271,6 +278,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             if (Optional.ofNullable(delOutbound.getShipmentRule()).isPresent()){
 
                 Map  mapSettings=baseMapper.selectQuerySettings(delOutbound.getShipmentRule());
+                logger.info("查件配置：{}",mapSettings);
+                logger.info("查件配置单号：{}",delOutbound.getOrderNo());
                 if (mapSettings!=null) {
                     //配置表的发货天数
                     Long queryseShipmentDays = Long.valueOf(mapSettings.get("shipmentDays").toString());
@@ -574,6 +583,18 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             if (CollectionUtils.isEmpty(details)) {
                 throw new CommonException("400", "明细信息不能为空");
             }
+
+
+            if (org.apache.commons.lang3.StringUtils.isNotEmpty(dto.getWarehouseCode())) {
+                String warehouseCode = dto.getWarehouseCode();
+                BasWarehouse warehouse = this.basWarehouseClientService.queryByWarehouseCode(warehouseCode);
+                if (null == warehouse) {
+                    throw new CommonException("400", "仓库信息不存在");
+                }else if(!"1".equals(warehouse.getStatus())){
+                    throw new CommonException("400", "Warehouse not enabled");
+                }
+            }
+
             List<String> skus = details.stream().map(DelOutboundDetailDto::getSku).distinct().collect(Collectors.toList());
             // 判断地址信息上的国家是否存在
             DelOutboundAddressDto addressDto = dto.getAddress();
@@ -1857,7 +1878,18 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             throw new CommonException("400", "取消出库单失败");
         }
         if (!responseVO.getSuccess()) {
-            throw new CommonException("400", Utils.defaultValue(responseVO.getMessage(), "取消出库单失败2"));
+
+            if("有部分单号不存在".equals(responseVO.getMessage())){
+                this.delOutboundCompletedService.add(orderNos, DelOutboundOperationTypeEnum.CANCELED.getCode());
+                // 修改单据状态为【仓库取消】
+                LambdaUpdateWrapper<DelOutbound> updateWrapper = Wrappers.lambdaUpdate();
+                updateWrapper.set(DelOutbound::getState, DelOutboundStateEnum.WHSE_CANCELLED.getCode());
+                updateWrapper.in(DelOutbound::getOrderNo, orderNos);
+                return this.baseMapper.update(null, updateWrapper);
+            }else{
+                throw new CommonException("400", Utils.defaultValue(responseVO.getMessage(), "取消出库单失败2"));
+            }
+
         }
         // 修改单据状态为【仓库取消中】
         LambdaUpdateWrapper<DelOutbound> updateWrapper = Wrappers.lambdaUpdate();
@@ -1913,7 +1945,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             this.delOutboundAsyncService.cancelled(delOutbound.getOrderNo());
             result = 1;
         } else {
-            result = this.delOutboundAsyncService.shipmentPacking(delOutbound.getId(), dto.isShipmentShipping());
+            dto.setExecShipmentShipping(true);
+            result = this.delOutboundAsyncService.shipmentPacking(delOutbound.getId(), dto.isShipmentShipping(), dto);
         }
         return result;
     }
@@ -2383,9 +2416,10 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         // 重新获取挂号场景：
         // 报异常，核重后的异常。
         // 在提审的时候异常，会审核失败他们自己会修改。只有核重后的，不能修改表单。
-        boolean update = delOutboundExceptionService.againTrackingNo(delOutbound, dto);
+        DelOutboundFurtherHandlerDto furtherHandlerDto = new DelOutboundFurtherHandlerDto();
+
+        boolean update = delOutboundExceptionService.againTrackingNo(delOutbound, dto, furtherHandlerDto);
         if (update) {
-            DelOutboundFurtherHandlerDto furtherHandlerDto = new DelOutboundFurtherHandlerDto();
             furtherHandlerDto.setOrderNo(delOutbound.getOrderNo());
             this.furtherHandler(furtherHandlerDto);
         }
