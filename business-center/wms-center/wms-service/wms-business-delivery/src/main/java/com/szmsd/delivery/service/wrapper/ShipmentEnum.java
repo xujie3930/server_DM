@@ -57,17 +57,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
      */
     BEGIN,
 
-    // #1 创建承运商物流订单
-    SHIPMENT_ORDER,
 
-    // #2 更新挂号
-    SHIPMENT_TRACKING,
-
-    // #3 获取标签
-    LABEL,
-
-    // #4 更新标签
-    SHIPMENT_LABEL,
 
     // #5 取消冻结费用
     THAW_BALANCE,
@@ -80,6 +70,18 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
 
     // #8 冻结库存（转运出库，集运出库）
     FREEZE_INVENTORY,
+
+
+    // #1 创建承运商物流订单
+    SHIPMENT_ORDER,
+
+    // #2 更新挂号
+    SHIPMENT_TRACKING,
+    // #3 获取标签
+    LABEL,
+
+    // #4 更新标签
+    SHIPMENT_LABEL,
 
     // #9 更新发货指令
     SHIPMENT_SHIPPING,
@@ -213,7 +215,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                 exType = "OutboundGetTrackingFailed";
             }
             // 更新消息到WMS
-            if (delOutboundWrapperContext.isShipmentShipping()) {
+            if (delOutboundWrapperContext.isShipmentShipping() && !DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())) {
                 ShipmentUpdateRequestDto shipmentUpdateRequestDto = new ShipmentUpdateRequestDto();
                 shipmentUpdateRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
                 shipmentUpdateRequestDto.setRefOrderNo(delOutbound.getOrderNo());
@@ -253,14 +255,14 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
 
         @Override
         public ApplicationState nextState() {
-            return SHIPMENT_ORDER;
+            return THAW_BALANCE;
         }
     }
 
     static class ShipmentOrderHandle extends CommonApplicationHandle {
         @Override
         public ApplicationState preState() {
-            return BEGIN;
+            return FREEZE_BALANCE;
         }
 
         @Override
@@ -303,6 +305,10 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
         @Override
         public boolean otherCondition(ApplicationContext context, ApplicationState currentState) {
             DelOutboundWrapperContext delOutboundWrapperContext = (DelOutboundWrapperContext) context;
+            //核重直接跑
+            if(delOutboundWrapperContext.getExecShipmentShipping()){
+                return true;
+            }
             DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
             // 判断获取承运商信息
             return DelOutboundTrackingAcquireTypeEnum.WAREHOUSE_SUPPLIER.getCode().equals(delOutbound.getTrackingAcquireType());
@@ -525,14 +531,14 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
 
         @Override
         public ApplicationState nextState() {
-            return THAW_BALANCE;
+            return SHIPMENT_SHIPPING;
         }
     }
 
     static class ThawBalanceHandle extends CommonApplicationHandle {
         @Override
         public ApplicationState preState() {
-            return SHIPMENT_LABEL;
+            return BEGIN;
         }
 
         @Override
@@ -836,7 +842,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
 
         @Override
         public ApplicationState nextState() {
-            return SHIPMENT_SHIPPING;
+            return SHIPMENT_ORDER;
         }
     }
 
@@ -908,14 +914,14 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
 
         @Override
         public ApplicationState nextState() {
-            return SHIPMENT_SHIPPING;
+            return SHIPMENT_ORDER;
         }
     }
 
     static class ShipmentShippingHandle extends CommonApplicationHandle {
         @Override
         public ApplicationState preState() {
-            return FREEZE_INVENTORY;
+            return SHIPMENT_ORDER;
         }
 
         @Override
@@ -929,7 +935,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
 
 
-            if(delOutboundWrapperContext.getExecShipmentShipping()){
+            if(delOutboundWrapperContext.getExecShipmentShipping() && !DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())){
                 logger.info("核重更新发货指令{}", delOutbound.getOrderNo());
                 // 修改为异步执行
                 ShipmentUpdateRequestDto shipmentUpdateRequestDto = new ShipmentUpdateRequestDto();
