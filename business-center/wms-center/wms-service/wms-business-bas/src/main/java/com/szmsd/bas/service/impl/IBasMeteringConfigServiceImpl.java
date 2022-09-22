@@ -148,13 +148,13 @@ public class IBasMeteringConfigServiceImpl implements IBasMeteringConfigService 
             if (list.size()>0) {
                 list.forEach(x -> {
                     //0表示重量差，1表示百分比
-                    if (x.getWeightTypeNameOne().equals("计费重量") && x.getWeightTypeNameTwo().equals("体积重")) {
+                    if (x.getWeightTypeNameOneCode().equals("billableWeight") && x.getWeightTypeNameTwoCode().equals("volumeWeight")) {
                         if (x.getDifferenceType() == 0) {
                             BigDecimal bigDecimal = (basMeteringConfigDto.getVolume().subtract(basMeteringConfigDto.getCalcWeight())).abs();
                             BigDecimal bigDecimal1 = BigDecimal.valueOf(x.getDifferenceScope());
                             int a = bigDecimal.compareTo(bigDecimal1);
                             if (a == 1) {
-                                throw new CommonException("超出设置的范围，拦截");
+                                throw new CommonException("Exceeding the set range, intercept");
                             }
                         } else if (x.getDifferenceType() == 1) {
                             BigDecimal bigDecimal = (basMeteringConfigDto.getVolume().subtract(basMeteringConfigDto.getCalcWeight())).abs();
@@ -170,18 +170,18 @@ public class IBasMeteringConfigServiceImpl implements IBasMeteringConfigService 
                             BigDecimal d = (bigDecimal.divide(max, 2, BigDecimal.ROUND_HALF_UP)).multiply(BigDecimal.valueOf(100));
                             int a = d.compareTo(bigDecimal1);
                             if (a == 1) {
-                                throw new CommonException("超出设置的范围，拦截");
+                                throw new CommonException("Exceeding the set range, intercept");
                             }
                         }
 
                     }
-                    if (x.getWeightTypeNameOne().equals("体积重") && x.getWeightTypeNameTwo().equals("计费重量")) {
+                    if (x.getWeightTypeNameOneCode().equals("volumeWeight") && x.getWeightTypeNameTwoCode().equals("billableWeight")) {
                         if (x.getDifferenceType() == 0) {
                             BigDecimal bigDecimal = (basMeteringConfigDto.getVolume().subtract(basMeteringConfigDto.getCalcWeight())).abs();
                             BigDecimal bigDecimal1 = BigDecimal.valueOf(x.getDifferenceScope());
                             int a = bigDecimal.compareTo(bigDecimal1);
                             if (a == 1) {
-                                throw new CommonException("超出设置的范围，拦截");
+                                throw new CommonException("Exceeding the set range, intercept");
                             }
                         } else if (x.getDifferenceType() == 1) {
                             BigDecimal bigDecimal = (basMeteringConfigDto.getVolume().subtract(basMeteringConfigDto.getCalcWeight())).abs();
@@ -197,17 +197,17 @@ public class IBasMeteringConfigServiceImpl implements IBasMeteringConfigService 
                             BigDecimal d = (bigDecimal.divide(max, 2, BigDecimal.ROUND_HALF_UP)).multiply(BigDecimal.valueOf(100));
                             int a = d.compareTo(bigDecimal1);
                             if (a == 1) {
-                                throw new CommonException("超出设置的范围，拦截");
+                                throw new CommonException("Exceeding the set range, intercept");
                             }
                         }
                     }
-                    if (x.getWeightTypeNameOne().equals("计费重量") && x.getWeightTypeNameOne().equals("下单重量")) {
+                    if (x.getWeightTypeNameOneCode().equals("billableWeight") && x.getWeightTypeNameTwoCode().equals("forecastWeight")) {
                         if (x.getDifferenceType() == 0) {
                             BigDecimal bigDecimal = (basMeteringConfigDto.getWeight().subtract(basMeteringConfigDto.getCalcWeight())).abs();
                             BigDecimal bigDecimal1 = BigDecimal.valueOf(x.getDifferenceScope());
                             int a = bigDecimal.compareTo(bigDecimal1);
                             if (a == 1) {
-                                throw new CommonException("超出设置的范围，拦截");
+                                throw new CommonException("Exceeding the set range, intercept");
                             }
                         } else if (x.getDifferenceType() == 1) {
                             BigDecimal bigDecimal = (basMeteringConfigDto.getWeight().subtract(basMeteringConfigDto.getCalcWeight())).abs();
@@ -223,17 +223,17 @@ public class IBasMeteringConfigServiceImpl implements IBasMeteringConfigService 
                             BigDecimal d = (bigDecimal.divide(max, 2, BigDecimal.ROUND_HALF_UP)).multiply(BigDecimal.valueOf(100));
                             int a = d.compareTo(bigDecimal1);
                             if (a == 1) {
-                                throw new CommonException("超出设置的范围，拦截");
+                                throw new CommonException("Exceeding the set range, intercept");
                             }
                         }
                     }
-                    if (x.getWeightTypeNameOne().equals("下单重量") && x.getWeightTypeNameTwo().equals("计费重量")) {
+                    if (x.getWeightTypeNameOneCode().equals("forecastWeight") && x.getWeightTypeNameTwoCode().equals("billableWeight")) {
                         if (x.getDifferenceType() == 0) {
                             BigDecimal bigDecimal = (basMeteringConfigDto.getWeight().subtract(basMeteringConfigDto.getCalcWeight())).abs();
                             BigDecimal bigDecimal1 = BigDecimal.valueOf(x.getDifferenceScope());
                             int a = bigDecimal.compareTo(bigDecimal1);
                             if (a == 1) {
-                                throw new CommonException("超出设置的范围，拦截");
+                                throw new CommonException("Exceeding the set range, intercept");
                             }
                         } else if (x.getDifferenceType() == 1) {
                             BigDecimal bigDecimal = (basMeteringConfigDto.getWeight().subtract(basMeteringConfigDto.getCalcWeight())).abs();
@@ -249,17 +249,17 @@ public class IBasMeteringConfigServiceImpl implements IBasMeteringConfigService 
                             BigDecimal d = (bigDecimal.divide(max, 2, BigDecimal.ROUND_HALF_UP)).multiply(BigDecimal.valueOf(100));
                             int a = d.compareTo(bigDecimal1);
                             if (a == 1) {
-                                    throw new CommonException("超出设置的范围，拦截");
+                                    throw new CommonException("Exceeding the set range, intercept");
                             }
                         }
                     }
-                    if (x.getWeightTypeNameOne().equals("下单重量") && x.getWeightTypeNameTwo().equals("体积重")) {
+                    if (x.getWeightTypeNameOneCode().equals("forecastWeight") && x.getWeightTypeNameTwoCode().equals("volumeWeight")) {
                         if (x.getDifferenceType() == 0) {
                             BigDecimal bigDecimal = (basMeteringConfigDto.getWeight().subtract(basMeteringConfigDto.getVolume())).abs();
                             BigDecimal bigDecimal1 = BigDecimal.valueOf(x.getDifferenceScope());
                             int a = bigDecimal.compareTo(bigDecimal1);
                             if (a == 1) {
-                                throw new CommonException("超出设置的范围，拦截");
+                                throw new CommonException("Exceeding the set range, intercept");
                             }
                         } else if (x.getDifferenceType() == 1) {
                             BigDecimal bigDecimal = (basMeteringConfigDto.getWeight().subtract(basMeteringConfigDto.getVolume())).abs();
@@ -275,17 +275,17 @@ public class IBasMeteringConfigServiceImpl implements IBasMeteringConfigService 
                             BigDecimal d = (bigDecimal.divide(max, 2, BigDecimal.ROUND_HALF_UP)).multiply(BigDecimal.valueOf(100));
                             int a = d.compareTo(bigDecimal1);
                             if (a == 1) {
-                                throw new CommonException("超出设置的范围，拦截");
+                                throw new CommonException("Exceeding the set range, intercept");
                             }
                         }
                     }
-                    if (x.getWeightTypeNameOne().equals("体积重") && x.getWeightTypeNameTwo().equals("下单重量")) {
+                    if (x.getWeightTypeNameOneCode().equals("volumeWeight") && x.getWeightTypeNameTwoCode().equals("forecastWeight")) {
                         if (x.getDifferenceType() == 0) {
                             BigDecimal bigDecimal = (basMeteringConfigDto.getWeight().subtract(basMeteringConfigDto.getVolume())).abs();
                             BigDecimal bigDecimal1 = BigDecimal.valueOf(x.getDifferenceScope());
                             int a = bigDecimal.compareTo(bigDecimal1);
                             if (a == 1) {
-                                throw new CommonException("超出设置的范围，拦截");
+                                throw new CommonException("Exceeding the set range, intercept");
                             }
                         } else if (x.getDifferenceType() == 1) {
                             BigDecimal bigDecimal = (basMeteringConfigDto.getWeight().subtract(basMeteringConfigDto.getVolume())).abs();
@@ -301,7 +301,7 @@ public class IBasMeteringConfigServiceImpl implements IBasMeteringConfigService 
                             BigDecimal d = (bigDecimal.divide(max, 2, BigDecimal.ROUND_HALF_UP)).multiply(BigDecimal.valueOf(100));
                             int a = d.compareTo(bigDecimal1);
                             if (a == 1) {
-                                throw new CommonException("超出设置的范围，拦截");
+                                throw new CommonException("Exceeding the set range, intercept");
                             }
                         }
                     }
@@ -312,7 +312,7 @@ public class IBasMeteringConfigServiceImpl implements IBasMeteringConfigService 
                 if (list3.size()>0) {
                     list3.forEach(x -> {
                         //0表示重量差，1表示百分比
-                        if (x.getWeightTypeNameOne().equals("计费重量") && x.getWeightTypeNameTwo().equals("体积重")) {
+                        if (x.getWeightTypeNameOneCode().equals("billableWeight") && x.getWeightTypeNameTwoCode().equals("volumeWeight")) {
                             if (x.getDifferenceType() == 0) {
                                 if (basMeteringConfigDto.getVolume() != null && basMeteringConfigDto.getCalcWeight() != null) {
                                     BigDecimal bigDecimal = (basMeteringConfigDto.getVolume().subtract(basMeteringConfigDto.getCalcWeight())).abs();
@@ -344,7 +344,7 @@ public class IBasMeteringConfigServiceImpl implements IBasMeteringConfigService 
                             }
 
                         }
-                        if (x.getWeightTypeNameOne().equals("体积重") && x.getWeightTypeNameTwo().equals("计费重量")) {
+                        if (x.getWeightTypeNameOneCode().equals("volumeWeight") && x.getWeightTypeNameTwoCode().equals("billableWeight")) {
                             if (x.getDifferenceType() == 0) {
                                 if (basMeteringConfigDto.getVolume()!=null&&basMeteringConfigDto.getCalcWeight()!=null) {
                                     BigDecimal bigDecimal = (basMeteringConfigDto.getVolume().subtract(basMeteringConfigDto.getCalcWeight())).abs();
@@ -374,7 +374,7 @@ public class IBasMeteringConfigServiceImpl implements IBasMeteringConfigService 
                                 }
                             }
                         }
-                        if (x.getWeightTypeNameOne().equals("计费重量") && x.getWeightTypeNameTwo().equals("下单重量")) {
+                        if (x.getWeightTypeNameOneCode().equals("billableWeight") && x.getWeightTypeNameTwoCode().equals("forecastWeight")) {
                             if (x.getDifferenceType() == 0) {
                                 if (basMeteringConfigDto.getWeight()!=null&&basMeteringConfigDto.getCalcWeight()!=null) {
                                     BigDecimal bigDecimal = (basMeteringConfigDto.getWeight().subtract(basMeteringConfigDto.getCalcWeight())).abs();
@@ -404,7 +404,7 @@ public class IBasMeteringConfigServiceImpl implements IBasMeteringConfigService 
                                 }
                             }
                         }
-                        if (x.getWeightTypeNameOne().equals("下单重量") && x.getWeightTypeNameTwo().equals("计费重量")) {
+                        if (x.getWeightTypeNameOneCode().equals("forecastWeight") && x.getWeightTypeNameTwoCode().equals("billableWeight")) {
                             if (x.getDifferenceType() == 0) {
                                 if (basMeteringConfigDto.getWeight()!=null&&basMeteringConfigDto.getCalcWeight()!=null) {
                                     BigDecimal bigDecimal = (basMeteringConfigDto.getWeight().subtract(basMeteringConfigDto.getCalcWeight())).abs();
@@ -434,7 +434,7 @@ public class IBasMeteringConfigServiceImpl implements IBasMeteringConfigService 
                                 }
                             }
                         }
-                        if (x.getWeightTypeNameOne().equals("下单重量") && x.getWeightTypeNameTwo().equals("体积重")) {
+                        if (x.getWeightTypeNameOneCode().equals("forecastWeight") && x.getWeightTypeNameTwoCode().equals("volumeWeight")) {
                             if (x.getDifferenceType() == 0) {
                                 if (basMeteringConfigDto.getWeight()!=null&&basMeteringConfigDto.getVolume()!=null) {
                                     BigDecimal bigDecimal = (basMeteringConfigDto.getWeight().subtract(basMeteringConfigDto.getVolume())).abs();
@@ -464,7 +464,7 @@ public class IBasMeteringConfigServiceImpl implements IBasMeteringConfigService 
                                 }
                             }
                         }
-                        if (x.getWeightTypeNameOne().equals("体积重") && x.getWeightTypeNameTwo().equals("下单重量")) {
+                        if (x.getWeightTypeNameOneCode().equals("volumeWeight") && x.getWeightTypeNameTwoCode().equals("forecastWeight")) {
                             if (x.getDifferenceType() == 0) {
                                 if (basMeteringConfigDto.getWeight()!=null&&basMeteringConfigDto.getVolume()!=null) {
                                     BigDecimal bigDecimal = (basMeteringConfigDto.getWeight().subtract(basMeteringConfigDto.getVolume())).abs();
