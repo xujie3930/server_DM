@@ -26,6 +26,7 @@ import com.szmsd.system.api.domain.SysUser;
 import org.apache.commons.io.IOUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.security.access.prepost.PreAuthorize;
 import com.szmsd.common.core.domain.R;
 import org.springframework.web.bind.annotation.*;
@@ -34,13 +35,19 @@ import com.szmsd.delivery.domain.DelQueryService;
 import com.szmsd.common.log.annotation.Log;
 import com.szmsd.common.core.web.page.TableDataInfo;
 import javax.annotation.Resource;
+import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import com.szmsd.common.core.utils.poi.ExcelUtil;
 import com.szmsd.common.log.enums.BusinessType;
 import io.swagger.annotations.Api;
+
+import java.io.InputStream;
+import java.net.URLEncoder;
 import java.util.List;
 import java.io.IOException;
+import java.util.Locale;
+
 import org.springframework.web.bind.annotation.RestController;
 import io.swagger.annotations.ApiOperation;
 import com.szmsd.common.core.web.controller.BaseController;
