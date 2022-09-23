@@ -4,10 +4,12 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.szmsd.common.core.exception.com.CommonException;
+import com.szmsd.common.core.utils.MessageUtil;
 import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.delivery.domain.DelOutbound;
 import com.szmsd.delivery.domain.DelOutboundAddress;
 import com.szmsd.delivery.dto.DelOutboundAgainTrackingNoDto;
+import com.szmsd.delivery.dto.DelOutboundFurtherHandlerDto;
 import com.szmsd.delivery.enums.DelOutboundConstant;
 import com.szmsd.delivery.enums.DelOutboundTrackingAcquireTypeEnum;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
@@ -57,7 +59,7 @@ public class DelOutboundExceptionServiceImpl implements IDelOutboundExceptionSer
 
     @Transactional
     @Override
-    public boolean againTrackingNo(DelOutbound delOutbound, DelOutboundAgainTrackingNoDto dto) {
+    public boolean againTrackingNo(DelOutbound delOutbound, DelOutboundAgainTrackingNoDto dto, DelOutboundFurtherHandlerDto furtherHandlerDto) {
         String orderNo = delOutbound.getOrderNo();
         // 删除原来的地址信息，重新新增一个地址信息
         LambdaQueryWrapper<DelOutboundAddress> addressLambdaQueryWrapper = Wrappers.lambdaQuery();
@@ -68,20 +70,25 @@ public class DelOutboundExceptionServiceImpl implements IDelOutboundExceptionSer
             delOutboundAddress.setOrderNo(orderNo);
             this.delOutboundAddressService.save(delOutboundAddress);
         }
+        furtherHandlerDto.setDelOutboundAddress(delOutboundAddress);
         // 根据产品编码查询产品信息
         String productCode = dto.getShipmentRule();
         PricedProductInfo pricedProductInfo = htpPricedProductClientService.infoAndSubProducts(productCode);
         if (null == pricedProductInfo) {
             // 异常信息
-            throw new CommonException("400", "查询产品[" + productCode + "]信息失败");
+            throw new CommonException("400", MessageUtil.to("查询产品[" + productCode + "]信息失败","Failed to query product ["+productCode+"] information" ));
         }
+        // 更新物流服务信息,放在initContext里面
+        furtherHandlerDto.setShipmentRule(productCode);
+        furtherHandlerDto.setShipmentService(pricedProductInfo.getLogisticsRouteId());
 
-        DelOutboundWrapperContext delOutboundWrapperContext = this.delOutboundBringVerifyService.initContext(delOutbound);
 
-        // 更新物流服务信息
-        DelOutbound wrapperContextDelOutbound = delOutboundWrapperContext.getDelOutbound();
-        wrapperContextDelOutbound.setShipmentRule(productCode);
-        wrapperContextDelOutbound.setShipmentService(pricedProductInfo.getLogisticsRouteId());
+        DelOutboundWrapperContext delOutboundWrapperContext = this.delOutboundBringVerifyService.initContext(delOutbound, furtherHandlerDto);
+
+        /* DelOutbound wrapperContextDelOutbound = delOutboundWrapperContext.getDelOutbound();
+       wrapperContextDelOutbound.setShipmentRule(productCode);
+        wrapperContextDelOutbound.setShipmentService(pricedProductInfo.getLogisticsRouteId());*/
+
 
         // PRC计算费用校验
         ResponseObject<ChargeWrapper, ProblemDetails> prcResponseObject = delOutboundBringVerifyService.pricing(delOutboundWrapperContext, PricingEnum.PACKAGE);
