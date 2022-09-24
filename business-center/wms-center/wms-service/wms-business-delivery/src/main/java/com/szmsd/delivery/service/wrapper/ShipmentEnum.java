@@ -220,7 +220,13 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                 ShipmentUpdateRequestDto shipmentUpdateRequestDto = new ShipmentUpdateRequestDto();
                 shipmentUpdateRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
                 shipmentUpdateRequestDto.setRefOrderNo(delOutbound.getOrderNo());
-                shipmentUpdateRequestDto.setShipmentRule(delOutbound.getShipmentRule());
+                String shipmentRule;
+                if (StringUtils.isNotEmpty(delOutbound.getProductShipmentRule())) {
+                    shipmentRule = delOutbound.getProductShipmentRule();
+                } else {
+                    shipmentRule = delOutbound.getShipmentRule();
+                }
+                shipmentUpdateRequestDto.setShipmentRule(shipmentRule);
                 shipmentUpdateRequestDto.setPackingRule(delOutbound.getPackingRule());
                 shipmentUpdateRequestDto.setIsEx(true);
                 shipmentUpdateRequestDto.setExType(exType);
@@ -369,7 +375,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             if(delOutboundWrapperContext.getExecShipmentShipping()){
                 return true;
             }
-
+            
             // 判断获取承运商信息
             return DelOutboundTrackingAcquireTypeEnum.WAREHOUSE_SUPPLIER.getCode().equals(delOutbound.getTrackingAcquireType());
         }
@@ -736,8 +742,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             }
             delOutbound.setAmount(totalAmount);
             delOutbound.setCurrencyCode(totalCurrencyCode);
-           
-
+            
 
             //更新PRC发货服务
             IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
@@ -963,7 +968,13 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                 if (DelOutboundOrderTypeEnum.BATCH.getCode().equals(delOutbound.getOrderType()) && "SelfPick".equals(delOutbound.getShipmentChannel())) {
                     shipmentUpdateRequestDto.setShipmentRule(delOutbound.getDeliveryAgent());
                 } else {
-                    shipmentUpdateRequestDto.setShipmentRule(delOutbound.getShipmentRule());
+                    String shipmentRule;
+                    if (StringUtils.isNotEmpty(delOutbound.getProductShipmentRule())) {
+                        shipmentRule = delOutbound.getProductShipmentRule();
+                    } else {
+                        shipmentRule = delOutbound.getShipmentRule();
+                    }
+                    shipmentUpdateRequestDto.setShipmentRule(shipmentRule);
                 }
                 shipmentUpdateRequestDto.setPackingRule(delOutbound.getPackingRule());
                 shipmentUpdateRequestDto.setIsEx(false);
