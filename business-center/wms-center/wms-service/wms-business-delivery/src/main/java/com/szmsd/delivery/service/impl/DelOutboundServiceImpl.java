@@ -399,9 +399,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             for (BasAttachment basAttachment : attachment) {
                 for (DelOutboundDetailVO detailVO : delOutboundVO.getDetails()) {
                     if (StringUtils.equals("" + detailVO.getId(), basAttachment.getBusinessItemNo())) {
-                            detailVO.setSkuFile(Arrays.asList(
-                            new AttachmentFileDTO().setId(basAttachment.getId()).setAttachmentName(basAttachment.getAttachmentName()).
-                                    setAttachmentUrl(basAttachment.getAttachmentUrl())));
+                        detailVO.setSkuFile(Arrays.asList(
+                                new AttachmentFileDTO().setId(basAttachment.getId()).setAttachmentName(basAttachment.getAttachmentName()).
+                                        setAttachmentUrl(basAttachment.getAttachmentUrl())));
 
                     }
                 }
@@ -795,7 +795,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
             //同步更新计泡拦截重量
             delOutbound.setForecastWeight(delOutbound.getWeight());
-            
+
             // 保存出库单
             int insert = baseMapper.insert(delOutbound);
             logger.info(">>>>>[创建出库单{}]3.4 保存出库单，{}", delOutbound.getOrderNo(), timer.intervalRestart());
@@ -848,7 +848,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             }
             // 附件信息
             if (!DelOutboundOrderTypeEnum.MULTIPLE_PIECES.getCode().equals(delOutbound.getOrderType())
-            && !DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())
+                    && !DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())
             ) {
                 AttachmentDTO attachmentDTO = AttachmentDTO.builder().businessNo(orderNo).businessItemNo(null).fileList(dto.getDocumentsFiles()).attachmentTypeEnum(AttachmentTypeEnum.DEL_OUTBOUND_DOCUMENT).build();
                 this.remoteAttachmentService.saveAndUpdate(attachmentDTO);
@@ -904,8 +904,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
                         // 箱标明细
                         AttachmentDTO boxMarkDetailFiels = AttachmentDTO.builder().businessNo(orderNo).businessItemNo("" + detail.getId()).fileList(
-                                Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl())
-                                        .setAttachmentName(attachmentDataDTO.getAttachmentName()))).
+                                        Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl())
+                                                .setAttachmentName(attachmentDataDTO.getAttachmentName()))).
                                 attachmentTypeEnum(AttachmentTypeEnum.MULTIPLE_PIECES_BOX_DETAIL).build();
                         this.remoteAttachmentService.saveAndUpdate(boxMarkDetailFiels);
 
@@ -914,8 +914,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                         AttachmentDataDTO attachmentDataDTO = detail.getSkuFile().get(0);
                         // SKU
                         AttachmentDTO skuFiles = AttachmentDTO.builder().businessNo(orderNo).businessItemNo("" + detail.getId()).fileList(
-                                Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl()).
-                                        setAttachmentName(attachmentDataDTO.getAttachmentName()))).
+                                        Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl()).
+                                                setAttachmentName(attachmentDataDTO.getAttachmentName()))).
                                 attachmentTypeEnum(AttachmentTypeEnum.MULTIPLE_PIECES_SKU).build();
                         this.remoteAttachmentService.saveAndUpdate(skuFiles);
                     }

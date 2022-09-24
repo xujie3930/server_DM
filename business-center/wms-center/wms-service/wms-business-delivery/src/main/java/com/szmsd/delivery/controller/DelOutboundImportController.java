@@ -1,7 +1,9 @@
 package com.szmsd.delivery.controller;
 
 import cn.hutool.core.io.IoUtil;
+import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.EasyExcelFactory;
+import com.alibaba.excel.event.SyncReadListener;
 import com.alibaba.excel.read.builder.ExcelReaderSheetBuilder;
 import com.szmsd.bas.api.client.BasSubClientService;
 import com.szmsd.bas.api.domain.dto.BasRegionSelectListQueryDto;
@@ -52,6 +54,7 @@ import java.io.InputStream;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -81,8 +84,17 @@ public class DelOutboundImportController extends BaseController {
     @GetMapping("/collectionExportTemplate")
     @ApiOperation(value = "出库管理 - 导入 - 集运出库 - SKU导入模板", position = 100)
     public void collectionExportTemplate(HttpServletResponse response) {
-        String filePath = "/template/Del_collection_sku_import.xls";
-        String fileName = "集运出库单SKU导入";
+        String len=getLen().toLowerCase(Locale.ROOT);
+        String filePath=null;
+        String fileName=null;
+        if (len.equals("zh")){
+             filePath = "/template/Del_collection_sku_import.xls";
+             fileName = "新增SKU导入模板";
+        }else if (len.equals("en")){
+            filePath = "/template/AddedSKUImportTemplate.xlsx";
+            fileName = "AddedSKUImportTemplate";
+        }
+
         this.downloadTemplate(response, filePath, fileName);
     }
 
@@ -95,19 +107,21 @@ public class DelOutboundImportController extends BaseController {
     public R<ImportResultData<?>> collectionImportDetail(HttpServletRequest request) {
         MultipartHttpServletRequest multipartHttpServletRequest = (MultipartHttpServletRequest) request;
         MultipartFile file = multipartHttpServletRequest.getFile("file");
-        AssertUtil.notNull(file, "上传文件不存在");
+        AssertUtil.notNull(file, "The uploaded file does not exist");
         String originalFilename = file.getOriginalFilename();
-        AssertUtil.notNull(originalFilename, "导入文件名称不存在");
+        AssertUtil.notNull(originalFilename, "The import file name does not exist");
         int lastIndexOf = originalFilename.lastIndexOf(".");
         String suffix = originalFilename.substring(lastIndexOf + 1);
         if (!"xls".equals(suffix) && !"xlsx".equals(suffix)) {
-            throw new CommonException("999", "只能上传xls,xlsx文件");
+            throw new CommonException("999", "Only upload xls,xlsx file");
         }
         try {
-            ExcelReaderSheetBuilder excelReaderSheetBuilder = EasyExcelFactory.read(file.getInputStream(), DelOutboundCollectionDetailImportDto.class, null).sheet(0);
-            List<DelOutboundCollectionDetailImportDto> dtoList = excelReaderSheetBuilder.doReadSync();
+            List<DelOutboundCollectionDetailImportDto> dtoList = EasyExcel.read(file.getInputStream(), DelOutboundCollectionDetailImportDto.class, new SyncReadListener()).sheet().doReadSync();
+
+//            ExcelReaderSheetBuilder excelReaderSheetBuilder = EasyExcelFactory.read(file.getInputStream(), DelOutboundCollectionDetailImportDto.class, null).sheet(0);
+//            List<DelOutboundCollectionDetailImportDto> dtoList = excelReaderSheetBuilder.doReadSync();
             if (CollectionUtils.isEmpty(dtoList)) {
-                return R.ok(ImportResultData.buildFailData(ImportMessage.build("导入数据不能为空")));
+                return R.ok(ImportResultData.buildFailData(ImportMessage.build("Import data cannot be empty")));
             }
             // 产品属性，带电信息，电池包装
             Map<String, List<BasSubWrapperVO>> listMap = this.basSubClientService.getSub("059,060,061");
@@ -126,7 +140,7 @@ public class DelOutboundImportController extends BaseController {
             return R.ok(ImportResultData.buildSuccessData(dtoList));
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
-            return R.failed("文件解析异常");
+            return R.failed("File parsing exception");
         }
     }
 

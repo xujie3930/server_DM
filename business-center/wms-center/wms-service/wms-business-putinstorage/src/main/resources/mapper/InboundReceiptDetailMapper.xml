@@ -26,6 +26,10 @@
         t.delivery_no,
         t.remark
     </sql>
+    <update id="updateReceiptDeta" parameterType="com.szmsd.putinstorage.domain.InboundReceiptDetail">
+        UPDATE inbound_receipt_detail SET put_qty=#{putQty} ,warehouse_to_time=#{warehouseToTime}
+        where id=#{id}
+    </update>
     <delete id="deleteByWarehouseNo">
         DELETE
         FROM inbound_receipt_detail
@@ -89,5 +93,8 @@
         SELECT COUNT(1) FROM inbound_receipt ir RIGHT JOIN (
                 SELECT warehouse_no FROM inbound_receipt_detail WHERE delivery_no = #{deliveryNo}
                 ) temp ON temp.warehouse_no = ir.warehouse_no  WHERE ir.`status`  != 0
+    </select>
+    <select id="selectReceiptDeta" resultType="com.szmsd.putinstorage.domain.InboundReceiptDetail" parameterType="com.szmsd.putinstorage.domain.dto.ReceiptRequest">
+        SELECT * from  inbound_receipt_detail WHERE delivery_no=#{packageOrderNo} and warehouse_no=#{orderNo}
     </select>
 </mapper>

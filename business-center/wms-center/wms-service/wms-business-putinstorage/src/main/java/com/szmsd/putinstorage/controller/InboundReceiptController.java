@@ -13,6 +13,8 @@ import com.alibaba.fastjson.JSONObject;
 import com.szmsd.bas.dto.BaseProductMeasureDto;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.exception.com.AssertUtil;
+import com.szmsd.common.core.exception.com.CommonException;
+import com.szmsd.common.core.utils.SpringUtils;
 import com.szmsd.common.core.utils.StringToolkit;
 import com.szmsd.common.core.web.controller.BaseController;
 import com.szmsd.common.core.web.page.TableDataInfo;
@@ -32,11 +34,15 @@ import com.szmsd.putinstorage.service.IInboundTrackingService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -49,8 +55,7 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.annotation.Resource;
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.URLEncoder;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -68,6 +73,7 @@ import java.util.stream.Collectors;
  * @author liangchao
  * @since 2021-03-03
  */
+
 
 
 @Api(tags = {"入库"})
@@ -88,6 +94,9 @@ public class InboundReceiptController extends BaseController {
     private RemoteComponent remoteComponent;
     @Resource
     private RedissonClient redissonClient;
+
+    private Logger logger = LoggerFactory.getLogger(InboundReceiptController.class);
+
 
     //    @AutoValue
     @PreAuthorize("@ss.hasPermi('inbound:receipt:page')")
@@ -219,17 +228,73 @@ public class InboundReceiptController extends BaseController {
     @GetMapping("/receipt/exportTemplate")
     @ApiOperation(value = "导出sku模板", notes = "入库管理 - 新增 - 下载模板")
     public void exportTemplate(HttpServletResponse response) {
-        String len = getLen().toLowerCase(Locale.ROOT);
-        List<String> rows;
-        String fileName;
-        if ("en".equals(len)) {
-            fileName = "inbound_order_sku_import";
-            rows = CollUtil.newArrayList("inbound order no", "SKU", "Quantity", "Original product code", "Remarks");
-        } else {
-            fileName = "入库单SKU导入";
-            rows = CollUtil.newArrayList("入库单号", "SKU", "申报数量", "原产品编码", "备注");
+//        String len = getLen().toLowerCase(Locale.ROOT);
+//        List<String> rows;
+//        String fileName;
+//        if ("en".equals(len)) {
+//            fileName = "inbound_order_sku_import";
+//            rows = CollUtil.newArrayList("inbound order no", "SKU", "Quantity", "Original SKU code", "Remarks");
+//        } else {
+//            fileName = "入库单SKU导入";
+//            rows = CollUtil.newArrayList("入库单号", "SKU编码", "申报数量", "原SKU编码", "备注");
+//        }
+//        super.excelExportTitle(response, rows, fileName);
+
+        String len=getLen().toLowerCase(Locale.ROOT);
+        String filePath=null;
+        String fileName=null;
+        if (len.equals("zh")){
+            filePath = "/template/入库单SKU导入模板.xlsx";
+            fileName = "入库单SKU导入模板";
+        }else if (len.equals("en")){
+            filePath = "/template/SKU_Import_of_Inbound_Order.xlsx";
+            fileName = "SKU_Import_of_Inbound_Order";
         }
-        super.excelExportTitle(response, rows, fileName);
+
+        this.downloadTemplate(response, filePath, fileName);
+    }
+
+    /**
+     * 下载模板
+     *
+     * @param response response
+     * @param filePath 文件存放路径，${server.tomcat.basedir}配置的目录和resources目录下
+     * @param fileName 文件名称
+     */
+    private void downloadTemplate(HttpServletResponse response, String filePath, String fileName) {
+        // 先去模板目录中获取模板
+        // 模板目录中没有模板再从项目中获取模板
+        String basedir = SpringUtils.getProperty("server.tomcat.basedir", "/u01/www/ck1/delivery");
+        File file = new File(basedir + "/" + filePath);
+        InputStream inputStream = null;
+        ServletOutputStream outputStream = null;
+        try {
+            if (file.exists()) {
+                inputStream = new FileInputStream(file);
+                response.setHeader("File-Source", "local");
+            } else {
+                org.springframework.core.io.Resource resource = new ClassPathResource(filePath);
+                inputStream = resource.getInputStream();
+                response.setHeader("File-Source", "resource");
+            }
+            outputStream = response.getOutputStream();
+            //response为HttpServletResponse对象
+            response.setContentType("application/vnd.ms-excel;charset=utf-8");
+            String efn = URLEncoder.encode(fileName, "utf-8");
+            //Loading plan.xls是弹出下载对话框的文件名，不能为中文，中文请自行编码
+            response.setHeader("Content-Disposition", "attachment;filename=" + efn + ".xls");
+            IOUtils.copy(inputStream, outputStream);
+        } catch (FileNotFoundException e) {
+            logger.error(e.getMessage(), e);
+            throw new CommonException("999", "文件不存在，" + e.getMessage());
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+            throw new CommonException("999", "文件流处理失败，" + e.getMessage());
+        } finally {
+            IoUtil.flush(outputStream);
+            IoUtil.close(outputStream);
+            IoUtil.close(inputStream);
+        }
     }
 
     @PreAuthorize("@ss.hasPermi('inbound:receipt:exportsku')")
@@ -266,9 +331,26 @@ public class InboundReceiptController extends BaseController {
         boolean isXlsx = "xlsx".equals(suffix);
         AssertUtil.isTrue(isXls || isXlsx, "请上传xls或xlsx文件");
         List<String> error = new ArrayList<>();
-        List<InboundReceiptDetailVO> inboundReceiptDetailVOS = new ArrayList<>();
+        List<InboundReceiptDetailVO> inboundReceiptDetailVOSex = new ArrayList<>();
+        List<InboundReceiptDetailVO> inboundReceiptDetailVOS = new ArrayList();
         try {
-            inboundReceiptDetailVOS = EasyExcel.read(file.getInputStream(), InboundReceiptDetailVO.class, new SyncReadListener()).sheet().doReadSync();
+            inboundReceiptDetailVOSex = EasyExcel.read(file.getInputStream(), InboundReceiptDetailVO.class, new SyncReadListener()).sheet().doReadSync();
+
+
+
+            //list去掉重复值，并且重复值的数量相加
+            inboundReceiptDetailVOS = inboundReceiptDetailVOSex.stream().collect(Collectors.toMap(InboundReceiptDetailVO::getSku, a -> a, (o1,o2)-> {
+
+                        if (o1.getDeclareQty()!=null&&o2.getDeclareQty()!=null) {
+                            o1.setDeclareQty(o1.getDeclareQty() + o2.getDeclareQty());
+                        }
+
+                        return o1;
+
+                    })).values().stream().collect(Collectors.toList());
+
+
+
 //            ExcelUtil<InboundReceiptDetailVO> excelUtil = new ExcelUtil<>(InboundReceiptDetailVO.class);
 //            inboundReceiptDetailVOS = excelUtil.importExcel(file.getInputStream());
             Map<String, Long> collect = inboundReceiptDetailVOS.stream().map(InboundReceiptDetailVO::getSku).collect(Collectors.groupingBy(p -> p, Collectors.counting()));
@@ -324,6 +406,43 @@ public class InboundReceiptController extends BaseController {
         } catch (Exception e) {
             skuRep.remove(repeatRequestKey);
             log.error("接收入库上架失败:", e);
+            throw new RuntimeException(e.getMessage());
+        } finally {
+            if (lock.isLocked() && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
+    }
+
+    //@PreAuthorize("@ss.hasPermi('inbound:receipt')")
+    @PostMapping("/receipt")
+    @ApiOperation(value = "#B6 转运订单收货调用", notes = "#B6 转运订单收货调用")
+    @InboundReceiptLog(record = InboundReceiptRecordEnum.PUT)
+    public R receipt(@RequestBody ReceiptRequest receiptRequest) {
+        String repeatRequestKey = JSONObject.toJSONString(receiptRequest);
+        Long excuteTime = skuRep.get(repeatRequestKey);
+        if (null == excuteTime) {
+            skuRep.put(repeatRequestKey, System.currentTimeMillis());
+        } else {
+            log.info("#B1 转运订单收货调用 重复请求：{}==={}", receiptRequest, excuteTime);
+            return R.ok();
+        }
+
+        String localKey = Optional.ofNullable(SecurityUtils.getLoginUser()).map(LoginUser::getSellerCode).orElse("");
+        RLock lock = redissonClient.getLock("InboundReceiptController#receipt" + localKey);
+        try {
+            if (lock.tryLock(LOCK_TIME, TimeUnit.SECONDS)) {
+                iInboundReceiptService.receipt(receiptRequest);
+                return R.ok();
+            } else {
+                return R.failed("请求超时，请稍候重试!");
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return R.failed("接收转运订单收货失败!");
+        } catch (Exception e) {
+            skuRep.remove(repeatRequestKey);
+            log.error("接收转运订单收货失败:", e);
             throw new RuntimeException(e.getMessage());
         } finally {
             if (lock.isLocked() && lock.isHeldByCurrentThread()) {
@@ -517,7 +636,8 @@ public class InboundReceiptController extends BaseController {
     @ApiOperation(value = "日志", notes = "入库单日志")
     public TableDataInfo<InboundReceiptRecord> queryRecord(InboundReceiptRecordQueryDTO queryDTO) {
         startPage();
-        return getDataTable(iInboundReceiptRecordService.selectList(queryDTO));
+        String le=getLen();
+        return getDataTable(iInboundReceiptRecordService.selectList(queryDTO,le));
     }
 
     @PostMapping("/receiving/tracking")

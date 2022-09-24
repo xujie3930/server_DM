@@ -1,5 +1,6 @@
 package com.szmsd.delivery.domain;
 
+import cn.afterturn.easypoi.excel.annotation.Excel;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.szmsd.common.core.web.domain.BaseEntity;
@@ -9,7 +10,6 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
-import com.szmsd.common.core.annotation.Excel;
 
 
 /**
@@ -44,23 +44,32 @@ public class DelQueryService extends BaseEntity {
     @ApiModelProperty(value = "逻辑删除标识；2-已删除，0-未删除")
     private String delFlag;
 
+
     @ApiModelProperty(value = "订单号")
-    @Excel(name = "订单号")
+    @Excel(name="订单号",width = 30,needMerge = true)
     private String orderNo;
 
     @ApiModelProperty(value = "跟踪ID")
-    @Excel(name = "跟踪ID")
+    @Excel(name="跟踪号",width = 30,needMerge = true)
     private String traceId;
+
+    @ApiModelProperty(value = "refno")
+    @Excel(name="refNo",width = 30,needMerge = true)
+    private String refNo;
 
     @ApiModelProperty(value = "物流服务编号")
     private String shipmentRule;
 
     @ApiModelProperty(value = "物流服务名称")
-    @Excel(name = "物流服务名称")
+    @Excel(name="物流服务名称",width = 30,needMerge = true)
     private String shipmentService;
 
+    @ApiModelProperty(value = "国家名称")
+    @Excel(name="国家名称",width = 30,needMerge = true)
+    private String country;
+
     @ApiModelProperty(value = "客户代码")
-    @Excel(name = "客户代码")
+    @Excel(name="客户代码",width = 30,needMerge = true)
     private String sellerCode;
 
 
@@ -71,7 +80,7 @@ public class DelQueryService extends BaseEntity {
     private String serviceManagerName;
 
     @ApiModelProperty(value = "业务经理-名称")
-    @Excel(name = "业务经理")
+    @Excel(name="业务经理",width = 30,needMerge = true)
     private String serviceManagerNickName;
 
 
@@ -82,23 +91,22 @@ public class DelQueryService extends BaseEntity {
     private String serviceStaffName;
 
     @ApiModelProperty(value = "客服姓名")
-    @Excel(name = "客服姓名")
+    @Excel(name="客服姓名",width = 30,needMerge = true)
     private String serviceStaffNickName;
 
     @ApiModelProperty(value = "查件原因")
-    @Excel(name = "查件原因")
+    @Excel(name="查件原因",width = 30,needMerge = true)
     private String reason;
+
+
+
 
     @ApiModelProperty(value = "国家代码")
     private String countryCode;
 
-    @ApiModelProperty(value = "国家名称")
-    @Excel(name = "国家名称")
-    private String country;
 
-    @ApiModelProperty(value = "refno")
-    @Excel(name = "refno")
-    private String refNo;
+
+
 
 
     @ApiModelProperty(value = "状态")
