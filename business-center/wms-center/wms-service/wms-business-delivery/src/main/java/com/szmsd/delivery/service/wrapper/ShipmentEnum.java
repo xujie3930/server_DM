@@ -287,7 +287,10 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             logger.info(">>>>>{}-核重时创建承运商订单{}===={}", oldDelOutbound.getShipmentService(), delOutbound.getShipmentService());
             if(StringUtils.equals(oldDelOutbound.getShipmentService(), delOutbound.getShipmentService())){
                 //新老一致，不跑供应商系统
-                return;
+
+                if(!DelOutboundTrackingAcquireTypeEnum.WAREHOUSE_SUPPLIER.getCode().equals(delOutbound.getTrackingAcquireType())){
+                    return;
+                }
             }
 
 
@@ -753,7 +756,10 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             }
             delOutbound.setAmount(totalAmount);
             delOutbound.setCurrencyCode(totalCurrencyCode);
-            
+
+           
+
+
             //更新PRC发货服务
             IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
             DelOutbound updateDelOutbound = new DelOutbound();
@@ -1023,7 +1029,8 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setCalcWeightUnit(delOutbound.getCalcWeightUnit());
             updateDelOutbound.setAmount(delOutbound.getAmount());
             updateDelOutbound.setCurrencyCode(delOutbound.getCurrencyCode());
-           
+
+
             if(delOutboundWrapperContext.getExecShipmentShipping()) {
                 updateDelOutbound.setShipmentService(delOutbound.getShipmentService());
 //                updateDelOutbound.setPackingRule(delOutbound.getPackingRule());
