@@ -200,7 +200,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setAmount(delOutbound.getAmount());
             updateDelOutbound.setCurrencyCode(delOutbound.getCurrencyCode());
 
-
+            updateDelOutbound.setCurrencyDescribe(delOutbound.getCurrencyDescribe());
             delOutboundService.shipmentFail(updateDelOutbound);
             delOutbound.setExceptionState(DelOutboundExceptionStateEnum.ABNORMAL.getCode());
             delOutbound.setExceptionMessage(exceptionMessage);
@@ -756,8 +756,20 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             }
             delOutbound.setAmount(totalAmount);
             delOutbound.setCurrencyCode(totalCurrencyCode);
+            //分组计算货币金额
+            Map<String, BigDecimal> currencyMap = new HashMap<String, BigDecimal>();
+            for (DelOutboundCharge charge: delOutboundCharges){
+                if(currencyMap.containsKey(charge.getCurrencyCode())){
+                    currencyMap.put(charge.getCurrencyCode(), currencyMap.get(charge.getCurrencyCode()).add(charge.getAmount()));
+                }else{
+                    currencyMap.put(charge.getCurrencyCode(), charge.getAmount());
+                }
+            }
+            delOutbound.setCurrencyDescribe(ArrayUtil.join(currencyMap.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getValue))
+                    .map(e -> e.getValue() + e.getKey()).collect(Collectors.toList()).toArray(), "；"));
 
-           
+
+
 
 
             //更新PRC发货服务
@@ -1029,7 +1041,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setCalcWeightUnit(delOutbound.getCalcWeightUnit());
             updateDelOutbound.setAmount(delOutbound.getAmount());
             updateDelOutbound.setCurrencyCode(delOutbound.getCurrencyCode());
-
+            updateDelOutbound.setCurrencyDescribe(delOutbound.getCurrencyDescribe());
 
             if(delOutboundWrapperContext.getExecShipmentShipping()) {
                 updateDelOutbound.setShipmentService(delOutbound.getShipmentService());
