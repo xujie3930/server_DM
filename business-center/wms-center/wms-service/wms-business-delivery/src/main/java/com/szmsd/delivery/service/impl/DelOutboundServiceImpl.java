@@ -314,45 +314,55 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 detailDtos.add(BeanMapperUtil.map(detail, DelOutboundDetailVO.class));
                 skus.add(detail.getSku());
             }
-            InventoryAvailableQueryDto inventoryAvailableQueryDto = new InventoryAvailableQueryDto();
-            inventoryAvailableQueryDto.setWarehouseCode(delOutbound.getWarehouseCode());
-            inventoryAvailableQueryDto.setCusCode(delOutbound.getSellerCode());
-            inventoryAvailableQueryDto.setSkus(skus);
-            // 可用库存为0的也需要查询出来
-            inventoryAvailableQueryDto.setQueryType(2);
-            // 集运出库的
-            if (DelOutboundOrderTypeEnum.COLLECTION.getCode().equals(delOutbound.getOrderType())) {
-                inventoryAvailableQueryDto.setSource("084002");
-            }
-            List<InventoryAvailableListVO> availableList = this.inventoryFeignClientService.queryAvailableList2(inventoryAvailableQueryDto);
-            // 去查询SKU的信息，集运出库需要查看产品详情，需要单独去查询
-            Map<String, BaseProduct> baseProductMap = null;
-            if (DelOutboundOrderTypeEnum.COLLECTION.getCode().equals(delOutbound.getOrderType())) {
+
+            if(DelOutboundOrderTypeEnum.PACKAGE_TRANSFER.getCode().equals(delOutbound.getOrderType())){
+                //转运出库单，详情界面按客户录入的显示
+
+
+            }else if(DelOutboundOrderTypeEnum.COLLECTION.getCode().equals(delOutbound.getOrderType())){
+                //集运按sku带出来
                 BaseProductConditionQueryDto conditionQueryDto = new BaseProductConditionQueryDto();
                 conditionQueryDto.setSkus(skus);
+                conditionQueryDto.setSellerCode(delOutbound.getSellerCode());
                 List<BaseProduct> baseProductList = this.baseProductClientService.queryProductList(conditionQueryDto);
                 if (CollectionUtils.isNotEmpty(baseProductList)) {
-                    baseProductMap = baseProductList.stream().collect(Collectors.toMap(BaseProduct::getCode, v -> v, (a, b) -> a));
+                    Map<String, BaseProduct>  baseProductMap = baseProductList.stream().collect(Collectors.toMap(BaseProduct::getCode, v -> v, (a, b) -> a));
+                    for (DelOutboundDetailVO vo : detailDtos) {
+                        BaseProduct available = baseProductMap.get(vo.getSku());
+                        if (null != available) {
+                            BeanMapperUtil.map(available, vo);
+                        }
+                    }
                 }
-            }
-            Map<String, InventoryAvailableListVO> availableMap = new HashMap<>();
-            if (CollectionUtils.isNotEmpty(availableList)) {
-                for (InventoryAvailableListVO vo : availableList) {
-                    availableMap.put(vo.getSku(), vo);
+            }else {
+                InventoryAvailableQueryDto inventoryAvailableQueryDto = new InventoryAvailableQueryDto();
+                inventoryAvailableQueryDto.setWarehouseCode(delOutbound.getWarehouseCode());
+                inventoryAvailableQueryDto.setCusCode(delOutbound.getSellerCode());
+                inventoryAvailableQueryDto.setSkus(skus);
+                // 可用库存为0的也需要查询出来
+                inventoryAvailableQueryDto.setQueryType(2);
+               /* // 集运出库的
+                if (DelOutboundOrderTypeEnum.COLLECTION.getCode().equals(delOutbound.getOrderType())) {
+                    inventoryAvailableQueryDto.setSource("084002");
+                }*/
+                List<InventoryAvailableListVO> availableList = this.inventoryFeignClientService.queryAvailableList2(inventoryAvailableQueryDto);
+                Map<String, InventoryAvailableListVO> availableMap = new HashMap<>();
+                if (CollectionUtils.isNotEmpty(availableList)) {
+                    for (InventoryAvailableListVO vo : availableList) {
+                        availableMap.put(vo.getSku(), vo);
+                    }
                 }
-            }
-            for (DelOutboundDetailVO vo : detailDtos) {
-                InventoryAvailableListVO available = availableMap.get(vo.getSku());
-                if (null != available) {
-                    BeanMapperUtil.map(available, vo);
-                }
-                if (DelOutboundOrderTypeEnum.COLLECTION.getCode().equals(delOutbound.getOrderType()) && null != baseProductMap) {
-                    BaseProduct baseProduct = baseProductMap.get(vo.getSku());
-                    if (null != baseProduct) {
-                        vo.setProductDescription(baseProduct.getProductDescription());
+                for (DelOutboundDetailVO vo : detailDtos) {
+                    InventoryAvailableListVO available = availableMap.get(vo.getSku());
+                    if (null != available) {
+                        BeanMapperUtil.map(available, vo);
                     }
                 }
             }
+
+
+
+
             delOutboundVO.setDetails(detailDtos);
         }
         // 批量出库
@@ -399,9 +409,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             for (BasAttachment basAttachment : attachment) {
                 for (DelOutboundDetailVO detailVO : delOutboundVO.getDetails()) {
                     if (StringUtils.equals("" + detailVO.getId(), basAttachment.getBusinessItemNo())) {
-                        detailVO.setSkuFile(Arrays.asList(
-                                new AttachmentFileDTO().setId(basAttachment.getId()).setAttachmentName(basAttachment.getAttachmentName()).
-                                        setAttachmentUrl(basAttachment.getAttachmentUrl())));
+                            detailVO.setSkuFile(Arrays.asList(
+                            new AttachmentFileDTO().setId(basAttachment.getId()).setAttachmentName(basAttachment.getAttachmentName()).
+                                    setAttachmentUrl(basAttachment.getAttachmentUrl())));
 
                     }
                 }
@@ -733,8 +743,15 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         if (StringUtils.equals(dto.getSourceType(), DelOutboundConstant.SOURCE_TYPE_ADD)) {
             //单数据处理直接抛异常
             logger.info(">>>>>[创建出库单]1.1 校验Refno");
-            this.checkRefNo(dto, null);
-            logger.info(">>>>>[创建出库单]1.2 校验Refno完成，{}", timer.intervalRestart());
+            try {
+                this.checkRefNo(dto, null);
+                logger.info(">>>>>[创建出库单]1.2 校验Refno完成，{}", timer.intervalRestart());
+            }catch (CommonException e){
+                logger.info(">>>>>[创建出库单]1.2 校验Refno失败，{}", timer.intervalRestart());
+                response.setStatus(false);
+                response.setMessage(e.getMessage());
+                return response;
+            }
         }
         // 创建出库单
         try {
@@ -795,7 +812,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
             //同步更新计泡拦截重量
             delOutbound.setForecastWeight(delOutbound.getWeight());
-
+            
             // 保存出库单
             int insert = baseMapper.insert(delOutbound);
             logger.info(">>>>>[创建出库单{}]3.4 保存出库单，{}", delOutbound.getOrderNo(), timer.intervalRestart());
@@ -848,7 +865,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             }
             // 附件信息
             if (!DelOutboundOrderTypeEnum.MULTIPLE_PIECES.getCode().equals(delOutbound.getOrderType())
-                    && !DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())
+            && !DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())
             ) {
                 AttachmentDTO attachmentDTO = AttachmentDTO.builder().businessNo(orderNo).businessItemNo(null).fileList(dto.getDocumentsFiles()).attachmentTypeEnum(AttachmentTypeEnum.DEL_OUTBOUND_DOCUMENT).build();
                 this.remoteAttachmentService.saveAndUpdate(attachmentDTO);
@@ -904,8 +921,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
                         // 箱标明细
                         AttachmentDTO boxMarkDetailFiels = AttachmentDTO.builder().businessNo(orderNo).businessItemNo("" + detail.getId()).fileList(
-                                        Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl())
-                                                .setAttachmentName(attachmentDataDTO.getAttachmentName()))).
+                                Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl())
+                                        .setAttachmentName(attachmentDataDTO.getAttachmentName()))).
                                 attachmentTypeEnum(AttachmentTypeEnum.MULTIPLE_PIECES_BOX_DETAIL).build();
                         this.remoteAttachmentService.saveAndUpdate(boxMarkDetailFiels);
 
@@ -914,8 +931,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                         AttachmentDataDTO attachmentDataDTO = detail.getSkuFile().get(0);
                         // SKU
                         AttachmentDTO skuFiles = AttachmentDTO.builder().businessNo(orderNo).businessItemNo("" + detail.getId()).fileList(
-                                        Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl()).
-                                                setAttachmentName(attachmentDataDTO.getAttachmentName()))).
+                                Arrays.asList(new AttachmentDataDTO().setAttachmentUrl(attachmentDataDTO.getAttachmentUrl()).
+                                        setAttachmentName(attachmentDataDTO.getAttachmentName()))).
                                 attachmentTypeEnum(AttachmentTypeEnum.MULTIPLE_PIECES_SKU).build();
                         this.remoteAttachmentService.saveAndUpdate(skuFiles);
                     }
@@ -933,6 +950,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             // 返回异常错误信息
             response.setStatus(false);
             response.setMessage(e.getMessage());
+            if(StringUtils.contains(e.getMessage(), "必须唯一值")){
+                return response;
+            }
             // return response;
             // 返回错误，事务回滚
             throw e;
@@ -1096,6 +1116,18 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         if (Objects.isNull(address)) {
             return;
         }
+
+        if(StringUtils.isNotEmpty(address.getCountryCode())){
+            //创建/修改出库单，地址统一用英文
+            R<BasRegionSelectListVO> countryR = this.basRegionFeignService.queryByCountryCode(address.getCountryCode());
+            BasRegionSelectListVO country = R.getDataAndException(countryR);
+            if (null == country) {
+                throw new CommonException("400", "国家信息不存在");
+            }
+            address.setCountry(country.getEnName());
+        }
+
+
         DelOutboundAddress delOutboundAddress = BeanMapperUtil.map(address, DelOutboundAddress.class);
         if (Objects.nonNull(delOutboundAddress)) {
             delOutboundAddress.setOrderNo(orderNo);
@@ -2132,8 +2164,43 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
     @Override
     public List<DelOutboundTarckOn> selectDelOutboundTarckList(DelOutboundTarckOn delOutboundTarckOn) {
+        // 跟踪号，refNo
+        List<String> otherQueryNoList = new ArrayList<>();
+        if (StringUtils.isNotEmpty(delOutboundTarckOn.getOrderNos())) {
+            List<String> nos = splitToArray(delOutboundTarckOn.getOrderNos(), "[\n,]");
+            if (CollectionUtils.isNotEmpty(nos)) {
+                for (String no : nos) {
+                    // CK/RECK开头的是出库单号
+//                    if (no.startsWith("CK") || no.startsWith("RECK")) {
+//                        delOutboundNoList.add(no);
+//                    } else {
+                        otherQueryNoList.add(no);
+//                    }
+                }
+
+
+            }
+           delOutboundTarckOn.setOrderNosList(otherQueryNoList);
+
+        }
+
 
         return delOutboundTarckOnMapper.selectByPrimaryKey(delOutboundTarckOn);
+    }
+
+    public static List<String> splitToArray(String text, String split) {
+        String[] arr = text.split(split);
+        if (arr.length == 0) {
+            return Collections.emptyList();
+        }
+        List<String> list = new ArrayList<>();
+        for (String s : arr) {
+            if (StringUtils.isEmpty(s)) {
+                continue;
+            }
+            list.add(s);
+        }
+        return list;
     }
 
     @Override
