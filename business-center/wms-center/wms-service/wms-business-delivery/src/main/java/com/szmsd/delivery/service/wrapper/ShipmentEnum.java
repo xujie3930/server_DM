@@ -1,17 +1,16 @@
 package com.szmsd.delivery.service.wrapper;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSONObject;
 import com.szmsd.bas.api.feign.BasMeteringConfigFeignService;
 import com.szmsd.bas.dto.BasMeteringConfigDto;
-import com.szmsd.chargerules.vo.OperationRuleVO;
 import com.szmsd.common.core.constant.Constants;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.exception.com.CommonException;
 import com.szmsd.common.core.utils.MessageUtil;
 import com.szmsd.common.core.utils.SpringUtils;
-import com.szmsd.common.core.utils.bean.BeanUtils;
 import com.szmsd.delivery.domain.DelOutbound;
 import com.szmsd.delivery.domain.DelOutboundCharge;
 import com.szmsd.delivery.domain.DelOutboundDetail;
@@ -200,8 +199,8 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setCalcWeightUnit(delOutbound.getCalcWeightUnit());
             updateDelOutbound.setAmount(delOutbound.getAmount());
             updateDelOutbound.setCurrencyCode(delOutbound.getCurrencyCode());
-            updateDelOutbound.setAmount(delOutbound.getAmount());
-            updateDelOutbound.setCurrencyCode(delOutbound.getCurrencyCode());
+
+            updateDelOutbound.setCurrencyDescribe(delOutbound.getCurrencyDescribe());
             delOutboundService.shipmentFail(updateDelOutbound);
             delOutbound.setExceptionState(DelOutboundExceptionStateEnum.ABNORMAL.getCode());
             delOutbound.setExceptionMessage(exceptionMessage);
@@ -219,7 +218,13 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                 ShipmentUpdateRequestDto shipmentUpdateRequestDto = new ShipmentUpdateRequestDto();
                 shipmentUpdateRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
                 shipmentUpdateRequestDto.setRefOrderNo(delOutbound.getOrderNo());
-                shipmentUpdateRequestDto.setShipmentRule(delOutbound.getShipmentRule());
+                String shipmentRule;
+                if (StringUtils.isNotEmpty(delOutbound.getProductShipmentRule())) {
+                    shipmentRule = delOutbound.getProductShipmentRule();
+                } else {
+                    shipmentRule = delOutbound.getShipmentRule();
+                }
+                shipmentUpdateRequestDto.setShipmentRule(shipmentRule);
                 shipmentUpdateRequestDto.setPackingRule(delOutbound.getPackingRule());
                 shipmentUpdateRequestDto.setIsEx(true);
                 shipmentUpdateRequestDto.setExType(exType);
@@ -274,17 +279,31 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
         public void handle(ApplicationContext context) {
             DelOutboundWrapperContext delOutboundWrapperContext = (DelOutboundWrapperContext) context;
             DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
+
+
+            DelOutbound oldDelOutbound = SpringUtils.getBean(IDelOutboundService.class).getById(delOutbound.getId());
+
+
+            logger.info(">>>>>{}-核重时创建承运商订单{}===={}", oldDelOutbound.getShipmentService(), delOutbound.getShipmentService());
+            if(StringUtils.equals(oldDelOutbound.getShipmentService(), delOutbound.getShipmentService())){
+                //新老一致，不跑供应商系统
+
+                if(!DelOutboundTrackingAcquireTypeEnum.WAREHOUSE_SUPPLIER.getCode().equals(delOutbound.getTrackingAcquireType())){
+                    return;
+                }
+            }
+
+
             // 创建承运商物流订单
             IDelOutboundBringVerifyService delOutboundBringVerifyService = SpringUtils.getBean(IDelOutboundBringVerifyService.class);
             logger.info(">>>>>{}-开始创建承运商订单", delOutbound.getOrderNo());
             ShipmentOrderResult shipmentOrderResult = delOutboundBringVerifyService.shipmentOrder(delOutboundWrapperContext);
+            if(shipmentOrderResult != null){
+                delOutbound.setTrackingNo(shipmentOrderResult.getMainTrackingNumber());
+                delOutbound.setShipmentOrderNumber(shipmentOrderResult.getOrderNumber());
+                delOutbound.setShipmentOrderLabelUrl(shipmentOrderResult.getOrderLabelUrl());
+            }
             logger.info(">>>>>{}-承运商订单创建完成", delOutbound.getOrderNo());
-            String trackingNo = shipmentOrderResult.getMainTrackingNumber();
-            String orderNumber = shipmentOrderResult.getOrderNumber();
-            // 返回值
-            delOutbound.setTrackingNo(trackingNo);
-            delOutbound.setShipmentOrderNumber(orderNumber);
-            delOutbound.setShipmentOrderLabelUrl(shipmentOrderResult.getOrderLabelUrl());
             DelOutboundOperationLogEnum.SMT_SHIPMENT_ORDER.listener(delOutbound);
         }
 
@@ -364,6 +383,12 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
         public boolean otherCondition(ApplicationContext context, ApplicationState currentState) {
             DelOutboundWrapperContext delOutboundWrapperContext = (DelOutboundWrapperContext) context;
             DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
+
+            //核重直接跑
+            if(delOutboundWrapperContext.getExecShipmentShipping()){
+                return true;
+            }
+            
             // 判断获取承运商信息
             return DelOutboundTrackingAcquireTypeEnum.WAREHOUSE_SUPPLIER.getCode().equals(delOutbound.getTrackingAcquireType());
         }
@@ -631,6 +656,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             DelOutboundWrapperContext delOutboundWrapperContext = (DelOutboundWrapperContext) context;
             DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
 
+
             logger.info("计算包裹运费开始,单号：{}",delOutbound.getOrderNo());
             // 获取运费信息
             IDelOutboundBringVerifyService delOutboundBringVerifyService = SpringUtils.getBean(IDelOutboundBringVerifyService.class);
@@ -662,6 +688,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             delOutbound.setShipmentService(data.getLogisticsRouteId());
             delOutbound.setPackingRule(data.getPackingRule());
             delOutbound.setShipmentRule(data.getShipmentRule());
+            delOutbound.setProductShipmentRule(data.getShipmentRule());
 
             // 费用信息
             Weight calcWeight = packageInfo.getCalcWeight();
@@ -729,6 +756,30 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             }
             delOutbound.setAmount(totalAmount);
             delOutbound.setCurrencyCode(totalCurrencyCode);
+            //分组计算货币金额
+            Map<String, BigDecimal> currencyMap = new HashMap<String, BigDecimal>();
+            for (DelOutboundCharge charge: delOutboundCharges){
+                if(currencyMap.containsKey(charge.getCurrencyCode())){
+                    currencyMap.put(charge.getCurrencyCode(), currencyMap.get(charge.getCurrencyCode()).add(charge.getAmount()));
+                }else{
+                    currencyMap.put(charge.getCurrencyCode(), charge.getAmount());
+                }
+            }
+            delOutbound.setCurrencyDescribe(ArrayUtil.join(currencyMap.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getValue))
+                    .map(e -> e.getValue() + e.getKey()).collect(Collectors.toList()).toArray(), "；"));
+
+
+
+
+
+            //更新PRC发货服务
+            IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
+            DelOutbound updateDelOutbound = new DelOutbound();
+            updateDelOutbound.setId(delOutbound.getId());
+            updateDelOutbound.setProductShipmentRule(data.getShipmentRule());
+            updateDelOutbound.setPackingRule(delOutbound.getPackingRule());
+            delOutboundService.updateByIdTransactional(updateDelOutbound);
+
 
             /**
              * 特殊化日志记录，分币别
@@ -945,7 +996,13 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                 if (DelOutboundOrderTypeEnum.BATCH.getCode().equals(delOutbound.getOrderType()) && "SelfPick".equals(delOutbound.getShipmentChannel())) {
                     shipmentUpdateRequestDto.setShipmentRule(delOutbound.getDeliveryAgent());
                 } else {
-                    shipmentUpdateRequestDto.setShipmentRule(delOutbound.getShipmentRule());
+                    String shipmentRule;
+                    if (StringUtils.isNotEmpty(delOutbound.getProductShipmentRule())) {
+                        shipmentRule = delOutbound.getProductShipmentRule();
+                    } else {
+                        shipmentRule = delOutbound.getShipmentRule();
+                    }
+                    shipmentUpdateRequestDto.setShipmentRule(shipmentRule);
                 }
                 shipmentUpdateRequestDto.setPackingRule(delOutbound.getPackingRule());
                 shipmentUpdateRequestDto.setIsEx(false);
@@ -984,6 +1041,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setCalcWeightUnit(delOutbound.getCalcWeightUnit());
             updateDelOutbound.setAmount(delOutbound.getAmount());
             updateDelOutbound.setCurrencyCode(delOutbound.getCurrencyCode());
+            updateDelOutbound.setCurrencyDescribe(delOutbound.getCurrencyDescribe());
 
             if(delOutboundWrapperContext.getExecShipmentShipping()) {
                 updateDelOutbound.setShipmentService(delOutbound.getShipmentService());

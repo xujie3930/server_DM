@@ -346,6 +346,10 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
             delOutbound.setShipmentRule(furtherHandlerDto.getShipmentRule());
             delOutbound.setShipmentService(furtherHandlerDto.getShipmentService());
 
+            if(StringUtils.isNotEmpty(furtherHandlerDto.getTrackingAcquireType())){
+                delOutbound.setTrackingAcquireType(furtherHandlerDto.getTrackingAcquireType());
+            }
+
         }
         stopWatch.stop();
         logger.info(">>>>>[创建出库单{}查询sku信息] 耗时{}", delOutbound.getOrderNo(), stopWatch.getLastTaskInfo().getTimeMillis());
@@ -728,16 +732,9 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
             // 判断结果集是不是正确的
             ShipmentOrderResult shipmentOrderResult = responseObjectWrapper.getObject();
             if (null == shipmentOrderResult) {
-                try {
-                    TransferCallbackDTO transferCallbackDTO = new TransferCallbackDTO();
-                    transferCallbackDTO.setOrderNo(delOutbound.getShopifyOrderNo());
-                    transferCallbackDTO.setLogisticsRouteId(shipmentService);
-                    transferCallbackDTO.setTransferErrorMsg(MessageUtil.to("创建承运商物流订单失败，调用承运商系统返回数据为空",
-                            "Failed to create the carrier logistics order. The data returned by calling the carrier system is blank"));
-                    commonOrderFeignService.transferCallback(transferCallbackDTO);
-                } catch (Exception e) {
-                    logger.error(e.getMessage(), e);
-                }
+                this.transferCallback(delOutbound.getOrderNo(), delOutbound.getShopifyOrderNo(),
+                        shipmentService, null, (MessageUtil.to("创建承运商物流订单失败，调用承运商系统返回数据为空",
+                        "Failed to create the carrier logistics order. The data returned by calling the carrier system is blank")));
                 throw new CommonException("400", MessageUtil.to("创建承运商物流订单失败，调用承运商系统返回数据为空",
                         "Failed to create the carrier logistics order. The data returned by calling the carrier system is blank"));
             }
@@ -753,49 +750,55 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                     }
                     builder.append(error.getMessage());
                 } else {
-                    builder.append(MessageUtil.to("创建承运商物流订单失败，调用承运商系统失败，返回错误信息为空", "Failed to create the carrier logistics order, failed to call the carrier system, and the returned error message is blank"));
+                    builder.append(MessageUtil.to("创建承运商物流订单失败，调用承运商系统失败，返回错误信息为空",
+                            "Failed to create the carrier logistics order, failed to call the carrier system, and the returned error message is blank"));
                 }
-                try {
-                    TransferCallbackDTO transferCallbackDTO = new TransferCallbackDTO();
-                    transferCallbackDTO.setOrderNo(delOutbound.getShopifyOrderNo());
-                    transferCallbackDTO.setLogisticsRouteId(shipmentService);
-                    transferCallbackDTO.setTransferErrorMsg(builder.toString());
-                    commonOrderFeignService.transferCallback(transferCallbackDTO);
-                } catch (Exception e) {
-                    logger.error(e.getMessage(), e);
+                if(StringUtils.contains(builder.toString(), "提交失败!【订单号"+delOutbound.getOrderNo()+"重复】")){
+                    logger.info("创建承运商物流订单{}第三方失败1exceptionMessage，{}", delOutbound.getOrderNo(), builder.toString());
+                    this.transferCallback(delOutbound.getOrderNo(), delOutbound.getShopifyOrderNo(), shipmentService, delOutbound.getTrackingNo(), null);
+                }else{
+                    logger.info("创建承运商物流订单{}第三方失败2exceptionMessage，{}", delOutbound.getOrderNo(), builder.toString());
+                    this.transferCallback(delOutbound.getOrderNo(), delOutbound.getShopifyOrderNo(), shipmentService, null, builder.toString());
+                    throw new CommonException("400", builder.toString());
                 }
-                throw new CommonException("400", builder.toString());
             }
-            try {
-                StopWatch stopWatch = new StopWatch();
-                stopWatch.start();
-                TransferCallbackDTO transferCallbackDTO = new TransferCallbackDTO();
-                transferCallbackDTO.setOrderNo(delOutbound.getShopifyOrderNo());
-                transferCallbackDTO.setLogisticsRouteId(shipmentService);
-                transferCallbackDTO.setTransferNumber(shipmentOrderResult.getMainTrackingNumber());
-                commonOrderFeignService.transferCallback(transferCallbackDTO);
-                stopWatch.stop();
-                logger.info(">>>>>[创建出库单{}]转仓库回调 耗时{}", delOutbound.getOrderNo(), stopWatch.getLastTaskInfo().getTimeMillis());
-            } catch (Exception e) {
-                logger.error(e.getMessage(), e);
-            }
+            this.transferCallback(delOutbound.getOrderNo(), delOutbound.getShopifyOrderNo(), shipmentService, shipmentOrderResult.getMainTrackingNumber(), null);
             return shipmentOrderResult;
         } else {
             String exceptionMessage = Utils.defaultValue(ProblemDetails.getErrorMessageOrNull(responseObjectWrapper.getError(), true), "创建承运商物流订单失败，调用承运商系统失败");
-            try {
-                TransferCallbackDTO transferCallbackDTO = new TransferCallbackDTO();
-                transferCallbackDTO.setOrderNo(delOutbound.getShopifyOrderNo());
-                transferCallbackDTO.setLogisticsRouteId(shipmentService);
-                transferCallbackDTO.setTransferErrorMsg(exceptionMessage);
-                commonOrderFeignService.transferCallback(transferCallbackDTO);
-            } catch (Exception e) {
-                logger.error(e.getMessage(), e);
+            logger.info("创建承运商物流订单{}接口失败exceptionMessage，{}", delOutbound.getOrderNo(), exceptionMessage);
+            if(StringUtils.contains(exceptionMessage, "提交失败!【订单号"+delOutbound.getOrderNo()+"重复】")){
+                //发货指令会因为供应商不允许创建重复订单的原因
+                this.transferCallback(delOutbound.getOrderNo(), delOutbound.getShopifyOrderNo(), shipmentService, delOutbound.getTrackingNo(), exceptionMessage);
+                return null;
+            }else{
+                this.transferCallback(delOutbound.getOrderNo(), delOutbound.getShopifyOrderNo(), shipmentService, null, exceptionMessage);
+                if("[408]请求超时".equals(exceptionMessage)){
+                    throw new CommonException("408", exceptionMessage);
+                }
+                throw new CommonException("400", exceptionMessage);
             }
-            if("[408]请求超时".equals(exceptionMessage)){
-                throw new CommonException("408", exceptionMessage);
-            }
-            throw new CommonException("400", exceptionMessage);
+
         }
+    }
+
+
+    private void transferCallback(String orderNo, String shopifyOrderNo, String shipmentService, String mainTrackingNumber, String transferErrorMsg){
+        try {
+            StopWatch stopWatch = new StopWatch();
+            stopWatch.start();
+            TransferCallbackDTO transferCallbackDTO = new TransferCallbackDTO();
+            transferCallbackDTO.setOrderNo(shopifyOrderNo);
+            transferCallbackDTO.setLogisticsRouteId(shipmentService);
+            transferCallbackDTO.setTransferNumber(mainTrackingNumber);
+            transferCallbackDTO.setTransferErrorMsg(transferErrorMsg);
+            commonOrderFeignService.transferCallback(transferCallbackDTO);
+            stopWatch.stop();
+            logger.info(">>>>>[创建出库单{}]转仓库回调耗时{}", orderNo, stopWatch.getLastTaskInfo().getTimeMillis());
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+        }
+
     }
 
     @Override

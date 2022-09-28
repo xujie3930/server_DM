@@ -1,6 +1,7 @@
 package com.szmsd.delivery.service.wrapper;
 
 import cn.hutool.core.codec.Base64;
+import cn.hutool.core.util.ArrayUtil;
 import com.alibaba.fastjson.JSONObject;
 import com.szmsd.bas.api.domain.BasAttachment;
 import com.szmsd.bas.api.domain.dto.BasAttachmentQueryDTO;
@@ -57,13 +58,7 @@ import org.springframework.util.StopWatch;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -255,6 +250,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setShipmentOrderNumber(delOutbound.getShipmentOrderNumber());
             updateDelOutbound.setShipmentOrderLabelUrl(delOutbound.getShipmentOrderLabelUrl());
 
+            updateDelOutbound.setCurrencyDescribe(delOutbound.getCurrencyDescribe());
 
 
             delOutboundService.bringVerifyFail(updateDelOutbound);
@@ -395,6 +391,30 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             // 更新值
             delOutbound.setAmount(totalAmount);
             delOutbound.setCurrencyCode(totalCurrencyCode);
+
+            //分组计算货币金额
+            Map<String, BigDecimal> currencyMap = new HashMap<String, BigDecimal>();
+            for (DelOutboundCharge charge: delOutboundCharges){
+                if(currencyMap.containsKey(charge.getCurrencyCode())){
+                    currencyMap.put(charge.getCurrencyCode(), currencyMap.get(charge.getCurrencyCode()).add(charge.getAmount()));
+                }else{
+                    currencyMap.put(charge.getCurrencyCode(), charge.getAmount());
+                }
+            }
+            delOutbound.setCurrencyDescribe(ArrayUtil.join(currencyMap.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getValue))
+                    .map(e -> e.getValue() + e.getKey()).collect(Collectors.toList()).toArray(), "；"));
+
+
+
+
+            //更新PRC发货服务
+            IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
+            DelOutbound updateDelOutbound = new DelOutbound();
+            updateDelOutbound.setId(delOutbound.getId());
+            updateDelOutbound.setProductShipmentRule(data.getShipmentRule());
+            updateDelOutbound.setPackingRule(delOutbound.getPackingRule());
+            delOutboundService.updateByIdTransactional(updateDelOutbound);
+
             DelOutboundOperationLogEnum.BRV_PRC_PRICING.listener(delOutbound);
         }
 
@@ -411,6 +431,8 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setCalcWeightUnit("");
             updateDelOutbound.setAmount(BigDecimal.ZERO);
             updateDelOutbound.setCurrencyCode("");
+            updateDelOutbound.setCurrencyDescribe("");
+
             updateDelOutbound.setSupplierCalcType("");
             updateDelOutbound.setSupplierCalcId("");
             // 产品信息
@@ -730,10 +752,13 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                 stopWatch.start();
                 ShipmentOrderResult shipmentOrderResult = delOutboundBringVerifyService.shipmentOrder(delOutboundWrapperContext);
                 stopWatch.stop();
+                if(shipmentOrderResult != null){
+                    delOutbound.setTrackingNo(shipmentOrderResult.getMainTrackingNumber());
+                    delOutbound.setShipmentOrderNumber(shipmentOrderResult.getOrderNumber());
+                    delOutbound.setShipmentOrderLabelUrl(shipmentOrderResult.getOrderLabelUrl());
+                }
                 logger.info(">>>>>[创建出库单{}]创建承运商 耗时{}", delOutbound.getOrderNo(), stopWatch.getLastTaskInfo().getTimeMillis());
-                delOutbound.setTrackingNo(shipmentOrderResult.getMainTrackingNumber());
-                delOutbound.setShipmentOrderNumber(shipmentOrderResult.getOrderNumber());
-                delOutbound.setShipmentOrderLabelUrl(shipmentOrderResult.getOrderLabelUrl());
+
                 DelOutboundOperationLogEnum.BRV_SHIPMENT_ORDER.listener(delOutbound);
             }
 
@@ -982,7 +1007,9 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                 updateDelOutbound.setCalcWeightUnit(delOutbound.getCalcWeightUnit());
                 updateDelOutbound.setAmount(delOutbound.getAmount());
                 updateDelOutbound.setCurrencyCode(delOutbound.getCurrencyCode());
-                // 产品信息
+                updateDelOutbound.setCurrencyDescribe(delOutbound.getCurrencyDescribe());
+
+            // 产品信息
                 updateDelOutbound.setTrackingAcquireType(delOutbound.getTrackingAcquireType());
                 updateDelOutbound.setShipmentService(delOutbound.getShipmentService());
                 updateDelOutbound.setLogisticsProviderCode(delOutbound.getLogisticsProviderCode());
