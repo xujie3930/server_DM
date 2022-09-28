@@ -1,8 +1,5 @@
 package com.szmsd.delivery.controller;
 
-import cn.afterturn.easypoi.excel.entity.ExportParams;
-import cn.afterturn.easypoi.excel.entity.enmus.ExcelType;
-import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.io.IoUtil;
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.EasyExcelFactory;
@@ -68,6 +65,7 @@ import com.szmsd.delivery.service.IDelOutboundCompletedService;
 import com.szmsd.delivery.service.IDelOutboundDetailService;
 import com.szmsd.delivery.service.IDelOutboundService;
 import com.szmsd.delivery.service.wrapper.IDelOutboundBringVerifyService;
+import com.szmsd.delivery.util.ZipFileUtils;
 import com.szmsd.delivery.vo.DelOutboundAddResponse;
 import com.szmsd.delivery.vo.DelOutboundBringVerifyVO;
 import com.szmsd.delivery.vo.DelOutboundDetailListVO;
@@ -456,19 +454,19 @@ public class DelOutboundController extends BaseController {
     public void delOutboundImportTemplate(HttpServletRequest request, HttpServletResponse response) {
         if(StringUtils.isNotEmpty(request.getParameter("len"))){
             if (request.getParameter("len").equals("zh")) {
-                String filePath = "/template/DM-cn.xls";
+                String filePath = "/template/DM.zip";
                 String fileName = "DM出库（正常，自提，销毁）模板";
-                this.downloadTemplate(response, filePath, fileName);
+                ZipFileUtils.downloadZip(response, filePath, fileName);
             }else{
-                String filePath = "/template/DM-en.xls";
+                String filePath = "/template/DM-en.zip";
                 String fileName = "DM delivery (normal, self delivery, destruction) template";
-                this.downloadTemplate(response, filePath, fileName);
+                ZipFileUtils.downloadZip(response, filePath, fileName);
             }
 
         }else{
-            String filePath = "/template/DM.xls";
+            String filePath = "/template/DM.zip";
             String fileName = "DM出库（正常，自提，销毁）模板";
-            this.downloadTemplate(response, filePath, fileName);
+            ZipFileUtils.downloadZip(response, filePath, fileName);
         }
 
 
@@ -573,60 +571,62 @@ public class DelOutboundController extends BaseController {
             // 初始化读取第一个sheet页的数据
 
 
+
             List<DelOutboundImportDto> dataList = null;
             List<DelOutboundDetailImportDto2> detailList = null;
-            if("en".equals(len)){
-                DefaultAnalysisEventListener<DelOutboundEnImportDto> defaultAnalysisEventListener = EasyExcelFactoryUtil.read(new ByteArrayInputStream(byteArray), DelOutboundEnImportDto.class, 0, 1);
-                if (defaultAnalysisEventListener.isError()) {
-                    return R.ok(ImportResult.buildFail(defaultAnalysisEventListener.getMessageList()));
-                }
-                List<DelOutboundEnImportDto> oldDataList = defaultAnalysisEventListener.getList();
-                if (CollectionUtils.isEmpty(oldDataList)) {
-                    return R.ok(ImportResult.buildFail(ImportMessage.build("导入数据不能为空")));
-                }
-                dataList = new ArrayList();
-                for(int i = 0 ; i < oldDataList.size(); i++){
-                    DelOutboundEnImportDto enDto = oldDataList.get(i);
-                    DelOutboundImportDto dto  =new DelOutboundImportDto();
-                    BeanUtils.copyProperties(enDto, dto);
-                    dataList.add(dto);
-                    oldDataList.set(i, null);
-                }
-
-                // 初始化读取第二个sheet页的数据
-                DefaultAnalysisEventListener<DelOutboundDetailEnImportDto2> defaultAnalysisEventListener1 = EasyExcelFactoryUtil.read(new ByteArrayInputStream(byteArray), DelOutboundDetailEnImportDto2.class, 1, 1);
-                if (defaultAnalysisEventListener1.isError()) {
-                    return R.ok(ImportResult.buildFail(defaultAnalysisEventListener1.getMessageList()));
-                }
-                List<DelOutboundDetailEnImportDto2> oldDetailList = defaultAnalysisEventListener1.getList();
-
-
-                detailList = new ArrayList<>();
-                for(int i = 0 ; i < oldDetailList.size(); i++){
-                    DelOutboundDetailEnImportDto2 enDto = oldDetailList.get(i);
-                    DelOutboundDetailImportDto2 dto  =new DelOutboundDetailImportDto2();
-                    BeanUtils.copyProperties(enDto, dto);
-                    detailList.add(dto);
-                    oldDetailList.set(i, null);
-                }
-
-            }else{
-                DefaultAnalysisEventListener<DelOutboundImportDto> defaultAnalysisEventListener = EasyExcelFactoryUtil.read(new ByteArrayInputStream(byteArray), DelOutboundImportDto.class, 0, 1);
-                if (defaultAnalysisEventListener.isError()) {
-                    return R.ok(ImportResult.buildFail(defaultAnalysisEventListener.getMessageList()));
-                }
-                dataList = defaultAnalysisEventListener.getList();
-                if (CollectionUtils.isEmpty(dataList)) {
-                    return R.ok(ImportResult.buildFail(ImportMessage.build("导入数据不能为空")));
-                }
-
-                // 初始化读取第二个sheet页的数据
-                DefaultAnalysisEventListener<DelOutboundDetailImportDto2> defaultAnalysisEventListener1 = EasyExcelFactoryUtil.read(new ByteArrayInputStream(byteArray), DelOutboundDetailImportDto2.class, 1, 1);
-                if (defaultAnalysisEventListener1.isError()) {
-                    return R.ok(ImportResult.buildFail(defaultAnalysisEventListener1.getMessageList()));
-                }
-                detailList = defaultAnalysisEventListener1.getList();
+            String orderTypeName = null;
+            DefaultAnalysisEventListener<DelOutboundTypeImportDto> defaultAnalysisEventListener = EasyExcelFactoryUtil.read(new ByteArrayInputStream(byteArray), DelOutboundTypeImportDto.class, 0, 1);
+            if (defaultAnalysisEventListener.isError()) {
+                return R.ok(ImportResult.buildFail(defaultAnalysisEventListener.getMessageList()));
             }
+            List<DelOutboundTypeImportDto> tempDataList = defaultAnalysisEventListener.getList();
+            if (CollectionUtils.isEmpty(tempDataList)) {
+                return R.ok(ImportResult.buildFail(ImportMessage.build("导入数据不能为空")));
+            }else{
+                orderTypeName = tempDataList.get(0).getOrderTypeName();
+            }
+
+
+
+            if("自提出库".equals(orderTypeName) || "Pick Up".equals(orderTypeName)){
+                DefaultAnalysisEventListener<DelOutboundPickUpImportDto> defaultAnalysisEventListener2 = EasyExcelFactoryUtil.read(new ByteArrayInputStream(byteArray), DelOutboundPickUpImportDto.class, 0, 1);
+                if (defaultAnalysisEventListener2.isError()) {
+                    return R.ok(ImportResult.buildFail(defaultAnalysisEventListener2.getMessageList()));
+                }
+
+                dataList = defaultAnalysisEventListener2.getList().stream().map(info -> {
+                    DelOutboundImportDto teach = new DelOutboundImportDto();
+                    BeanUtils.copyProperties(info, teach);
+                    return teach;
+                }).collect(Collectors.toList());
+
+
+            }else if("销毁出库".equals(orderTypeName) || "Disposal Order".equals(orderTypeName)){
+                DefaultAnalysisEventListener<DelOutboundDisposalImportDto> defaultAnalysisEventListener2 = EasyExcelFactoryUtil.read(new ByteArrayInputStream(byteArray), DelOutboundDisposalImportDto.class, 0, 1);
+                if (defaultAnalysisEventListener2.isError()) {
+                    return R.ok(ImportResult.buildFail(defaultAnalysisEventListener2.getMessageList()));
+                }
+                dataList = defaultAnalysisEventListener2.getList().stream().map(info -> {
+                    DelOutboundImportDto teach = new DelOutboundImportDto();
+                    BeanUtils.copyProperties(info, teach);
+                    return teach;
+                }).collect(Collectors.toList());
+            }else{
+                DefaultAnalysisEventListener<DelOutboundImportDto> defaultAnalysisEventListener2 = EasyExcelFactoryUtil.read(new ByteArrayInputStream(byteArray), DelOutboundImportDto.class, 0, 1);
+                if (defaultAnalysisEventListener2.isError()) {
+                    return R.ok(ImportResult.buildFail(defaultAnalysisEventListener2.getMessageList()));
+                }
+                dataList = defaultAnalysisEventListener2.getList();
+
+            }
+
+
+            // 初始化读取第二个sheet页的数据
+            DefaultAnalysisEventListener<DelOutboundDetailImportDto2> defaultAnalysisEventListener1 = EasyExcelFactoryUtil.read(new ByteArrayInputStream(byteArray), DelOutboundDetailImportDto2.class, 1, 1);
+            if (defaultAnalysisEventListener1.isError()) {
+                return R.ok(ImportResult.buildFail(defaultAnalysisEventListener1.getMessageList()));
+            }
+            detailList = defaultAnalysisEventListener1.getList();
 
 
             // 查询出库类型数据
@@ -666,9 +666,28 @@ public class DelOutboundController extends BaseController {
             // 获取导入的数据
             List<DelOutboundDto> dtoList = new DelOutboundImportContainer(dataList, orderTypeList, countryList, deliveryMethodList, detailList, importValidationData, sellerCode).get();
             // 批量新增
-            this.delOutboundService.insertDelOutbounds(dtoList);
+            // 批量新增
+            List<DelOutboundAddResponse> outboundAddResponseList = this.delOutboundService.insertDelOutbounds(dtoList);
+            List<ImportMessage> messageList = new ArrayList<>();
+            if (CollectionUtils.isNotEmpty(outboundAddResponseList)) {
+                int index = 1;
+                for (DelOutboundAddResponse outboundAddResponse : outboundAddResponseList) {
+                    if (!outboundAddResponse.getStatus()) {
+                        messageList.add(new ImportMessage(index, 1, "", outboundAddResponse.getMessage()));
+                    }
+                    index++;
+                }
+            }
             // 返回成功的结果
-            return R.ok(ImportResult.buildSuccess());
+            ImportResult importResult2;
+            if (CollectionUtils.isNotEmpty(messageList)) {
+                importResult2 = ImportResult.buildFail(messageList);
+            } else {
+                importResult2 = ImportResult.buildSuccess();
+            }
+            importResult2.setResultList(outboundAddResponseList);
+            // 返回成功的结果
+            return R.ok(importResult2);
         } catch (IOException e) {
             logger.error(e.getMessage(), e);
             // 返回失败的结果
