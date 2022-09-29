@@ -131,7 +131,6 @@ public class DelOutboundController extends BaseController {
 
     @Autowired
     private ThreadPoolTaskExecutor threadPoolTaskExecutor;
-
     @Autowired
     private BasFileMapper basFileMapper;
 
@@ -839,8 +838,9 @@ public class DelOutboundController extends BaseController {
             exportContext.setExceptionStateCacheAdapter(listMap.get("066"));
             exportContext.setTrackingStatusCache(listMap.get("099"));
             String filepath=this.filepath;
-            Integer DelOutboundExportTotal = basFileMapper.selectDelOutboundCount();
-            Integer pageSize = 20000;
+            Integer   DelOutboundExportTotal=delOutboundService.selectDelOutboundCount(queryDto);
+//            Integer DelOutboundExportTotal = basFileMapper.selectDelOutboundCount();
+            Integer pageSize = 100000;
             if (len.equals("zh")) {
                 QueryDto queryDto1 = new QueryDto();
 
