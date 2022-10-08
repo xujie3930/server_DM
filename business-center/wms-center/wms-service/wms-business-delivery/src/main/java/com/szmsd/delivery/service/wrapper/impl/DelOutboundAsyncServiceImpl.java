@@ -209,7 +209,12 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                 String shipmentState = delOutbound.getShipmentState();
                 if (StringUtils.isEmpty(shipmentState)) {
                     currentState = ShipmentEnum.BEGIN;
-                } else {
+                } else if(shipmentState.equals(ShipmentEnum.SHIPMENT_ORDER)
+                        || shipmentState.equals(ShipmentEnum.FREEZE_BALANCE)
+                        || shipmentState.equals(ShipmentEnum.FREEZE_INVENTORY)){
+                    //以上状态直接从PRC算费开始
+                    currentState = ShipmentEnum.PRC_PRICING;
+                }else {
                     currentState = ShipmentEnum.get(shipmentState);
                 }
                 try {
@@ -264,13 +269,15 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
             DelOutboundOperationLogEnum.OPN_SHIPMENT.listener(delOutbound);
 
 
-            ReceiptRequest receiptRequest = new ReceiptRequest();
-            receiptRequest.setPackageOrderNo(orderNo);
-
-            receiptRequest.setOperateOn(DateUtil.format(new Date(), "yyyy-MM-dd HH:mm:ss"));
-            R r =inboundReceiptFeignService.receipt(receiptRequest);
-            logger.info("{}inbound/receipt:{}" ,orderNo, r);
         }
+
+
+        ReceiptRequest receiptRequest = new ReceiptRequest();
+        receiptRequest.setPackageOrderNo(orderNo);
+
+        receiptRequest.setOperateOn(DateUtil.format(new Date(), "yyyy-MM-dd HH:mm:ss"));
+        R r =inboundReceiptFeignService.receipt(receiptRequest);
+        logger.info("{}inbound/receipt:{}" ,orderNo, JSON.toJSONString(r));
     }
 
     @Override
