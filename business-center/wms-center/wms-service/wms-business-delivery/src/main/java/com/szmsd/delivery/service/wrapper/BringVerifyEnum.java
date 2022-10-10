@@ -49,6 +49,8 @@ import com.szmsd.http.vo.ResponseVO;
 import com.szmsd.inventory.api.service.InventoryFeignClientService;
 import com.szmsd.inventory.domain.dto.InventoryOperateDto;
 import com.szmsd.inventory.domain.dto.InventoryOperateListDto;
+import com.szmsd.pack.api.feign.PackageDeliveryConditionsFeignService;
+import com.szmsd.pack.domain.PackageDeliveryConditions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.redisson.api.RLock;
@@ -981,6 +983,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
 
             stopWatch.start();
             OperationFeignService operationFeignService = SpringUtils.getBean(OperationFeignService.class);
+            //业务计费 - 出库冻结余额
             R<?> r = operationFeignService.delOutboundFreeze(delOutboundOperationVO);
             stopWatch.stop();
 
@@ -1143,8 +1146,33 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
 
         @Override
         public void handle(ApplicationContext context) {
+
             DelOutboundWrapperContext delOutboundWrapperContext = (DelOutboundWrapperContext) context;
             DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
+
+            String productCode = delOutbound.getShipmentRule();
+            String prcProductCode = delOutboundWrapperContext.getPrcProductCode();
+            if (com.szmsd.common.core.utils.StringUtils.isNotEmpty(prcProductCode)) {
+                productCode = prcProductCode;
+            }
+            // 查询发货条件
+            if (org.apache.commons.lang3.StringUtils.isNotEmpty(delOutbound.getWarehouseCode())
+                    && org.apache.commons.lang3.StringUtils.isNotEmpty(productCode)) {
+
+                PackageDeliveryConditions packageDeliveryConditions = new PackageDeliveryConditions();
+                packageDeliveryConditions.setWarehouseCode(delOutbound.getWarehouseCode());
+                packageDeliveryConditions.setProductCode(productCode);
+                PackageDeliveryConditionsFeignService packageDeliveryConditionsFeignService = SpringUtils.getBean(PackageDeliveryConditionsFeignService.class);
+                R<PackageDeliveryConditions> packageDeliveryConditionsR = packageDeliveryConditionsFeignService.info(packageDeliveryConditions);
+                PackageDeliveryConditions packageDeliveryConditionsRData = null;
+                if (null != packageDeliveryConditionsR && Constants.SUCCESS == packageDeliveryConditionsR.getCode()) {
+                    packageDeliveryConditionsRData = packageDeliveryConditionsR.getData();
+                }
+                if (null != packageDeliveryConditionsRData && "AfterMeasured".equals(packageDeliveryConditionsRData.getCommandNodeCode())) {
+                    //出库测量后接收发货指令 就不调用标签接口
+                    return;
+                }
+            }
             DelOutboundOperationLogEnum.BRV_SHIPMENT_LABEL.listener(delOutbound);
             logger.info("更新出库单{}标签中",delOutbound.getOrderNo());
             R<List<BasAttachment>> listR = null;
