@@ -21,6 +21,7 @@ import com.szmsd.bas.dto.*;
 import com.szmsd.bas.mapper.BasSellerMapper;
 import com.szmsd.bas.service.IBasSellerCertificateService;
 import com.szmsd.bas.service.IBasSellerService;
+import com.szmsd.bas.util.Base64Utilrs;
 import com.szmsd.bas.util.ObjectUtil;
 import com.szmsd.bas.vo.BasSellerCertificateVO;
 import com.szmsd.bas.vo.BasSellerInfoVO;
