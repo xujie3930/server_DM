@@ -33,6 +33,8 @@ import com.szmsd.http.vo.ResponseVO;
 import com.szmsd.inventory.api.service.InventoryFeignClientService;
 import com.szmsd.inventory.domain.dto.InventoryOperateDto;
 import com.szmsd.inventory.domain.dto.InventoryOperateListDto;
+import com.szmsd.pack.api.feign.PackageDeliveryConditionsFeignService;
+import com.szmsd.pack.domain.PackageDeliveryConditions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.redisson.api.RLock;
@@ -191,7 +193,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setSupplierCalcType(delOutbound.getSupplierCalcType());
             updateDelOutbound.setSupplierCalcId(delOutbound.getSupplierCalcId());
 
-            updateDelOutbound.setShipmentService(delOutbound.getShipmentService());
+//            updateDelOutbound.setShipmentService(delOutbound.getShipmentService());
 
             // 规格，长*宽*高
             updateDelOutbound.setSpecifications(delOutbound.getLength() + "*" + delOutbound.getWidth() + "*" + delOutbound.getHeight());
@@ -207,14 +209,14 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             DelOutboundOperationLogEnum.SMT_SHIPMENT_SHIPPING.listener(delOutbound);
             // 冻结费用失败 - OutboundNoMoney
             // 其余的都归类为 - OutboundGetTrackingFailed
-            String exType;
+              String exType;
             if (FREEZE_BALANCE.equals(currentState)) {
                 exType = "OutboundNoMoney";
             } else {
                 exType = "OutboundGetTrackingFailed";
             }
             // 更新消息到WMS
-            if (delOutboundWrapperContext.isShipmentShipping() && !DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())) {
+          if (delOutboundWrapperContext.isShipmentShipping() && !DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())) {
                 ShipmentUpdateRequestDto shipmentUpdateRequestDto = new ShipmentUpdateRequestDto();
                 shipmentUpdateRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
                 shipmentUpdateRequestDto.setRefOrderNo(delOutbound.getOrderNo());
@@ -285,9 +287,8 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
 
 
             logger.info(">>>>>{}-核重时创建承运商订单{}===={}", oldDelOutbound.getShipmentService(), delOutbound.getShipmentService());
+            //新的PRC发货服务和老的PRC服务一致并且订单挂号获取方式是“下单后获取”，就不跑供应商系统
             if(StringUtils.equals(oldDelOutbound.getShipmentService(), delOutbound.getShipmentService())){
-                //新老一致，不跑供应商系统
-
                 if(!DelOutboundTrackingAcquireTypeEnum.WAREHOUSE_SUPPLIER.getCode().equals(delOutbound.getTrackingAcquireType())){
                     return;
                 }
@@ -305,6 +306,16 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             }
             logger.info(">>>>>{}-承运商订单创建完成", delOutbound.getOrderNo());
             DelOutboundOperationLogEnum.SMT_SHIPMENT_ORDER.listener(delOutbound);
+
+
+            //更新PRC发货服务
+            IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
+            DelOutbound updateDelOutbound = new DelOutbound();
+            updateDelOutbound.setId(delOutbound.getId());
+            updateDelOutbound.setProductShipmentRule(delOutbound.getProductShipmentRule());
+            updateDelOutbound.setPackingRule(delOutbound.getPackingRule());
+            delOutboundService.updateByIdTransactional(updateDelOutbound);
+
         }
 
         @Override
@@ -772,13 +783,6 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
 
 
 
-            //更新PRC发货服务
-            IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
-            DelOutbound updateDelOutbound = new DelOutbound();
-            updateDelOutbound.setId(delOutbound.getId());
-            updateDelOutbound.setProductShipmentRule(data.getShipmentRule());
-            updateDelOutbound.setPackingRule(delOutbound.getPackingRule());
-            delOutboundService.updateByIdTransactional(updateDelOutbound);
 
 
             /**
@@ -1055,14 +1059,51 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             // 提交一个获取标签的任务
             IDelOutboundRetryLabelService delOutboundRetryLabelService = SpringUtils.getBean(IDelOutboundRetryLabelService.class);
 
-            if(bool){
-                //只推送标签，不执行发货指令
-                delOutboundRetryLabelService.saveAndPushLabel(delOutbound.getOrderNo());
 
-            }else{
-                //只推送标签， 推送发货指令
-                delOutboundRetryLabelService.save(delOutbound.getOrderNo());
+            String productCode = delOutbound.getShipmentRule();
+            String prcProductCode = delOutboundWrapperContext.getPrcProductCode();
+            if (com.szmsd.common.core.utils.StringUtils.isNotEmpty(prcProductCode)) {
+                productCode = prcProductCode;
             }
+            // 查询发货条件
+
+            /*boolean shippingConditions = false;
+            if (org.apache.commons.lang3.StringUtils.isNotEmpty(delOutbound.getWarehouseCode())
+                    && org.apache.commons.lang3.StringUtils.isNotEmpty(productCode)) {
+
+                PackageDeliveryConditions packageDeliveryConditions = new PackageDeliveryConditions();
+                packageDeliveryConditions.setWarehouseCode(delOutbound.getWarehouseCode());
+                packageDeliveryConditions.setProductCode(productCode);
+                PackageDeliveryConditionsFeignService packageDeliveryConditionsFeignService = SpringUtils.getBean(PackageDeliveryConditionsFeignService.class);
+                R<PackageDeliveryConditions> packageDeliveryConditionsR = packageDeliveryConditionsFeignService.info(packageDeliveryConditions);
+                PackageDeliveryConditions packageDeliveryConditionsRData = null;
+                if (null != packageDeliveryConditionsR && Constants.SUCCESS == packageDeliveryConditionsR.getCode()) {
+                    packageDeliveryConditionsRData = packageDeliveryConditionsR.getData();
+                }
+                if (null != packageDeliveryConditionsRData && "AfterMeasured".equals(packageDeliveryConditionsRData.getCommandNodeCode())) {
+                    //出库测量后接收发货指令 就不调用标签接口
+                    shippingConditions = true;
+                    return;
+                }
+            }*/
+            /*if(shippingConditions){
+                if(bool){
+                    //只推送发货指令
+                    IDelOutboundBringVerifyService delOutboundBringVerifyService = SpringUtils.getBean(IDelOutboundBringVerifyService.class);
+                    delOutboundBringVerifyService.shipmentShipping(delOutbound);
+                }
+            }else{*/
+                if(bool){
+                    //只推送标签，不执行发货指令
+                    delOutboundRetryLabelService.saveAndPushLabel(delOutbound.getOrderNo(), "pushLabel", null);
+                }else{
+                    //只推送标签， 推送发货指令
+                    delOutboundRetryLabelService.saveAndPushLabel(delOutbound.getOrderNo(), null, null);
+                }
+//            }
+
+
+
             // 记录日志
             delOutbound.setExceptionState(DelOutboundExceptionStateEnum.NORMAL.getCode());
             DelOutboundOperationLogEnum.SMT_SHIPMENT_SHIPPING.listener(delOutbound);
