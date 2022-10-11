@@ -26,6 +26,7 @@ import com.szmsd.bas.api.service.BasWarehouseClientService;
 import com.szmsd.bas.api.service.BaseProductClientService;
 import com.szmsd.bas.api.service.SerialNumberClientService;
 import com.szmsd.bas.constant.SerialNumberConstant;
+import com.szmsd.bas.domain.BasSeller;
 import com.szmsd.bas.domain.BasWarehouse;
 import com.szmsd.bas.domain.BaseProduct;
 import com.szmsd.bas.dto.BaseProductConditionQueryDto;
@@ -36,6 +37,7 @@ import com.szmsd.common.core.exception.com.CommonException;
 import com.szmsd.common.core.exception.web.BaseException;
 import com.szmsd.common.core.utils.StringUtils;
 import com.szmsd.common.core.utils.bean.BeanMapperUtil;
+import com.szmsd.common.core.utils.bean.BeanUtils;
 import com.szmsd.common.security.utils.SecurityUtils;
 import com.szmsd.delivery.domain.*;
 import com.szmsd.delivery.dto.*;
@@ -48,6 +50,7 @@ import com.szmsd.delivery.enums.DelOutboundStateEnum;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
 import com.szmsd.delivery.mapper.BasFileMapper;
 import com.szmsd.delivery.mapper.DelOutboundMapper;
+import com.szmsd.delivery.mapper.DelOutboundTarckErrorMapper;
 import com.szmsd.delivery.mapper.DelOutboundTarckOnMapper;
 import com.szmsd.delivery.service.IDelOutboundAddressService;
 import com.szmsd.delivery.service.IDelOutboundChargeService;
@@ -123,6 +126,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * <p>
@@ -190,6 +194,10 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
     @Autowired
     private BasFileMapper basFileMapper;
+
+    @Autowired
+    private DelOutboundTarckErrorMapper delOutboundTarckErrorMapper;
+
     /**
      * 查询出库单模块
      *
@@ -1402,6 +1410,11 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     @Override
     public List<Map<String, Object>> batchUpdateTrackingNo(List<DelOutboundBatchUpdateTrackingNoDto> list) {
         List<Map<String, Object>> resultList = new ArrayList<>();
+        Map map1=new HashMap();
+        //成功之后的挂号
+        List<DelOutboundBatchUpdateTrackingNoDto> list1=new ArrayList<>();
+        int a=0;
+        int b=0;
         for (int i = 0; i < list.size(); i++) {
             DelOutboundBatchUpdateTrackingNoDto updateTrackingNoDto = list.get(i);
             if (StringUtils.isEmpty(updateTrackingNoDto.getOrderNo())) {
@@ -1421,25 +1434,43 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
             //导入挂号记录表
             DelOutbound delOutbound=baseMapper.selectTrackingNo(updateTrackingNoDto.getOrderNo());
-            DelOutboundTarckOn delOutboundTarckOn=new DelOutboundTarckOn();
-            delOutboundTarckOn.setOrderNo(delOutbound.getOrderNo());
-            delOutboundTarckOn.setTrackingNo(delOutbound.getTrackingNo());
-            delOutboundTarckOn.setUpdateTime(new Date());
-            delOutboundTarckOn.setTrackingNoNew(updateTrackingNoDto.getTrackingNo());
-            int u = super.baseMapper.updateTrackingNo(updateTrackingNoDto);
-            delOutboundTarckOnMapper.insertSelective(delOutboundTarckOn);
-            ShipmentTrackingChangeRequestDto shipmentTrackingChangeRequestDto=new ShipmentTrackingChangeRequestDto();
-            shipmentTrackingChangeRequestDto.setTrackingNo(updateTrackingNoDto.getTrackingNo());
-            shipmentTrackingChangeRequestDto.setOrderNo(delOutbound.getOrderNo());
-            shipmentTrackingChangeRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
-            R<ResponseVO> r= htpOutboundFeignService.shipmentTracking(shipmentTrackingChangeRequestDto);
-
-            if (u < 1) {
-                Map<String, Object> result = new HashMap<>();
-                result.put("msg", "第 " + (i + 1) + " 行，出库单号不存在。");
-                resultList.add(result);
+            if (delOutbound!=null){
+                a=a+1;
+                DelOutboundTarckOn delOutboundTarckOn=new DelOutboundTarckOn();
+                delOutboundTarckOn.setOrderNo(delOutbound.getOrderNo());
+                delOutboundTarckOn.setTrackingNo(delOutbound.getTrackingNo());
+                delOutboundTarckOn.setUpdateTime(new Date());
+                delOutboundTarckOn.setTrackingNoNew(updateTrackingNoDto.getTrackingNo());
+                int u = super.baseMapper.updateTrackingNo(updateTrackingNoDto);
+                delOutboundTarckOnMapper.insertSelective(delOutboundTarckOn);
+                ShipmentTrackingChangeRequestDto shipmentTrackingChangeRequestDto=new ShipmentTrackingChangeRequestDto();
+                shipmentTrackingChangeRequestDto.setTrackingNo(updateTrackingNoDto.getTrackingNo());
+                shipmentTrackingChangeRequestDto.setOrderNo(delOutbound.getOrderNo());
+                shipmentTrackingChangeRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
+                list1.add(updateTrackingNoDto);
+                R<ResponseVO> r= htpOutboundFeignService.shipmentTracking(shipmentTrackingChangeRequestDto);
+            }else if (delOutbound==null){
+                b=b+1;
+                DelOutboundTarckError delOutboundTarckError=new DelOutboundTarckError();
+                BeanUtils.copyProperties(updateTrackingNoDto,delOutboundTarckError);
+                delOutboundTarckError.setErrorReason("出库单号不存在");
+                delOutboundTarckErrorMapper.insertSelective(delOutboundTarckError);
             }
+            //成功的挂号
+            map1.put("list1",list1);
+
+
+//            if (u < 1) {
+//                Map<String, Object> result = new HashMap<>();
+//                result.put("msg", "第 " + (i + 1) + " 行，出库单号不存在。");
+//                resultList.add(result);
+//            }
         }
+        Map map=new HashMap();
+        map.put("successNumber",a);
+        map.put("errorNumber",b);
+        resultList.add(map);
+        resultList.add(map1);
         /*
         int size = list.size();
         executeBatch(sqlSession -> {
@@ -1453,6 +1484,77 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             }
         });*/
         return resultList;
+    }
+
+    /**
+     * 发送邮箱
+     * @param list list
+     */
+    @Override
+    public void emailBatchUpdateTrackingNo(List<Map<String, Object>> list) {
+        //拿到成功的单号
+        Map map=list.get(1);
+        List<DelOutboundBatchUpdateTrackingNoDto> list1= (List<DelOutboundBatchUpdateTrackingNoDto>) map.get("list1");
+        if (list1.size()>0) {
+            //收集成功的单号去查询出库单的表数据
+            List<String> orderNos = list1.stream().map(DelOutboundBatchUpdateTrackingNoDto::getOrderNo).collect(Collectors.toList());
+            List<DelOutbound> delOutboundlist2 = baseMapper.selectorderNos(orderNos);
+            //更新成功的单号和出库单号做比较，拿到客户code
+           for (DelOutboundBatchUpdateTrackingNoDto dto:list1){
+               delOutboundlist2.stream().filter(x->x.getOrderNo().equals(dto.getOrderNo())).map(DelOutbound::getCustomCode).findAny().ifPresent(i -> {
+                   dto.setCustomCode(i);
+               });
+
+
+
+               }
+
+           //查询用户，客户关系表
+            List<BasSeller> basSellerList= baseMapper.selectdelsellerCodes();
+           List<DelOutboundBatchUpdateTrackingNoEmailDto> delOutboundBatchUpdateTrackingNoEmailDtoList=new ArrayList<>();
+
+            for (DelOutboundBatchUpdateTrackingNoDto dto:list1){
+
+                basSellerList.stream().filter(x->x.getSellerCode().equals(dto.getCustomCode())).findFirst().ifPresent(basSeller -> {
+
+                    DelOutboundBatchUpdateTrackingNoEmailDto delOutboundBatchUpdateTrackingNoEmailDto=new DelOutboundBatchUpdateTrackingNoEmailDto();
+
+                    BeanUtils.copyProperties(dto,delOutboundBatchUpdateTrackingNoEmailDto);
+                    if (basSeller.getServiceManagerName()!=null&&!basSeller.getServiceManagerName().equals("")){
+                        delOutboundBatchUpdateTrackingNoEmailDto.setEmpCode(basSeller.getServiceManagerName());
+                        delOutboundBatchUpdateTrackingNoEmailDtoList.add(delOutboundBatchUpdateTrackingNoEmailDto);
+                    }
+                    if (basSeller.getServiceStaffName()!=null&&!basSeller.getServiceStaffName().equals("")){
+                        delOutboundBatchUpdateTrackingNoEmailDto.setEmpCode(basSeller.getServiceStaffName());
+                        delOutboundBatchUpdateTrackingNoEmailDtoList.add(delOutboundBatchUpdateTrackingNoEmailDto);
+
+                    }
+
+                });
+
+
+//                DelOutboundBatchUpdateTrackingNoDto batchUpdateTrackingNoDto= list1.stream().filter(x->x.getCustomCode().equals(basSeller.getSellerCode())).collect(Collectors.toList()).get(0);
+//
+//
+//                DelOutboundBatchUpdateTrackingNoEmailDto delOutboundBatchUpdateTrackingNoEmailDto=new DelOutboundBatchUpdateTrackingNoEmailDto();
+//                BeanUtils.copyProperties(batchUpdateTrackingNoDto,delOutboundBatchUpdateTrackingNoEmailDto);
+//                if (basSeller.getServiceManagerName()!=null&&!basSeller.getServiceManagerName().equals("")){
+//                    delOutboundBatchUpdateTrackingNoEmailDto.setEmpCode(basSeller.getServiceManagerName());
+//                    delOutboundBatchUpdateTrackingNoEmailDtoList.add(delOutboundBatchUpdateTrackingNoEmailDto);
+//                }
+//                if (basSeller.getServiceStaffName()!=null&&!basSeller.getServiceStaffName().equals("")){
+//                    delOutboundBatchUpdateTrackingNoEmailDto.setEmpCode(basSeller.getServiceStaffName());
+//                    delOutboundBatchUpdateTrackingNoEmailDtoList.add(delOutboundBatchUpdateTrackingNoEmailDto);
+//
+//                }
+
+
+            }
+
+            System.out.println(delOutboundBatchUpdateTrackingNoEmailDtoList);
+
+        }
+
     }
 
     /**
@@ -2205,6 +2307,13 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         }
         return basFileMapper.selectDelOutboundCount(queryWrapper);
 
+    }
+
+    @Override
+    public List<DelOutboundTarckError> selectbatchTrackingexport() {
+        List<DelOutboundTarckError> list=delOutboundTarckErrorMapper.selectByPrimaryKey();
+        delOutboundTarckErrorMapper.deleteByPrimaryKey();
+        return list;
     }
 
     public static List<String> splitToArray(String text, String split) {
