@@ -180,6 +180,7 @@ public class SysUserController extends BaseController {
     public R<SysUser> getNameByNickName(@RequestBody SysUserByTypeAndUserType sysUserByTypeAndUserType) {
         SysUser sysUser = new SysUser();
         sysUser.setNickName(sysUserByTypeAndUserType.getNickName());
+        sysUser.setUserName(sysUserByTypeAndUserType.getUsername());
         List<SysUser> list = userService.selectUserList(sysUser);
         if (CollectionUtils.isNotEmpty(list) && list.size() == 1) {
             return R.ok(list.get(0));
@@ -355,8 +356,18 @@ public class SysUserController extends BaseController {
         //user.setCreateByName(userDto.getCreateByName());
 //        user.setPassword(SecurityUtils.encryptPassword(user.getPassword()));
 //        user.setSpearPassword(SecurityUtils.encryptPassword(user.getSpearPassword()));
+        String a =UUID.randomUUID().toString().replaceAll("-","");
+//        Base64Utilrs base64Utilrs=new Base64Utilrs();
+        //加密
+//         String sellerKey=base64Utilrs.getBase64(a);
+         user.setSellerKey(a);
         return userService.insertUser(user);
     }
+
+
+
+
+
 
     /**
      * 员工资料同步修改用户
