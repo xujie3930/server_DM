@@ -1463,7 +1463,6 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 delOutboundTarckOn.setTrackingNo(delOutbound.getTrackingNo());
                 delOutboundTarckOn.setUpdateTime(new Date());
                 delOutboundTarckOn.setTrackingNoNew(updateTrackingNoDto.getTrackingNo());
-                int u = super.baseMapper.updateTrackingNo(updateTrackingNoDto);
                 delOutboundTarckOnMapper.insertSelective(delOutboundTarckOn);
                 ShipmentTrackingChangeRequestDto shipmentTrackingChangeRequestDto=new ShipmentTrackingChangeRequestDto();
                 shipmentTrackingChangeRequestDto.setTrackingNo(updateTrackingNoDto.getTrackingNo());
@@ -1628,6 +1627,10 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
             }
         }
+        list.forEach(x->{
+            int u = super.baseMapper.updateTrackingNo(x);
+
+        });
 
     }
 
