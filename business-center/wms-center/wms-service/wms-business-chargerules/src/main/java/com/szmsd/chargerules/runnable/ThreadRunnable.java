@@ -1,5 +1,6 @@
 package com.szmsd.chargerules.runnable;
 
+import com.alibaba.fastjson.JSON;
 import com.szmsd.chargerules.config.ThreadPoolConfig;
 import com.szmsd.chargerules.domain.ChargeLog;
 import com.szmsd.chargerules.dto.WarehouseOperationDTO;
@@ -31,6 +32,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -42,9 +44,6 @@ public class ThreadRunnable {
 
     @Resource
     private InventoryFeignService inventoryFeignService;
-
-    @Resource
-    private WarehouseOperationMapper warehouseOperationMapper;
 
     @Resource
     private RedissonClient redissonClient;
@@ -63,19 +62,30 @@ public class ThreadRunnable {
     }
 
     /**
-     * 定时任务：储存仓租计价扣费；每周日晚上8点执行
+     * 定时任务：储存仓租计价扣费；每日晚上8点执行
      */
 //    @Scheduled(cron = "0/60 * * * * *")
     // @Scheduled(cron = "0 10 0/1 * * ?") 每小时执行一次
     //每周日0 0 20 ? * 1"
-    @Scheduled(cron = "0 0 20 * * ?")
+    @Scheduled(cron = "0 0 20 ? * 1")
     public void executeWarehouse() {
         log.info("executeWarehouse() start...");
         RLock lock = redissonClient.getLock("executeOperation");
 
         try {
-            if (lock.tryLock()) {
+
+            boolean ty = lock.tryLock(3, TimeUnit.SECONDS);
+
+            log.info("executeWarehouse() tryLock...{}",ty);
+
+            if (ty) {
+
+                //log.info("executeWarehouse() getWarehouseSku...s");
+
                 Map<String, List<Inventory>> warehouseSkuMap = getWarehouseSku();
+
+                //log.info("executeWarehouse() getWarehouseSku...{}", JSON.toJSONString(warehouseSkuMap));
+
                 for (Map.Entry<String, List<Inventory>> entry : warehouseSkuMap.entrySet()) {
                     asyncTaskExecutor.execute(() -> {
                         String warehouseCode = entry.getKey();
@@ -87,8 +97,17 @@ public class ThreadRunnable {
         } catch (Exception e) {
             log.error("executeWarehouse() execute error: ", e);
         } finally {
-            if (lock.isLocked()) lock.unlock();
+            if (lock.isLocked()){
+                lock.unlock();
+            }
         }
+
+        try {
+            Thread.sleep(100000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
         log.info("executeWarehouse() end...");
     }
 
@@ -101,10 +120,17 @@ public class ThreadRunnable {
     private void getSkuByWarehouse(String warehouseCode, List<Inventory> value) {
         for (Inventory inventory : value) {
             List<InventorySkuVolumeVO> skuVolumeVo = getSkuVolume(new InventorySkuVolumeQueryDTO(inventory.getSku(), warehouseCode));
+
+            log.info("executeWarehouse() getSkuVolume...");
+
             for (InventorySkuVolumeVO inventorySkuVolumeVO : skuVolumeVo) {
                 List<SkuVolumeVO> skuVolumes = inventorySkuVolumeVO.getSkuVolumes();
                 getSkuDetails(warehouseCode, skuVolumes);
+
             }
+
+            log.info("executeWarehouse() getSkuDetails...");
+
         }
     }
 
@@ -139,14 +165,21 @@ public class ThreadRunnable {
             }
 
             pay(warehouseCode, skuVolume, warehouseOperationVo, amount);
+
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
         }
     }
 
     /**
      * 计算费用
      *
-     * @param warehouseCode        warehouseCode
-     * @param skuVolume            skuVolume
+     * @param warehouseCode        目的仓库代码
+     * @param skuVolume            SKU体积
      * @param warehouseOperationVo warehouseOperationVo
      * @return amount
      */
@@ -184,8 +217,12 @@ public class ThreadRunnable {
      */
     private List<InventorySkuVolumeVO> getSkuVolume(InventorySkuVolumeQueryDTO dto) {
         R<List<InventorySkuVolumeVO>> result = inventoryFeignService.querySkuVolume(dto);
+        if(result.getCode() != 200){
+            log.error("getSkuVolume() failed: {}", result.getMsg());
+            return new ArrayList<>();
+        }
         List<InventorySkuVolumeVO> data = result.getData();
-        if (result.getCode() == 200 && CollectionUtils.isNotEmpty(data)) {
+        if(CollectionUtils.isNotEmpty(data)){
             return data;
         }
         log.error("getSkuVolume() failed: {}", result.getMsg());
@@ -198,10 +235,17 @@ public class ThreadRunnable {
      * @return map
      */
     private Map<String, List<Inventory>> getWarehouseSku() {
+        //查询所有可用库存大于0 sku
         R<List<Inventory>> result = inventoryFeignService.getWarehouseSku();
-        List<Inventory> data = result.getData();
-        if (result.getCode() == 200 && CollectionUtils.isNotEmpty(data)) {
-            return data.stream().collect(Collectors.groupingBy(Inventory::getWarehouseCode));
+
+        if (result != null && result.getCode() == 200) {
+            List<Inventory> data = result.getData();
+
+            if(CollectionUtils.isNotEmpty(data)){
+                return data.stream().collect(Collectors.groupingBy(Inventory::getWarehouseCode));
+            }
+
+            return new HashMap<>();
         }
         log.error("getWarehouseSku() failed: {}", result.getMsg());
         return new HashMap<>();
@@ -223,7 +267,9 @@ public class ThreadRunnable {
         custPayDTO.setPayMethod(BillEnum.PayMethod.WAREHOUSE_RENT);
         custPayDTO.setCurrencyCode(chargeLog.getCurrencyCode());
         custPayDTO.setAmount(amount);
-        custPayDTO.setNo(chargeLog.getOrderNo());
+        //汪经理说：SKU 当单号使用
+        //custPayDTO.setNo(chargeLog.getOrderNo());
+        custPayDTO.setNo(sku.getSku());
         custPayDTO.setSerialBillInfoList(serialBillInfoList);
         custPayDTO.setOrderType(chargeLog.getOperationType());
         return custPayDTO;

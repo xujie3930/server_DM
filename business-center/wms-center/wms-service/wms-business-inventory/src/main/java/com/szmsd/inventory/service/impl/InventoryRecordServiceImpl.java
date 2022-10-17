@@ -111,27 +111,44 @@ public class InventoryRecordServiceImpl extends ServiceImpl<InventoryRecordMappe
      * @return
      */
     @Override
-    public List<InventorySkuVolumeVO> selectSkuVolume(InventorySkuVolumeQueryDTO inventorySkuVolumeQueryDTO) {
-        inventorySkuVolumeQueryDTO = Optional.ofNullable(inventorySkuVolumeQueryDTO).orElse(new InventorySkuVolumeQueryDTO());
+    public List<InventorySkuVolumeVO> selectSkuVolume(final InventorySkuVolumeQueryDTO inventorySkuVolumeQueryDTO) {
+        //inventorySkuVolumeQueryDTO = Optional.ofNullable(inventorySkuVolumeQueryDTO).orElse(new InventorySkuVolumeQueryDTO());
+
+        if(inventorySkuVolumeQueryDTO == null){
+            return new ArrayList<>();
+        }
+
+        String warehouseCodeIn = inventorySkuVolumeQueryDTO.getWarehouseCode();
+
+        InventorySkuQueryDTO skuQueryDTO = new InventorySkuQueryDTO().setSku(inventorySkuVolumeQueryDTO.getSku()).setWarehouseCode(warehouseCodeIn);
 
         // 获取库存
-        List<InventorySkuVO> inventoryList = iInventoryService.selectList(new InventorySkuQueryDTO().setSku(inventorySkuVolumeQueryDTO.getSku()).setWarehouseCode(inventorySkuVolumeQueryDTO.getWarehouseCode()));
-        inventoryList = inventoryList.stream().filter(item -> item.getAvailableInventory() > 0).collect(Collectors.toList());
+        List<InventorySkuVO> inventoryList = iInventoryService.selectList(skuQueryDTO);
+
+        if(CollectionUtils.isEmpty(inventoryList)){
+            return new ArrayList<>();
+        }
+
+        List<InventorySkuVO> newInventoryList = inventoryList.stream().filter(item -> item.getAvailableInventory() > 0).collect(Collectors.toList());
 
         // 获取sku信息
-        List<String> skuList = inventoryList.stream().map(InventorySkuVO::getSku).collect(Collectors.toList());
+        List<String> skuList = newInventoryList.stream().map(InventorySkuVO::getSku).collect(Collectors.toList());
         List<BaseProductMeasureDto> skuDataList = remoteComponent.listSku(skuList);
         Map<String, BaseProductMeasureDto> skuData = skuDataList.stream().collect(Collectors.groupingBy(BaseProductMeasureDto::getCode, Collectors.collectingAndThen(Collectors.toList(), e -> e.get(0))));
 
         // 计算sku可用库存体积
-        Map<String, List<InventorySkuVO>> collect = inventoryList.stream().collect(Collectors.groupingBy(InventorySkuVO::getWarehouseCode));
-        return collect.entrySet().stream().map(item -> {
+        Map<String, List<InventorySkuVO>> collect = newInventoryList.stream().collect(Collectors.groupingBy(InventorySkuVO::getWarehouseCode));
+
+        Set<Map.Entry<String, List<InventorySkuVO>>> inventorySet = collect.entrySet();
+
+        List<InventorySkuVolumeVO> inventorySkuVolumeVOS = inventorySet.stream().map(item -> {
             InventorySkuVolumeVO inventorySkuVolumeVO = new InventorySkuVolumeVO();
 
             String warehouseCode = item.getKey();
-            inventorySkuVolumeVO.setWarehouseCode(warehouseCode);
 
-            List<SkuVolumeVO> skuVolumeVO = item.getValue().stream().map(skuR -> {
+            List<InventorySkuVO> inventorySkuVOS = item.getValue();
+
+            List<SkuVolumeVO> skuVolumeVO = inventorySkuVOS.stream().map(skuR -> {
 
                 String sku = skuR.getSku();
                 BaseProductMeasureDto product = skuData.get(sku);
@@ -150,9 +167,11 @@ public class InventoryRecordServiceImpl extends ServiceImpl<InventoryRecordMappe
                 String startTime = null;//DateUtils.parseDateToStr("yyyy-MM-dd'T'00:00:00.000'Z'", DateUtils.parseDate(DateUtils.getPastDate(180)));
                 String endTime = null;//DateUtils.parseDateToStr("yyyy-MM-dd'T'23:23:59.999'Z'", DateUtils.getNowDate());
 
+
                 // 所有入库记录条数 避免死循环
                 int count = this.count(new QueryWrapper<InventoryRecord>().lambda().eq(InventoryRecord::getSku, sku).eq(InventoryRecord::getWarehouseCode, warehouseCode).gt(InventoryRecord::getQuantity, 0));
                 List<InventoryRecordVO> inventoryRecordVOS = recursionType1Record(sku, warehouseCode, startTime, endTime, new ArrayList<>(), count, availableInventory);
+
                 String finalCusCode = cusCode;
                 BigDecimal finalSkuVolume = skuVolume;
                 List<SkuVolumeVO> result = inventoryRecordVOS.stream().map(record -> {
@@ -184,9 +203,15 @@ public class InventoryRecordServiceImpl extends ServiceImpl<InventoryRecordMappe
                 }));
                 return result;
             }).flatMap(Collection::stream).collect(Collectors.toList());
+
             inventorySkuVolumeVO.setSkuVolumes(skuVolumeVO);
+            inventorySkuVolumeVO.setWarehouseCode(warehouseCode);
+
             return inventorySkuVolumeVO;
+
         }).collect(Collectors.toList());
+
+        return inventorySkuVolumeVOS;
     }
 
     /**
