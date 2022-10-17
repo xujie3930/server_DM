@@ -1614,6 +1614,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     }
 
     public void ExcleDelOutboundBatchUpdateTracking(List<DelOutboundBatchUpdateTrackingNoEmailDto> list,String empCode,String email,String filepath){
+        logger.info("更新挂号参数1：{}",list);
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
         EmailDto emailDto=new EmailDto();
         emailDto.setSubject("Notice on Update of Tracking Number-"+list.get(0).getCustomCode()+"-"+simpleDateFormat.format(new Date()));
@@ -1627,7 +1628,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
             }
         }
-        log.info("更新挂号参数：{}",list);
+        logger.info("更新挂号参数2：{}",list);
         list.forEach(x->{
             int u = super.baseMapper.updateTrackingNo(x);
 
