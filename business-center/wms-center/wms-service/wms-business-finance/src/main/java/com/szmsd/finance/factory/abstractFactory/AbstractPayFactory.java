@@ -34,7 +34,9 @@ public abstract class AbstractPayFactory {
 
     public static final TimeUnit unit = TimeUnit.SECONDS;
 
-    public static final long time = 180L;
+    public static final long time = 720L;
+
+    public static final long leaseTime = 180L;
 
     @Autowired
     private IAccountBalanceService iAccountBalanceService;

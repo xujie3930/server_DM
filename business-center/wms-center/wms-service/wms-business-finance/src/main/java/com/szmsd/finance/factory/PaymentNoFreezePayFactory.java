@@ -40,12 +40,17 @@ public class PaymentNoFreezePayFactory extends AbstractPayFactory {
     @Override
     public Boolean updateBalance(final CustPayDTO dto) {
         log.info("PaymentNoFreezePayFactory {}", JSONObject.toJSONString(dto));
-        String key = "cky-test-fss-balance-paymentNoFreezePay" + dto.getCurrencyCode() + ":" + dto.getCusCode();
-        RLock lock = redissonClient.getLock(key);
+        final String key = "cky-fss-freeze-balance-all:" + dto.getCusCode();
+        //RLock lock = redissonClient.getLock(key);
         try {
-            if (lock.tryLock(time, unit)) {
+            //if (lock.tryLock(time,leaseTime, unit)) {
+                String currencyCode = dto.getCurrencyCode();
                 BalanceDTO oldBalance = getBalance(dto.getCusCode(), dto.getCurrencyCode());
                 BigDecimal changeAmount = dto.getAmount();
+
+                log.info("PaymentNoFreezePayFactory balance mKey version  1 {}",dto.getNo());
+
+                log.info("PaymentNoFreezePayFactory 1 {} 可用余额：{}，冻结余额：{}，总余额：{},余额剩余：{} ",currencyCode,oldBalance.getCurrentBalance(),oldBalance.getFreezeBalance(),oldBalance.getTotalBalance(),JSONObject.toJSONString(oldBalance));
 
                 //余额不足
                 /*if (dto.getPayType() == BillEnum.PayType.PAYMENT_NO_FREEZE && oldBalance.getCurrentBalance().compareTo(changeAmount) < 0) {
@@ -58,33 +63,35 @@ public class PaymentNoFreezePayFactory extends AbstractPayFactory {
 
                 String mKey = key + oldBalance.getVersion();
 
-                if(concurrentHashMap.get(mKey) != null){
-                    concurrentHashMap.remove(mKey);
-
-                    if (lock.isLocked() && lock.isHeldByCurrentThread()) {
-                        log.info("释放redis锁 {}",dto.getNo());
-                        lock.unlock();
-                    }
-
-                    Thread.sleep(100);
-
-                    log.info("balance 重新执行 {}",mKey);
-                    return updateBalance(dto);
-                }
+//                if(concurrentHashMap.get(mKey) != null){
+//                    concurrentHashMap.remove(mKey);
+//
+//                    if (lock.isLocked() && lock.isHeldByCurrentThread()) {
+//                        log.info("释放redis锁 {}",dto.getNo());
+//                        lock.unlock();
+//                    }
+//
+//                    Thread.sleep(100);
+//
+//                    log.info("balance 重新执行 {}",mKey);
+//                    return updateBalance(dto);
+//                }
 
                 setBalance(dto.getCusCode(), dto.getCurrencyCode(), oldBalance, true);
                 recordOpLogAsync(dto, oldBalance.getCurrentBalance());
                 recordDetailLogAsync(dto, oldBalance);
                 setSerialBillLog(dto);
 
+                log.info("PaymentNoFreezePayFactory 2 {} 可用余额：{}，冻结余额：{}，总余额：{},余额剩余：{} ",currencyCode,oldBalance.getCurrentBalance(),oldBalance.getFreezeBalance(),oldBalance.getTotalBalance(),JSONObject.toJSONString(oldBalance));
+
                 concurrentHashMap.put(mKey,oldBalance.getVersion());
 
                 return true;
-            } else {
-                log.error("支付操作超时,请稍候重试{}", JSONObject.toJSONString(dto));
-                throw new RuntimeException("支付操作超时,请稍候重试");
-            }
-        } catch (InterruptedException e) {
+//            } else {
+//                log.error("支付操作超时,请稍候重试{}", JSONObject.toJSONString(dto));
+//                throw new RuntimeException("支付操作超时,请稍候重试");
+//            }
+        } catch (Exception e) {
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly(); //手动回滚事务
             e.printStackTrace();
             log.error("PaymentNoFreeze扣减异常:", e);
@@ -92,9 +99,9 @@ public class PaymentNoFreezePayFactory extends AbstractPayFactory {
             log.info("异常信息:" + e.getMessage());
             throw new RuntimeException("支付操作超时,请稍候重试!");
         } finally {
-            if (lock.isLocked() && lock.isHeldByCurrentThread()) {
-                lock.unlock();
-            }
+//            if (lock.isLocked() && lock.isHeldByCurrentThread()) {
+//                lock.unlock();
+//            }
         }
     }
 
