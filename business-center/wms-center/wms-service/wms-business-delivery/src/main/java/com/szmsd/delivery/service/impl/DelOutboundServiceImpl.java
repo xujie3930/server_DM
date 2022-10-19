@@ -1410,9 +1410,11 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     @Override
     public List<Map<String, Object>> batchUpdateTrackingNo(List<DelOutboundBatchUpdateTrackingNoDto> list) {
         List<Map<String, Object>> resultList = new ArrayList<>();
+
         Map map1=new HashMap();
         //成功之后的挂号
         List<DelOutboundBatchUpdateTrackingNoDto> list1=new ArrayList<>();
+
         int a=0;
         int b=0;
         for (int i = 0; i < list.size(); i++) {
@@ -1447,7 +1449,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 shipmentTrackingChangeRequestDto.setTrackingNo(updateTrackingNoDto.getTrackingNo());
                 shipmentTrackingChangeRequestDto.setOrderNo(delOutbound.getOrderNo());
                 shipmentTrackingChangeRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
+
                 list1.add(updateTrackingNoDto);
+
                 R<ResponseVO> r= htpOutboundFeignService.shipmentTracking(shipmentTrackingChangeRequestDto);
             }else if (delOutbound==null){
                 b=b+1;
@@ -1456,8 +1460,10 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 delOutboundTarckError.setErrorReason("出库单号不存在");
                 delOutboundTarckErrorMapper.insertSelective(delOutboundTarckError);
             }
+
             //成功的挂号
             map1.put("list1",list1);
+
 
 
 //            if (u < 1) {
@@ -1470,7 +1476,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         map.put("successNumber",a);
         map.put("errorNumber",b);
         resultList.add(map);
+
         resultList.add(map1);
+
         /*
         int size = list.size();
         executeBatch(sqlSession -> {
