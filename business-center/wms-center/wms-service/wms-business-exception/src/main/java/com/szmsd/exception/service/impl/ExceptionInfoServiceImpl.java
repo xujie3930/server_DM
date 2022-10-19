@@ -144,14 +144,17 @@ public class ExceptionInfoServiceImpl extends ServiceImpl<ExceptionInfoMapper, E
             }
             this.handlerQueryCondition(where, dto);
             where.orderByDesc("create_time");
-
+            log.info("开始执行查询异常表----------");
             exceptionInfoList = baseMapper.selectList(where);
+            log.info("结束执行查询异常表----------：{}",exceptionInfoList.size());
         }
 
         if (CollectionUtils.isNotEmpty(exceptionInfoList)) {
             // 查询异常描述信息
             List<String> orderNos = exceptionInfoList.stream().map(ExceptionInfo::getOrderNo).collect(Collectors.toList());
+            log.info("开始执行查询DelOutboundListExceptionMessageVO----------");
             List<DelOutboundListExceptionMessageVO> exceptionMessageList = this.delOutboundClientService.exceptionMessageList(orderNos);
+            log.info("结束执行查询DelOutboundListExceptionMessageVO----------");
             if (CollectionUtils.isNotEmpty(exceptionInfoList)) {
                 Map<String, String> exceptionMessageMap = exceptionMessageList.stream().collect(Collectors.toMap(DelOutboundListExceptionMessageVO::getOrderNo, DelOutboundListExceptionMessageVO::getExceptionMessage));
                 for (ExceptionInfo exceptionInfo : exceptionInfoList) {
