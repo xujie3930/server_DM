@@ -1,5 +1,8 @@
 package com.szmsd.delivery.service.impl;
 
+import cn.afterturn.easypoi.excel.ExcelExportUtil;
+import cn.afterturn.easypoi.excel.entity.ExportParams;
+import cn.afterturn.easypoi.excel.entity.enmus.ExcelType;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.date.TimeInterval;
 import cn.hutool.core.io.IoUtil;
@@ -15,27 +18,35 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.szmsd.bas.api.client.BasSubClientService;
 import com.szmsd.bas.api.domain.BasAttachment;
+import com.szmsd.bas.api.domain.BasEmployees;
 import com.szmsd.bas.api.domain.dto.AttachmentDTO;
 import com.szmsd.bas.api.domain.dto.AttachmentDataDTO;
 import com.szmsd.bas.api.domain.dto.BasAttachmentQueryDTO;
 import com.szmsd.bas.api.domain.vo.BasRegionSelectListVO;
 import com.szmsd.bas.api.enums.AttachmentTypeEnum;
+import com.szmsd.bas.api.feign.BasFeignService;
 import com.szmsd.bas.api.feign.BasRegionFeignService;
+import com.szmsd.bas.api.feign.EmailFeingService;
 import com.szmsd.bas.api.feign.RemoteAttachmentService;
 import com.szmsd.bas.api.service.BasWarehouseClientService;
 import com.szmsd.bas.api.service.BaseProductClientService;
 import com.szmsd.bas.api.service.SerialNumberClientService;
 import com.szmsd.bas.constant.SerialNumberConstant;
+import com.szmsd.bas.domain.BasSeller;
 import com.szmsd.bas.domain.BasWarehouse;
 import com.szmsd.bas.domain.BaseProduct;
 import com.szmsd.bas.dto.BaseProductConditionQueryDto;
+import com.szmsd.bas.dto.EmailDto;
+import com.szmsd.bas.dto.EmailObjectDto;
 import com.szmsd.bas.plugin.vo.BasSubWrapperVO;
 import com.szmsd.chargerules.api.feign.OperationFeignService;
+import com.szmsd.common.core.constant.HttpStatus;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.exception.com.CommonException;
 import com.szmsd.common.core.exception.web.BaseException;
 import com.szmsd.common.core.utils.StringUtils;
 import com.szmsd.common.core.utils.bean.BeanMapperUtil;
+import com.szmsd.common.core.utils.bean.BeanUtils;
 import com.szmsd.common.security.utils.SecurityUtils;
 import com.szmsd.delivery.domain.*;
 import com.szmsd.delivery.dto.*;
@@ -48,6 +59,7 @@ import com.szmsd.delivery.enums.DelOutboundStateEnum;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
 import com.szmsd.delivery.mapper.BasFileMapper;
 import com.szmsd.delivery.mapper.DelOutboundMapper;
+import com.szmsd.delivery.mapper.DelOutboundTarckErrorMapper;
 import com.szmsd.delivery.mapper.DelOutboundTarckOnMapper;
 import com.szmsd.delivery.service.IDelOutboundAddressService;
 import com.szmsd.delivery.service.IDelOutboundChargeService;
@@ -92,13 +104,17 @@ import com.szmsd.inventory.domain.dto.QueryFinishListDTO;
 import com.szmsd.inventory.domain.vo.InventoryAvailableListVO;
 import com.szmsd.inventory.domain.vo.QueryFinishListVO;
 import com.szmsd.putinstorage.domain.dto.AttachmentFileDTO;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.time.DateFormatUtils;
+import org.apache.http.HttpRequest;
 import org.apache.ibatis.binding.MapperMethod;
 import org.apache.ibatis.executor.BatchResult;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -115,6 +131,7 @@ import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -123,6 +140,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * <p>
@@ -133,6 +151,7 @@ import java.util.stream.IntStream;
  * @since 2021-03-05
  */
 @Service
+@Slf4j
 public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOutbound> implements IDelOutboundService {
     private Logger logger = LoggerFactory.getLogger(DelOutboundServiceImpl.class);
 
@@ -190,6 +209,15 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
     @Autowired
     private BasFileMapper basFileMapper;
+
+    @Autowired
+    private DelOutboundTarckErrorMapper delOutboundTarckErrorMapper;
+
+    @Autowired
+    private BasFeignService basFeignService;
+    @Autowired
+    private EmailFeingService emailFeingService;
+
     /**
      * 查询出库单模块
      *
@@ -1402,6 +1430,11 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     @Override
     public List<Map<String, Object>> batchUpdateTrackingNo(List<DelOutboundBatchUpdateTrackingNoDto> list) {
         List<Map<String, Object>> resultList = new ArrayList<>();
+        Map map1=new HashMap();
+        //成功之后的挂号
+        List<DelOutboundBatchUpdateTrackingNoDto> list1=new ArrayList<>();
+        int a=0;
+        int b=0;
         for (int i = 0; i < list.size(); i++) {
             DelOutboundBatchUpdateTrackingNoDto updateTrackingNoDto = list.get(i);
             if (StringUtils.isEmpty(updateTrackingNoDto.getOrderNo())) {
@@ -1421,25 +1454,42 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
             //导入挂号记录表
             DelOutbound delOutbound=baseMapper.selectTrackingNo(updateTrackingNoDto.getOrderNo());
-            DelOutboundTarckOn delOutboundTarckOn=new DelOutboundTarckOn();
-            delOutboundTarckOn.setOrderNo(delOutbound.getOrderNo());
-            delOutboundTarckOn.setTrackingNo(delOutbound.getTrackingNo());
-            delOutboundTarckOn.setUpdateTime(new Date());
-            delOutboundTarckOn.setTrackingNoNew(updateTrackingNoDto.getTrackingNo());
-            int u = super.baseMapper.updateTrackingNo(updateTrackingNoDto);
-            delOutboundTarckOnMapper.insertSelective(delOutboundTarckOn);
-            ShipmentTrackingChangeRequestDto shipmentTrackingChangeRequestDto=new ShipmentTrackingChangeRequestDto();
-            shipmentTrackingChangeRequestDto.setTrackingNo(updateTrackingNoDto.getTrackingNo());
-            shipmentTrackingChangeRequestDto.setOrderNo(delOutbound.getOrderNo());
-            shipmentTrackingChangeRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
-            R<ResponseVO> r= htpOutboundFeignService.shipmentTracking(shipmentTrackingChangeRequestDto);
-
-            if (u < 1) {
-                Map<String, Object> result = new HashMap<>();
-                result.put("msg", "第 " + (i + 1) + " 行，出库单号不存在。");
-                resultList.add(result);
+            if (delOutbound!=null){
+                a=a+1;
+                DelOutboundTarckOn delOutboundTarckOn=new DelOutboundTarckOn();
+                delOutboundTarckOn.setOrderNo(delOutbound.getOrderNo());
+                delOutboundTarckOn.setTrackingNo(delOutbound.getTrackingNo());
+                delOutboundTarckOn.setUpdateTime(new Date());
+                delOutboundTarckOn.setTrackingNoNew(updateTrackingNoDto.getTrackingNo());
+                delOutboundTarckOnMapper.insertSelective(delOutboundTarckOn);
+                ShipmentTrackingChangeRequestDto shipmentTrackingChangeRequestDto=new ShipmentTrackingChangeRequestDto();
+                shipmentTrackingChangeRequestDto.setTrackingNo(updateTrackingNoDto.getTrackingNo());
+                shipmentTrackingChangeRequestDto.setOrderNo(delOutbound.getOrderNo());
+                shipmentTrackingChangeRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
+                list1.add(updateTrackingNoDto);
+                R<ResponseVO> r= htpOutboundFeignService.shipmentTracking(shipmentTrackingChangeRequestDto);
+            }else if (delOutbound==null){
+                b=b+1;
+                DelOutboundTarckError delOutboundTarckError=new DelOutboundTarckError();
+                BeanUtils.copyProperties(updateTrackingNoDto,delOutboundTarckError);
+                delOutboundTarckError.setErrorReason("出库单号不存在");
+                delOutboundTarckErrorMapper.insertSelective(delOutboundTarckError);
             }
+            //成功的挂号
+            map1.put("list1",list1);
+
+
+//            if (u < 1) {
+//                Map<String, Object> result = new HashMap<>();
+//                result.put("msg", "第 " + (i + 1) + " 行，出库单号不存在。");
+//                resultList.add(result);
+//            }
         }
+        Map map=new HashMap();
+        map.put("successNumber",a);
+        map.put("errorNumber",b);
+        resultList.add(map);
+        resultList.add(map1);
         /*
         int size = list.size();
         executeBatch(sqlSession -> {
@@ -1454,6 +1504,169 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         });*/
         return resultList;
     }
+
+    /**
+     * 发送邮箱
+     * @param list list
+     */
+    @Override
+    public void emailBatchUpdateTrackingNo(List<Map<String, Object>> list,String filepath) {
+        //拿到成功的单号
+        logger.info("发送邮箱进来-----");
+        Map map=list.get(1);
+        List<DelOutboundBatchUpdateTrackingNoDto> list1= (List<DelOutboundBatchUpdateTrackingNoDto>) map.get("list1");
+        if (list1.size()>0) {
+            //收集成功的单号去查询出库单的表数据
+            List<String> orderNos = list1.stream().map(DelOutboundBatchUpdateTrackingNoDto::getOrderNo).collect(Collectors.toList());
+            List<DelOutbound> delOutboundlist2 = baseMapper.selectorderNos(orderNos);
+            logger.info("delOutboundlist2的查询结果:{}",delOutboundlist2);
+            //更新成功的单号和出库单号做比较，拿到客户code
+           for (DelOutboundBatchUpdateTrackingNoDto dto:list1){
+               delOutboundlist2.stream().filter(x->x.getOrderNo().equals(dto.getOrderNo())).findFirst().ifPresent(i -> {
+                   if (i.getCustomCode()!=null&&!i.getCustomCode().equals("")){
+                       dto.setCustomCode(i.getCustomCode());
+                   }
+                   if (i.getTrackingNo()!=null&&!i.getTrackingNo().equals("")){
+                       dto.setNoTrackingNo(i.getTrackingNo());
+                   }
+
+
+               });
+
+
+
+               }
+
+           //查询用户，客户关系表
+            List<BasSeller> basSellerList= baseMapper.selectdelsellerCodes();
+           List<DelOutboundBatchUpdateTrackingNoEmailDto> delOutboundBatchUpdateTrackingNoEmailDtoList=new ArrayList<>();
+
+            for (DelOutboundBatchUpdateTrackingNoDto dto:list1) {
+
+                basSellerList.stream().filter(x -> x.getSellerCode().equals(dto.getCustomCode())).findFirst().ifPresent(basSeller -> {
+
+
+                    if (basSeller.getServiceManagerName() != null && !basSeller.getServiceManagerName().equals("")) {
+                        if (!basSeller.getServiceManagerName().equals(basSeller.getServiceStaffName())) {
+                            DelOutboundBatchUpdateTrackingNoEmailDto delOutboundBatchUpdateTrackingNoEmailDto = new DelOutboundBatchUpdateTrackingNoEmailDto();
+                            BeanUtils.copyProperties(dto, delOutboundBatchUpdateTrackingNoEmailDto);
+
+                            delOutboundBatchUpdateTrackingNoEmailDto.setEmpCode(basSeller.getServiceManagerName());
+                            delOutboundBatchUpdateTrackingNoEmailDto.setServiceManagerName(basSeller.getServiceManagerName());
+                            if (basSeller.getServiceStaffName() != null && !basSeller.getServiceStaffName().equals("")) {
+                                delOutboundBatchUpdateTrackingNoEmailDto.setServiceStaffName(basSeller.getServiceStaffName());
+                            }
+                            delOutboundBatchUpdateTrackingNoEmailDtoList.add(delOutboundBatchUpdateTrackingNoEmailDto);
+                        }
+                    }
+                    if (basSeller.getServiceStaffName() != null && !basSeller.getServiceStaffName().equals("")) {
+                        DelOutboundBatchUpdateTrackingNoEmailDto delOutboundBatchUpdateTrackingNoEmailDto = new DelOutboundBatchUpdateTrackingNoEmailDto();
+                        BeanUtils.copyProperties(dto, delOutboundBatchUpdateTrackingNoEmailDto);
+                        delOutboundBatchUpdateTrackingNoEmailDto.setEmpCode(basSeller.getServiceStaffName());
+                        delOutboundBatchUpdateTrackingNoEmailDto.setServiceStaffName(basSeller.getServiceStaffName());
+                        if (basSeller.getServiceManagerName() != null && !basSeller.getServiceManagerName().equals("")) {
+                            delOutboundBatchUpdateTrackingNoEmailDto.setServiceManagerName(basSeller.getServiceManagerName());
+                        }
+                        delOutboundBatchUpdateTrackingNoEmailDtoList.add(delOutboundBatchUpdateTrackingNoEmailDto);
+
+                    }
+
+
+                });
+
+
+                boolean a = basSellerList.stream().filter(x -> x.getSellerCode().equals(dto.getCustomCode())).findFirst().isPresent();
+
+                if (a == false) {
+                        DelOutboundBatchUpdateTrackingNoEmailDto delOutboundBatchUpdateTrackingNoEmailDto = new DelOutboundBatchUpdateTrackingNoEmailDto();
+                        delOutboundBatchUpdateTrackingNoEmailDto.setOrderNo(dto.getOrderNo());
+                        delOutboundBatchUpdateTrackingNoEmailDto.setTrackingNo(dto.getTrackingNo());
+                        int u = super.baseMapper.updateTrackingNo(delOutboundBatchUpdateTrackingNoEmailDto);
+                    manualTrackingYees(dto.getOrderNo());
+
+
+                }
+                if (delOutboundBatchUpdateTrackingNoEmailDtoList.size()==0){
+                    DelOutboundBatchUpdateTrackingNoEmailDto delOutboundBatchUpdateTrackingNoEmailDto = new DelOutboundBatchUpdateTrackingNoEmailDto();
+                    delOutboundBatchUpdateTrackingNoEmailDto.setOrderNo(dto.getOrderNo());
+                    delOutboundBatchUpdateTrackingNoEmailDto.setTrackingNo(dto.getTrackingNo());
+                    int u = super.baseMapper.updateTrackingNo(delOutboundBatchUpdateTrackingNoEmailDto);
+                    manualTrackingYees(dto.getOrderNo());
+                }
+
+            }
+
+            BasEmployees basEmployees=new BasEmployees();
+            //查询员工表
+            R<List<BasEmployees>> basEmployeesR= basFeignService.empList(basEmployees);
+
+            List<BasEmployees> basEmployeesList=basEmployeesR.getData();
+            //找到员工中的邮箱
+            for (DelOutboundBatchUpdateTrackingNoEmailDto dto:delOutboundBatchUpdateTrackingNoEmailDtoList){
+                basEmployeesList.stream().filter(x->x.getEmpCode().equals(dto.getEmpCode())).findFirst().ifPresent(i -> {
+                    if (i.getEmail()!=null&&!i.getEmail().equals(""))
+                    dto.setEmail(i.getEmail());
+                });
+
+               boolean a= basEmployeesList.stream().filter(x->x.getEmpCode().equals(dto.getEmpCode())).findFirst().isPresent();
+                if (a==false){
+                    DelOutboundBatchUpdateTrackingNoEmailDto delOutboundBatchUpdateTrackingNoEmailDto=new DelOutboundBatchUpdateTrackingNoEmailDto();
+                    delOutboundBatchUpdateTrackingNoEmailDto.setOrderNo(dto.getOrderNo());
+                    delOutboundBatchUpdateTrackingNoEmailDto.setTrackingNo(dto.getTrackingNo());
+                    int u = super.baseMapper.updateTrackingNo(delOutboundBatchUpdateTrackingNoEmailDto);
+
+                    manualTrackingYees(dto.getOrderNo());
+                }
+                if (dto.getEmail()==null){
+                    DelOutboundBatchUpdateTrackingNoEmailDto delOutboundBatchUpdateTrackingNoEmailDto=new DelOutboundBatchUpdateTrackingNoEmailDto();
+                    delOutboundBatchUpdateTrackingNoEmailDto.setOrderNo(dto.getOrderNo());
+                    delOutboundBatchUpdateTrackingNoEmailDto.setTrackingNo(dto.getTrackingNo());
+                    int u = super.baseMapper.updateTrackingNo(delOutboundBatchUpdateTrackingNoEmailDto);
+
+                    manualTrackingYees(dto.getOrderNo());
+                }
+            }
+
+            //将组合的数据 分解成Map<List> (员工为key,组合这个员工下的所有信息)
+           Map<String,List<DelOutboundBatchUpdateTrackingNoEmailDto>> delOutboundBatchUpdateTrackingNoEmailDtoMap=delOutboundBatchUpdateTrackingNoEmailDtoList.stream().collect(Collectors.groupingBy(DelOutboundBatchUpdateTrackingNoEmailDto::getEmpCode));
+            //循环map，得到每一组的数据 然后生产excel
+            for (Map.Entry<String, List<DelOutboundBatchUpdateTrackingNoEmailDto>> entry : delOutboundBatchUpdateTrackingNoEmailDtoMap.entrySet()) {
+                System.out.println("key = " + entry.getKey() + ", value = " + entry.getValue());
+                logger.info("组合参数：{}",entry.getValue());
+                ExcleDelOutboundBatchUpdateTracking(entry.getValue(),entry.getKey(),entry.getValue().get(0).getEmail(), filepath);
+            }
+
+        }
+
+    }
+
+    public void ExcleDelOutboundBatchUpdateTracking(List<DelOutboundBatchUpdateTrackingNoEmailDto> list,String empCode,String email,String filepath){
+        logger.info("更新挂号参数1：{}",list);
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
+        EmailDto emailDto=new EmailDto();
+        emailDto.setSubject("Notice on Update of Tracking Number-"+list.get(0).getCustomCode()+"-"+simpleDateFormat.format(new Date()));
+        emailDto.setTo(email);
+        emailDto.setText("customer:"+list.get(0).getCustomCode()+"on"+"["+simpleDateFormat.format(new Date())+"]"+"Total number of updated tracking numbers"+"["+list.size()+"]"+"Please download the attachment for details");
+        List<EmailObjectDto> emailObjectDtoList= BeanMapperUtil.mapList(list, EmailObjectDto.class);
+        emailDto.setList(emailObjectDtoList);
+        if(email!=null&&!email.equals("")){
+            //注释发送邮箱方法，明天发版不上
+//            R r= emailFeingService.sendEmail(emailDto);
+//            if (r.getCode()== HttpStatus.SUCCESS){
+//
+//            }
+        }
+        logger.info("更新挂号参数2：{}",list);
+        list.forEach(x->{
+            int u = super.baseMapper.updateTrackingNo(x);
+
+            manualTrackingYees(x.getOrderNo());
+
+        });
+
+    }
+
+
 
     /**
      * 批量删除出库单模块
@@ -2207,6 +2420,13 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
     }
 
+    @Override
+    public List<DelOutboundTarckError> selectbatchTrackingexport() {
+        List<DelOutboundTarckError> list=delOutboundTarckErrorMapper.selectByPrimaryKey();
+        delOutboundTarckErrorMapper.deleteByPrimaryKey();
+        return list;
+    }
+
     public static List<String> splitToArray(String text, String split) {
         String[] arr = text.split(split);
         if (arr.length == 0) {
@@ -2725,6 +2945,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         return 1;
     }
 
+
     @Override
     public void manualTrackingYee(List<String> list) {
         list.forEach(x->{
@@ -2842,6 +3063,124 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         }
         if (!success) {
             throw new CommonException("500", "创建TrackingYee失败");
+        }
+    }
+
+    public void manualTrackingYees(String orderNo) {
+
+            DelOutboundListQueryDto delOutboundListQueryDto=baseMapper.pageLists(orderNo);
+            TraYees(delOutboundListQueryDto);
+
+
+    }
+
+    public void TraYees(DelOutboundListQueryDto delOutboundListQueryDto){
+        boolean success = false;
+        String responseBody;
+        try {
+            Map<String, Object> requestBodyMap = new HashMap<>();
+            List<Map<String, Object>> shipments = new ArrayList<>();
+            Map<String, Object> shipment = new HashMap<>();
+            shipment.put("trackingNo", delOutboundListQueryDto.getTrackingNo());
+            shipment.put("carrierCode", delOutboundListQueryDto.getLogisticsProviderCode());
+            shipment.put("logisticsServiceProvider", delOutboundListQueryDto.getLogisticsProviderCode());
+            shipment.put("logisticsServiceName", delOutboundListQueryDto.getLogisticsProviderCode());
+            shipment.put("platformCode", "DM");
+            shipment.put("shopName", "");
+            Date createTime = delOutboundListQueryDto.getCreateTime();
+            if (null != createTime) {
+                shipment.put("OrdersOn", DateFormatUtils.format(createTime, "yyyy-MM-dd'T'HH:mm:ss.SS'Z'"));
+            }
+            shipment.put("paymentTime", "");
+            shipment.put("shippingOn", "");
+            List<String> searchTags = new ArrayList<>();
+            searchTags.add("");
+            searchTags.add("");
+            shipment.put("searchTags", searchTags);
+            shipment.put("orderNo", delOutboundListQueryDto.getOrderNo());
+            Map<String, Object> senderAddress = new HashMap<>();
+            senderAddress.put("country", delOutboundListQueryDto.getCountry());
+            senderAddress.put("province", delOutboundListQueryDto.getStateOrProvince());
+            senderAddress.put("city", delOutboundListQueryDto.getCity());
+            senderAddress.put("postcode", delOutboundListQueryDto.getPostCode());
+            senderAddress.put("street1", delOutboundListQueryDto.getStreet1());
+            senderAddress.put("street2", delOutboundListQueryDto.getStreet2());
+            senderAddress.put("street3", delOutboundListQueryDto.getStreet3());
+            shipment.put("senderAddress", senderAddress);
+            Map<String, Object> destinationAddress = new HashMap<>();
+            destinationAddress.put("country", delOutboundListQueryDto.getCountry());
+            destinationAddress.put("province", delOutboundListQueryDto.getStateOrProvince());
+            destinationAddress.put("city", delOutboundListQueryDto.getCity());
+            destinationAddress.put("postcode", delOutboundListQueryDto.getPostCode());
+            destinationAddress.put("street1", delOutboundListQueryDto.getStreet1());
+            destinationAddress.put("street2",delOutboundListQueryDto.getStreet2());
+            destinationAddress.put("street3", delOutboundListQueryDto.getStreet3());
+            shipment.put("destinationAddress", destinationAddress);
+            Map<String, Object> recipientInfo = new HashMap<>();
+            recipientInfo.put("recipient", delOutboundListQueryDto.getConsignee());
+            recipientInfo.put("phoneNumber", delOutboundListQueryDto.getPhoneNo());
+            recipientInfo.put("email", "");
+            shipment.put("recipientInfo", recipientInfo);
+            Map<String, Object> customFieldInfo = new HashMap<>();
+            customFieldInfo.put("fieldOne", delOutboundListQueryDto.getOrderNo());
+            customFieldInfo.put("fieldTwo", "");
+            customFieldInfo.put("fieldThree", "");
+            shipment.put("customFieldInfo", customFieldInfo);
+            shipments.add(shipment);
+            requestBodyMap.put("shipments", shipments);
+            HttpRequestDto httpRequestDto = new HttpRequestDto();
+            httpRequestDto.setMethod(HttpMethod.POST);
+            String url = DomainEnum.TrackingYeeDomain.wrapper("/tracking/v1/shipments");
+            httpRequestDto.setUri(url);
+            httpRequestDto.setBody(requestBodyMap);
+            HttpResponseVO httpResponseVO = htpRmiClientService.rmi(httpRequestDto);
+            if (200 == httpResponseVO.getStatus() ||
+                    201 == httpResponseVO.getStatus()) {
+                success = true;
+            }
+            responseBody = (String) httpResponseVO.getBody();
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+            responseBody = e.getMessage();
+            if (null == responseBody) {
+                responseBody = "请求失败";
+            }
+        }
+        // 请求成功，解析响应报文
+        if (success) {
+            try {
+                // 解析响应报文，获取响应参数信息
+                JSONObject jsonObject = JSON.parseObject(responseBody);
+                // 判断状态是否为OK
+                if ("OK".equals(jsonObject.getString("status"))) {
+                    // 判断结果明细是不是成功的
+                    JSONObject data = jsonObject.getJSONObject("data");
+                    if (1 != data.getIntValue("successNumber")) {
+                        // 返回的成功数量不是1，判定为异常
+                        success = false;
+                        // 获取异常信息
+                        int failNumber = data.getIntValue("failNumber");
+                        if (failNumber > 0) {
+                            JSONArray failImportRowResults = data.getJSONArray("failImportRowResults");
+                            JSONObject failImportRowResult = failImportRowResults.getJSONObject(0);
+                            JSONObject errorInfo = failImportRowResult.getJSONObject("errorInfo");
+                            String errorCode = errorInfo.getString("errorCode");
+                            String errorMessage = errorInfo.getString("errorMessage");
+                            //throw new CommonException("500", "[" + errorCode + "]" + errorMessage);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.error(e.getMessage(), e);
+                if (e instanceof CommonException) {
+                    //throw e;
+                }
+                // 解析失败，判定为异常
+                success = false;
+            }
+        }
+        if (!success) {
+            //throw new CommonException("500", "创建TrackingYee失败");
         }
     }
 }

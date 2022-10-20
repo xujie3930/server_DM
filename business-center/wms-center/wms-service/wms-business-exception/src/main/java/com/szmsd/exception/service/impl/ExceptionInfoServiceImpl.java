@@ -46,6 +46,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import javax.annotation.Resource;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -99,6 +101,7 @@ public class ExceptionInfoServiceImpl extends ServiceImpl<ExceptionInfoMapper, E
     @Override
     //@DataScope("seller_code")
     public List<ExceptionInfo> selectExceptionInfoPage(ExceptionInfoQueryDto dto) {
+        log.info("开始执行selectExceptionInfoPage查询：{}",dto);
         List<ExceptionInfo> exceptionInfoList=new ArrayList<>();
         //客户端
         if (dto.getType()==0) {
@@ -117,7 +120,9 @@ public class ExceptionInfoServiceImpl extends ServiceImpl<ExceptionInfoMapper, E
             List<String> sellerCodeList=null;
             if (null != loginUser && !loginUser.getUsername().equals("admin")) {
                 String username = loginUser.getUsername();
+                log.info("开始执行sellerCode查询表----------");
                 sellerCodeList=baseMapper.selectsellerCode(username);
+                log.info("结束执行sellerCode查询表----------：{}",sellerCodeList.size());
 
                 if (sellerCodeList.size()>0){
                     dto.setSellerCodes(sellerCodeList);
@@ -144,14 +149,17 @@ public class ExceptionInfoServiceImpl extends ServiceImpl<ExceptionInfoMapper, E
             }
             this.handlerQueryCondition(where, dto);
             where.orderByDesc("create_time");
-
+            log.info("开始执行查询异常表----------");
             exceptionInfoList = baseMapper.selectList(where);
+            log.info("结束执行查询异常表----------：{}",exceptionInfoList.size());
         }
 
         if (CollectionUtils.isNotEmpty(exceptionInfoList)) {
             // 查询异常描述信息
             List<String> orderNos = exceptionInfoList.stream().map(ExceptionInfo::getOrderNo).collect(Collectors.toList());
+            log.info("开始执行查询DelOutboundListExceptionMessageVO----------");
             List<DelOutboundListExceptionMessageVO> exceptionMessageList = this.delOutboundClientService.exceptionMessageList(orderNos);
+            log.info("结束执行查询DelOutboundListExceptionMessageVO----------");
             if (CollectionUtils.isNotEmpty(exceptionInfoList)) {
                 Map<String, String> exceptionMessageMap = exceptionMessageList.stream().collect(Collectors.toMap(DelOutboundListExceptionMessageVO::getOrderNo, DelOutboundListExceptionMessageVO::getExceptionMessage));
                 for (ExceptionInfo exceptionInfo : exceptionInfoList) {
@@ -162,20 +170,42 @@ public class ExceptionInfoServiceImpl extends ServiceImpl<ExceptionInfoMapper, E
         return exceptionInfoList;
     }
 
-    private void handlerQueryCondition(QueryWrapper<ExceptionInfo> where, ExceptionInfoQueryDto dto) {
+    private void handlerQueryCondition(QueryWrapper<ExceptionInfo> where, ExceptionInfoQueryDto dto)  {
 
         QueryWrapperUtil.filter(where, SqlKeyword.EQ, "exception_type", dto.getExceptionType());
         QueryWrapperUtil.filter(where, SqlKeyword.EQ, "state", dto.getState());
         QueryWrapperUtil.filterDate(where, "create_time", dto.getCreateTimes());
-        if (CollectionUtils.isNotEmpty(dto.getExceptionNos())) {
-            where.in("exception_no", dto.getExceptionNos());
+        if (StringUtils.isNotEmpty(dto.getExceptionNos())) {
+            String  exceptionNo = null;
+            try {
+                exceptionNo = URLDecoder.decode(dto.getExceptionNos(),"UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
+            }
+            List<String> exceptionNoList = splitToArray(exceptionNo, "[\n,]");
+            where.in("exception_no", exceptionNoList).or().in("order_no",exceptionNoList);
         }
-        if (CollectionUtils.isNotEmpty(dto.getOrderNos())) {
-            where.in("order_no", dto.getOrderNos());
-        }
+//        if (CollectionUtils.isNotEmpty(dto.getOrderNos())) {
+//            where.in("order_no", dto.getOrderNos());
+//        }
         if (CollectionUtils.isNotEmpty(dto.getSellerCodes())){
             where.in("seller_code",dto.getSellerCodes());
         }
+    }
+
+    public static List<String> splitToArray(String text, String split) {
+        String[] arr = text.split(split);
+        if (arr.length == 0) {
+            return Collections.emptyList();
+        }
+        List<String> list = new ArrayList<>();
+        for (String s : arr) {
+            if (StringUtils.isEmpty(s)) {
+                continue;
+            }
+            list.add(s);
+        }
+        return list;
     }
 
     @Override
