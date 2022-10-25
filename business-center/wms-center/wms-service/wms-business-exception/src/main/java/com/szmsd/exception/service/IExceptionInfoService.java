@@ -71,7 +71,7 @@ public interface IExceptionInfoService extends IService<ExceptionInfo> {
      * @param exceptionInfo 模块
      * @return 结果
      */
-    int updateExceptionInfo(ExceptionInfoDto exceptionInfo);
+    int updateExceptionInfo(List<ExceptionInfoDto> exceptionInfo);
 
     /**
      * 批量删除模块
