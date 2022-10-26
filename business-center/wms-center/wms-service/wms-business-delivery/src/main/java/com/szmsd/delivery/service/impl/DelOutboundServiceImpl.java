@@ -24,10 +24,7 @@ import com.szmsd.bas.api.domain.dto.AttachmentDataDTO;
 import com.szmsd.bas.api.domain.dto.BasAttachmentQueryDTO;
 import com.szmsd.bas.api.domain.vo.BasRegionSelectListVO;
 import com.szmsd.bas.api.enums.AttachmentTypeEnum;
-import com.szmsd.bas.api.feign.BasFeignService;
-import com.szmsd.bas.api.feign.BasRegionFeignService;
-import com.szmsd.bas.api.feign.EmailFeingService;
-import com.szmsd.bas.api.feign.RemoteAttachmentService;
+import com.szmsd.bas.api.feign.*;
 import com.szmsd.bas.api.service.BasWarehouseClientService;
 import com.szmsd.bas.api.service.BaseProductClientService;
 import com.szmsd.bas.api.service.SerialNumberClientService;
@@ -39,11 +36,15 @@ import com.szmsd.bas.dto.BaseProductConditionQueryDto;
 import com.szmsd.bas.dto.EmailDto;
 import com.szmsd.bas.dto.EmailObjectDto;
 import com.szmsd.bas.plugin.vo.BasSubWrapperVO;
+import com.szmsd.bas.vo.BasSellerInfoVO;
+import com.szmsd.chargerules.api.feign.ChargeFeignService;
 import com.szmsd.chargerules.api.feign.OperationFeignService;
+import com.szmsd.chargerules.domain.BasProductService;
 import com.szmsd.common.core.constant.HttpStatus;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.exception.com.CommonException;
 import com.szmsd.common.core.exception.web.BaseException;
+import com.szmsd.common.core.utils.DateUtils;
 import com.szmsd.common.core.utils.StringUtils;
 import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.common.core.utils.bean.BeanUtils;
@@ -57,18 +58,8 @@ import com.szmsd.delivery.enums.DelOutboundOrderTypeEnum;
 import com.szmsd.delivery.enums.DelOutboundPackingTypeConstant;
 import com.szmsd.delivery.enums.DelOutboundStateEnum;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
-import com.szmsd.delivery.mapper.BasFileMapper;
-import com.szmsd.delivery.mapper.DelOutboundMapper;
-import com.szmsd.delivery.mapper.DelOutboundTarckErrorMapper;
-import com.szmsd.delivery.mapper.DelOutboundTarckOnMapper;
-import com.szmsd.delivery.service.IDelOutboundAddressService;
-import com.szmsd.delivery.service.IDelOutboundChargeService;
-import com.szmsd.delivery.service.IDelOutboundCombinationService;
-import com.szmsd.delivery.service.IDelOutboundCompletedService;
-import com.szmsd.delivery.service.IDelOutboundDetailService;
-import com.szmsd.delivery.service.IDelOutboundDocService;
-import com.szmsd.delivery.service.IDelOutboundPackingService;
-import com.szmsd.delivery.service.IDelOutboundService;
+import com.szmsd.delivery.mapper.*;
+import com.szmsd.delivery.service.*;
 import com.szmsd.delivery.service.wrapper.*;
 import com.szmsd.delivery.util.PackageInfo;
 import com.szmsd.delivery.util.PackageUtil;
@@ -88,13 +79,16 @@ import com.szmsd.delivery.vo.DelOutboundVO;
 import com.szmsd.finance.dto.QueryChargeDto;
 import com.szmsd.finance.vo.QueryChargeVO;
 import com.szmsd.http.api.feign.HtpOutboundFeignService;
+import com.szmsd.http.api.feign.HtpPricedProductFeignService;
 import com.szmsd.http.api.service.IHtpOutboundClientService;
 import com.szmsd.http.api.service.IHtpRmiClientService;
 import com.szmsd.http.dto.HttpRequestDto;
 import com.szmsd.http.dto.ShipmentCancelRequestDto;
+import com.szmsd.http.dto.ShipmentOrderResult;
 import com.szmsd.http.dto.ShipmentTrackingChangeRequestDto;
 import com.szmsd.http.enums.DomainEnum;
 import com.szmsd.http.vo.HttpResponseVO;
+import com.szmsd.http.vo.PricedProductInfo;
 import com.szmsd.http.vo.ResponseVO;
 import com.szmsd.inventory.api.service.InventoryFeignClientService;
 import com.szmsd.inventory.domain.dto.InventoryAvailableQueryDto;
@@ -218,6 +212,18 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     @Autowired
     private EmailFeingService emailFeingService;
 
+    @Autowired
+    private HtpPricedProductFeignService htpPricedProductFeignService;
+    @Resource
+    private ChargeFeignService chargeFeignService;
+    @Resource
+    private BasSellerFeignService basSellerFeignService;
+
+    @Autowired
+    private BasShipmenRulesService basShipmenRulesService;
+
+    @Autowired
+    private BasTrackingPushMapper basTrackingPushMapper;
     /**
      * 查询出库单模块
      *
@@ -683,6 +689,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                     || DelOutboundOrderTypeEnum.BATCH.getCode().equals(dto.getOrderType())
                     || DelOutboundOrderTypeEnum.DESTROY.getCode().equals(dto.getOrderType())) {
 
+
                 InventoryAvailableQueryDto inventoryAvailableQueryDto = new InventoryAvailableQueryDto();
                 String warehouseCode = dto.getWarehouseCode();
                 inventoryAvailableQueryDto.setWarehouseCode(warehouseCode);
@@ -730,6 +737,24 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                         }
                         if (outQty > vo.getAvailableInventory()) {
                             throw new CommonException("400", "SKU[" + sku + "]的包材[" + bindCode + "]库存数量不足，出库数量：" + outQty + "，库存数量：" + vo.getAvailableInventory());
+                        }
+                    }
+                }
+                if (DelOutboundOrderTypeEnum.NORMAL.getCode().equals(dto.getOrderType())
+                        || DelOutboundOrderTypeEnum.SELF_PICK.getCode().equals(dto.getOrderType())
+                        || DelOutboundOrderTypeEnum.DESTROY.getCode().equals(dto.getOrderType())) {
+
+                    //设置产品名称，英文名称，货物价值
+                    for (DelOutboundDetailDto detail : details) {
+                        BaseProduct product = productMap.get(detail.getSku());
+                        if(StringUtils.isEmpty(detail.getProductName())){
+                            detail.setProductName(product.getProductName());
+                        }
+                        if(StringUtils.isEmpty(detail.getProductName())){
+                            detail.setProductNameChinese(product.getProductNameChinese());
+                        }
+                        if(detail.getDeclaredValue() != null){
+                            detail.setDeclaredValue(product.getDeclaredValue());
                         }
                     }
                 }
@@ -790,6 +815,12 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             // DOC的验证SKU
             logger.info(">>>>>[创建出库单]2.0 doc校验");
             this.docValid(dto);
+
+
+
+
+
+
             logger.info(">>>>>[创建出库单]2.1 doc校验完成，{}", timer.intervalRestart());
 
             if (!StringUtils.equals(dto.getSourceType(), DelOutboundConstant.SOURCE_TYPE_ADD)) {
@@ -803,6 +834,25 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             if (null == delOutbound.getCodAmount()) {
                 delOutbound.setCodAmount(BigDecimal.ZERO);
             }
+
+            if(StringUtils.isNotEmpty(dto.getShipmentRule())){
+                //获取发货规则名称
+                R<PricedProductInfo> info = htpPricedProductFeignService.info(dto.getShipmentRule());
+                if(info.getCode() == 200 && info.getData() != null){
+                    delOutbound.setShipmentRuleName(info.getData().getName());
+                }
+                //校验产品服务是否可下单
+                R<List<BasProductService>> r= chargeFeignService.selectBasProductService(Arrays.asList(dto.getShipmentRule()));
+                if(r.getCode() == 200 && r.getData()!= null && r.getData().size() > 0){
+                    Boolean isInService = r.getData().get(0).getInService();
+                    if(isInService != null && isInService == false){
+                        throw new CommonException("400", "Logistics services are not available");
+                    }
+                }
+            }
+
+
+
             // 生成出库单号
             // 流水号规则：CK + 客户代码 + （年月日 + 8位流水）
             String sellerCode;
@@ -1237,6 +1287,22 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         //单数据处理直接抛异常
         this.checkRefNo(dto, dto.getId());
 
+        if(StringUtils.isNotEmpty(dto.getShipmentRule())){
+            //获取发货规则名称
+            R<PricedProductInfo> info = htpPricedProductFeignService.info(dto.getShipmentRule());
+            if(info.getCode() == 200 && info.getData() != null){
+                delOutbound.setShipmentRuleName(info.getData().getName());
+            }
+            //校验产品服务是否可下单
+            R<List<BasProductService>> r= chargeFeignService.selectBasProductService(Arrays.asList(dto.getShipmentRule()));
+            if(r.getCode() == 200 && r.getData()!= null && r.getData().size() > 0){
+                Boolean isInService = r.getData().get(0).getInService();
+                if(isInService != null && isInService == false){
+                    throw new CommonException("400", "Logistics services are not available");
+                }
+            }
+        }
+
         // 先取消冻结，再冻结
         // 取消冻结
         String orderNo = delOutbound.getOrderNo();
@@ -1462,12 +1528,14 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 delOutboundTarckOn.setUpdateTime(new Date());
                 delOutboundTarckOn.setTrackingNoNew(updateTrackingNoDto.getTrackingNo());
                 delOutboundTarckOnMapper.insertSelective(delOutboundTarckOn);
-                ShipmentTrackingChangeRequestDto shipmentTrackingChangeRequestDto=new ShipmentTrackingChangeRequestDto();
-                shipmentTrackingChangeRequestDto.setTrackingNo(updateTrackingNoDto.getTrackingNo());
-                shipmentTrackingChangeRequestDto.setOrderNo(delOutbound.getOrderNo());
-                shipmentTrackingChangeRequestDto.setWarehouseCode(delOutbound.getWarehouseCode());
+                BasTrackingPush basTrackingPush=new BasTrackingPush();
+                basTrackingPush.setTrackingNo(updateTrackingNoDto.getTrackingNo());
+                basTrackingPush.setOrderNo(delOutbound.getOrderNo());
+                basTrackingPush.setWarehouseCode(delOutbound.getWarehouseCode());
+                basTrackingPushMapper.insertSelective(basTrackingPush);
                 list1.add(updateTrackingNoDto);
-                R<ResponseVO> r= htpOutboundFeignService.shipmentTracking(shipmentTrackingChangeRequestDto);
+//                ShipmentTrackingChangeRequestDto
+//                R<ResponseVO> r= htpOutboundFeignService.shipmentTracking(shipmentTrackingChangeRequestDto);
             }else if (delOutbound==null){
                 b=b+1;
                 DelOutboundTarckError delOutboundTarckError=new DelOutboundTarckError();
@@ -1590,7 +1658,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                         delOutboundBatchUpdateTrackingNoEmailDto.setOrderNo(dto.getOrderNo());
                         delOutboundBatchUpdateTrackingNoEmailDto.setTrackingNo(dto.getTrackingNo());
                         int u = super.baseMapper.updateTrackingNo(delOutboundBatchUpdateTrackingNoEmailDto);
-                    manualTrackingYees(dto.getOrderNo());
+                    //manualTrackingYees(dto.getOrderNo());
 
 
                 }
@@ -1599,7 +1667,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                     delOutboundBatchUpdateTrackingNoEmailDto.setOrderNo(dto.getOrderNo());
                     delOutboundBatchUpdateTrackingNoEmailDto.setTrackingNo(dto.getTrackingNo());
                     int u = super.baseMapper.updateTrackingNo(delOutboundBatchUpdateTrackingNoEmailDto);
-                    manualTrackingYees(dto.getOrderNo());
+                    //manualTrackingYees(dto.getOrderNo());
                 }
 
             }
@@ -1638,7 +1706,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                     delOutboundBatchUpdateTrackingNoEmailDto.setTrackingNo(dto.getTrackingNo());
                     int u = super.baseMapper.updateTrackingNo(delOutboundBatchUpdateTrackingNoEmailDto);
 
-                    manualTrackingYees(dto.getOrderNo());
+                    //manualTrackingYees(dto.getOrderNo());
                 }
                 if (dto.getEmail()==null){
                     DelOutboundBatchUpdateTrackingNoEmailDto delOutboundBatchUpdateTrackingNoEmailDto=new DelOutboundBatchUpdateTrackingNoEmailDto();
@@ -1646,7 +1714,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                     delOutboundBatchUpdateTrackingNoEmailDto.setTrackingNo(dto.getTrackingNo());
                     int u = super.baseMapper.updateTrackingNo(delOutboundBatchUpdateTrackingNoEmailDto);
 
-                    manualTrackingYees(dto.getOrderNo());
+                    //manualTrackingYees(dto.getOrderNo());
                 }
             }
 
@@ -1684,7 +1752,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         list.forEach(x->{
             int u = super.baseMapper.updateTrackingNo(x);
 
-            manualTrackingYees(x.getOrderNo());
+            //manualTrackingYees(x.getOrderNo());
 
         });
 
@@ -2187,7 +2255,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 DelOutboundOperationLogEnum.HANDLER.listener(delOutbound);
                 if (DelOutboundStateEnum.WHSE_COMPLETED.getCode().equals(delOutbound.getState())) {
                     // 仓库发货，调用完成的接口
-                    this.delOutboundAsyncService.completed(delOutbound.getOrderNo());
+                    this.delOutboundAsyncService.completed(delOutbound.getOrderNo(), null);
                     result++;
                 } else if (DelOutboundStateEnum.WHSE_CANCELLED.getCode().equals(delOutbound.getState())) {
                     // 仓库取消，调用取消的接口
@@ -2213,7 +2281,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         int result;
         if (DelOutboundStateEnum.WHSE_COMPLETED.getCode().equals(delOutbound.getState())) {
             // 仓库发货，调用完成的接口
-            this.delOutboundAsyncService.completed(delOutbound.getOrderNo());
+            this.delOutboundAsyncService.completed(delOutbound.getOrderNo(), null);
             result = 1;
         } else if (DelOutboundStateEnum.WHSE_CANCELLED.getCode().equals(delOutbound.getState())) {
             // 仓库取消，调用取消的接口
@@ -2449,6 +2517,113 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         List<DelOutboundTarckError> list=delOutboundTarckErrorMapper.selectByPrimaryKey();
         delOutboundTarckErrorMapper.deleteByPrimaryKey();
         return list;
+    }
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void carrierRegister(DelOutbound delOutbound) {
+        //查询最新的挂号数据
+        try {
+            R<ShipmentOrderResult> r = htpOutboundFeignService.shipmentOrderRealResult(String.valueOf(delOutbound.getId()));
+            if (r.getCode() == 200 && r.getData() != null) {
+                if(!r.getData().getSuccess()){
+                    throw new RuntimeException(r.getData().getError().getMessage());
+                }
+                ShipmentOrderResult data = r.getData();
+                if (!StringUtils.equals(delOutbound.getTrackingNo(), data.getMainTrackingNumber())) {
+                    //新老挂号不一样，更新数据库
+                    DelOutbound dataDelOutbound = this.getById(delOutbound.getId());
+                    dataDelOutbound.setTrackingNo(data.getMainTrackingNumber());
+                    this.updateById(dataDelOutbound);
+
+
+                    //新增挂号修改记录
+                    DelOutboundTarckOn delOutboundTarckOn = new DelOutboundTarckOn();
+                    delOutboundTarckOn.setOrderNo(dataDelOutbound.getOrderNo());
+                    delOutboundTarckOn.setTrackingNo(delOutbound.getTrackingNo());
+                    delOutboundTarckOn.setUpdateTime(new Date());
+                    delOutboundTarckOn.setTrackingNoNew(data.getMainTrackingNumber());
+                    delOutboundTarckOnMapper.insertSelective(delOutboundTarckOn);
+
+
+                    List<String> orders = new ArrayList<String>();
+                    orders.add(dataDelOutbound.getOrderNo());
+                    // 推送ty系统
+                    manualTrackingYee(orders);
+
+
+                    //推邮箱
+                    R<BasSellerInfoVO> info = basSellerFeignService.getInfoBySellerCode(dataDelOutbound.getSellerCode());
+                    if(info.getData() == null) {
+                        throw new RuntimeException("客户信息获取失败");
+                    }
+                    BasSellerInfoVO userInfo = R.getDataAndException(info);
+
+                    EmailDto emailDto=new EmailDto();
+                    emailDto.setModularType(1);
+                    emailDto.setTo(userInfo.getEmail());
+                    EmailObjectDto emailDtoDetail=new EmailObjectDto();
+                    emailDtoDetail.setCustomCode(dataDelOutbound.getSellerCode());
+                    emailDtoDetail.setOrderNo(dataDelOutbound.getOrderNo());
+                    emailDtoDetail.setServiceManagerName(userInfo.getServiceManagerName());
+                    emailDtoDetail.setServiceStaffName(userInfo.getServiceStaffName());
+                    emailDtoDetail.setNoTrackingNo(delOutbound.getTrackingNo());
+                    emailDtoDetail.setTrackingNo(data.getMainTrackingNumber());
+                    emailDto.setList(Arrays.asList(emailDtoDetail));
+                    emailFeingService.sendEmail(emailDto);
+
+
+                }
+            }
+        }catch (Exception e){
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean serviceChannelNamePushWMS(DelOutbound delOutbound, DelOutbound updateDelOutbound) {
+
+
+        BasShipmentRulesDto paramBasShipmentRulesDto = new BasShipmentRulesDto();
+        paramBasShipmentRulesDto.setCustomCode(delOutbound.getSellerCode());
+        paramBasShipmentRulesDto.setServiceChannelName(delOutbound.getShipmentService());
+        paramBasShipmentRulesDto.setDelFlag("1");
+        List<BasShipmentRules> list = basShipmenRulesService.selectBasShipmentRules(paramBasShipmentRulesDto);
+        if(list.isEmpty()){
+            return false;
+        }
+
+        //直接变成仓库发货状态
+        updateDelOutbound.setState(DelOutboundStateEnum.WHSE_COMPLETED.getCode());
+        updateDelOutbound.setExceptionState(DelOutboundExceptionStateEnum.NORMAL.getCode());
+        // 清空异常信息
+        updateDelOutbound.setExceptionMessage("");
+        // 设置提审时间
+        updateDelOutbound.setBringVerifyTime(new Date());
+
+
+
+        updateDelOutbound.setOperationTime(new Date());
+        updateDelOutbound.setOperationType(DelOutboundOperationTypeEnum.SHIPPED.getCode());
+
+        this.updateById(updateDelOutbound);
+        // 增加出库单已完成记录，异步处理，定时任务
+
+        Date pushDate = DateUtils.parseDate(DateUtil.format(new Date(), "yyyy-MM-dd") + " " + list.get(0).getPushDate());
+        if(pushDate.getTime() > System.currentTimeMillis()){
+            //推送时间大于当前时间的明日推送
+            pushDate = DateUtils.parseDate(DateUtil.format(tomorrow(new Date()), "yyyy-MM-dd") + " " + list.get(0).getPushDate());
+        }
+        this.delOutboundCompletedService.add(delOutbound.getOrderNo(), DelOutboundOperationTypeEnum.SHIPPED.getCode(), pushDate);
+
+        return true;
+    }
+    public static Date tomorrow(Date today) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(today);
+        calendar.set(Calendar.DATE, calendar.get(Calendar.DATE) + 1);
+        return calendar.getTime();
     }
 
     public static List<String> splitToArray(String text, String split) {
