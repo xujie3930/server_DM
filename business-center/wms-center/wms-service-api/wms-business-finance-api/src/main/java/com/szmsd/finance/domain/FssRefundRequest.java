@@ -208,6 +208,11 @@ public class FssRefundRequest extends BaseEntity {
     @Excel(name = "审核驳回原因")
     private String reviewRemark;
 
+    @ApiModelProperty(value = "附注")
+    @Excel(name = "附注")
+    private String noteAppended;
+
+
 
     @ApiModelProperty(value = "跟踪号")
     @TableField(exist = false)
@@ -217,5 +222,23 @@ public class FssRefundRequest extends BaseEntity {
     @ApiModelProperty(value = "产品代码")
     @TableField(exist = false)
     private String shipmentRule;
+
+    @ApiModelProperty(value = "计费重")
+    @TableField(exist = false)
+    private BigDecimal calcWeight;
+
+    @ApiModelProperty(value = "实重")
+    @TableField(exist = false)
+    private Double weight;
+
+    @ApiModelProperty(value = "尺寸")
+    @TableField(exist = false)
+    private String specifications;
+
+    @ApiModelProperty(value = "创建时间")
+    @TableField(exist = false)
+    private Date delOucreateTime;
+
+
 
 }

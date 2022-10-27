@@ -334,6 +334,27 @@ public class ExceptionInfoServiceImpl extends ServiceImpl<ExceptionInfoMapper, E
         super.update(exceptionInfo, updateWrapper);
     }
 
+    @Override
+    public void processByOrderNo(@RequestBody ProcessExceptionOrderRequest processExceptionRequest) {
+        QueryWrapper<ExceptionInfo> queryWrapper = new QueryWrapper();
+        queryWrapper.eq("order_no", processExceptionRequest.getOrderNo());
+        if (super.count(queryWrapper) == 0) {
+            return;
+        }
+        String operationOn = processExceptionRequest.getOperateOn();
+        processExceptionRequest.setOperateOn(null);
+        ExceptionInfo exceptionInfo = BeanMapperUtil.map(processExceptionRequest, ExceptionInfo.class);
+        if (StringUtils.isNotEmpty(operationOn)) {
+            Date d = dealUTZTime(operationOn);
+            exceptionInfo.setOperateOn(d);
+        }
+        exceptionInfo.setSolveRemark(processExceptionRequest.getRemark());
+        exceptionInfo.setState(StateSubEnum.YIWANCHENG.getCode());
+        UpdateWrapper<ExceptionInfo> updateWrapper = new UpdateWrapper<>();
+        updateWrapper.eq("order_no", processExceptionRequest.getOrderNo());
+        super.update(exceptionInfo, updateWrapper);
+    }
+
     /**
      * 修改模块
      *
@@ -341,43 +362,47 @@ public class ExceptionInfoServiceImpl extends ServiceImpl<ExceptionInfoMapper, E
      * @return 结果
      */
     @Override
-    public int updateExceptionInfo(ExceptionInfoDto exceptionInfo) {
-        ExceptionInfo exception = super.getById(exceptionInfo.getId());
-        ExceptionProcessRequest exceptionProcessRequest = BeanMapperUtil.map(exceptionInfo, ExceptionProcessRequest.class);
-        exceptionProcessRequest.setWarehouseCode(exception.getWarehouseCode());
-        exceptionProcessRequest.setExceptionNo(exception.getExceptionNo());
-        if (exceptionInfo.getProcessType().equals(ProcessTypeEnum.GOONSHIPPING.getCode())) {
-            try {
-                DelOutboundFurtherHandlerDto delOutboundFurtherHandlerDto = new DelOutboundFurtherHandlerDto();
-                delOutboundFurtherHandlerDto.setOrderNo(exception.getOrderNo());
-                delOutboundClientService.furtherHandler(delOutboundFurtherHandlerDto);
-            } catch (Exception e) {
-                log.info(exception.getOrderNo());
+    public int updateExceptionInfo(List<ExceptionInfoDto> exceptionInfo) {
+
+        for (int i=0;i<exceptionInfo.size();i++) {
+            ExceptionInfo exception = super.getById(exceptionInfo.get(i).getId());
+            ExceptionProcessRequest exceptionProcessRequest = BeanMapperUtil.map(exceptionInfo, ExceptionProcessRequest.class);
+            exceptionProcessRequest.setWarehouseCode(exception.getWarehouseCode());
+            exceptionProcessRequest.setExceptionNo(exception.getExceptionNo());
+            if (exceptionInfo.get(i).getProcessType().equals(ProcessTypeEnum.GOONSHIPPING.getCode())) {
+                try {
+                    DelOutboundFurtherHandlerDto delOutboundFurtherHandlerDto = new DelOutboundFurtherHandlerDto();
+                    delOutboundFurtherHandlerDto.setOrderNo(exception.getOrderNo());
+                    delOutboundClientService.furtherHandler(delOutboundFurtherHandlerDto);
+                } catch (Exception e) {
+                    log.info(exception.getOrderNo());
+                }
             }
-        }
-        R<ResponseVO> r = htpExceptionFeignService.processing(exceptionProcessRequest);
-        if (r == null) {
-            throw new BaseException("wms服务调用失败");
-        }
-        if (r.getData() == null) {
-            throw new BaseException("wms服务调用失败");
-        }
-        if (r.getData().getSuccess() == null) {
-            if (r.getData().getErrors() != null) {
-                throw new BaseException("传wms失败" + r.getData().getErrors());
+            R<ResponseVO> r = htpExceptionFeignService.processing(exceptionProcessRequest);
+            if (r == null) {
+                throw new BaseException("wms服务调用失败");
             }
-        } else {
-            if (!r.getData().getSuccess()) {
-                throw new BaseException("传wms失败" + r.getData().getMessage());
+            if (r.getData() == null) {
+                throw new BaseException("wms服务调用失败");
             }
+            if (r.getData().getSuccess() == null) {
+                if (r.getData().getErrors() != null) {
+                    throw new BaseException("传wms失败" + r.getData().getErrors());
+                }
+            } else {
+                if (!r.getData().getSuccess()) {
+                    throw new BaseException("传wms失败" + r.getData().getMessage());
+                }
+            }
+            exceptionInfo.get(i).setProcessTypeName(ProcessTypeEnum.get(exceptionInfo.get(i).getProcessType()).getName());
+            exceptionInfo.get(i).setState(StateSubEnum.YICHULI.getCode());
+            if (CollectionUtils.isNotEmpty(exceptionInfo.get(i).getDocumentsFiles())) {
+                AttachmentDTO attachmentDTO = AttachmentDTO.builder().businessNo(exception.getExceptionNo()).businessItemNo(null).fileList(exceptionInfo.get(i).getDocumentsFiles()).attachmentTypeEnum(AttachmentTypeEnum.EXCEPTION_DOCUMENT).build();
+                this.remoteAttachmentService.saveAndUpdate(attachmentDTO);
+            }
+            int a= baseMapper.updateById(exceptionInfo.get(i));
         }
-        exceptionInfo.setProcessTypeName(ProcessTypeEnum.get(exceptionInfo.getProcessType()).getName());
-        exceptionInfo.setState(StateSubEnum.YICHULI.getCode());
-        if (CollectionUtils.isNotEmpty(exceptionInfo.getDocumentsFiles())) {
-            AttachmentDTO attachmentDTO = AttachmentDTO.builder().businessNo(exception.getExceptionNo()).businessItemNo(null).fileList(exceptionInfo.getDocumentsFiles()).attachmentTypeEnum(AttachmentTypeEnum.EXCEPTION_DOCUMENT).build();
-            this.remoteAttachmentService.saveAndUpdate(attachmentDTO);
-        }
-        return baseMapper.updateById(exceptionInfo);
+        return 1;
     }
 
     /**
@@ -440,6 +465,7 @@ public class ExceptionInfoServiceImpl extends ServiceImpl<ExceptionInfoMapper, E
             addressDto.setCity(dto.getCity());
             addressDto.setStateOrProvince(dto.getStateOrProvince());
             addressDto.setCountryCode(countryCode);
+            //汪俊余说Country都传英文名
             addressDto.setCountry(dto.getCountry());
             addressDto.setPostCode(dto.getPostCode());
             addressDto.setPhoneNo(dto.getPhoneNo());

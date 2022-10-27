@@ -1,11 +1,14 @@
 package com.szmsd.finance.service.impl;
 
+import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.szmsd.common.core.constant.HttpStatus;
+import com.szmsd.common.core.utils.DateUtils;
 import com.szmsd.common.core.utils.bean.BeanMapperUtil;
+import com.szmsd.common.core.utils.poi.ExcelUtil;
 import com.szmsd.common.core.web.page.TableDataInfo;
 import com.szmsd.common.security.utils.SecurityUtils;
 import com.szmsd.delivery.api.feign.DelOutboundFeignService;
@@ -13,11 +16,17 @@ import com.szmsd.delivery.domain.DelOutbound;
 import com.szmsd.delivery.dto.DelOutboundListQueryDto;
 import com.szmsd.delivery.vo.DelOutboundListVO;
 import com.szmsd.finance.domain.AccountSerialBill;
+import com.szmsd.finance.domain.AccountSerialBillTotalVO;
+import com.szmsd.finance.domain.ChargeRelation;
+import com.szmsd.finance.dto.AccountBalanceBillCurrencyVO;
 import com.szmsd.finance.dto.AccountSerialBillDTO;
+import com.szmsd.finance.dto.AccountSerialBillNatureDTO;
 import com.szmsd.finance.dto.CustPayDTO;
 import com.szmsd.finance.mapper.AccountSerialBillMapper;
+import com.szmsd.finance.mapper.ChargeRelationMapper;
 import com.szmsd.finance.service.IAccountSerialBillService;
 import com.szmsd.finance.service.ISysDictDataService;
+import com.szmsd.finance.vo.AccountSerialBillExcelVO;
 import com.szmsd.putinstorage.api.feign.InboundReceiptFeignService;
 import com.szmsd.putinstorage.domain.dto.InboundReceiptQueryDTO;
 import com.szmsd.putinstorage.domain.vo.InboundReceiptVO;
@@ -27,6 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletResponse;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -41,6 +51,9 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
 
     @Resource
     private ISysDictDataService sysDictDataService;
+
+    @Resource
+    private ChargeRelationMapper chargeRelationMapper;
 
     @Override
 //    @DataScope("cus_code")
@@ -86,6 +99,26 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
                 dto.setCusCode(cusCode);
             }
         }
+
+        if(StringUtils.isNotBlank(dto.getCreateTimeStart())) {
+            String billStartTime = dto.getCreateTimeStart() + " 00:00:00";
+            dto.setCreateTimeStart(billStartTime);
+        }
+
+        if(StringUtils.isNotBlank(dto.getCreateTimeEnd())) {
+            String billEndTime = dto.getCreateTimeEnd() + " 23:59:59";
+            dto.setCreateTimeEnd(billEndTime);
+        }
+
+        if(StringUtils.isNotBlank(dto.getPaymentTimeStart())) {
+            String billStartTime = dto.getPaymentTimeStart() + " 00:00:00";
+            dto.setPaymentTimeStart(billStartTime);
+        }
+        if(StringUtils.isNotBlank(dto.getPaymentTimeEnd())) {
+            String billEndTime = dto.getPaymentTimeEnd() + " 23:59:59";
+            dto.setPaymentTimeEnd(billEndTime);
+        }
+
         List<AccountSerialBill> accountSerialBills = accountSerialBillMapper.selectPageList(dto);
         // 修改下单时间等信息
         showProcess(accountSerialBills);
@@ -204,10 +237,12 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
     @Override
     public int add(AccountSerialBillDTO dto) {
         AccountSerialBill accountSerialBill = BeanMapperUtil.map(dto, AccountSerialBill.class);
-        if (StringUtils.isBlank(accountSerialBill.getWarehouseName()))
+        if (StringUtils.isBlank(accountSerialBill.getWarehouseName())) {
             accountSerialBill.setWarehouseName(sysDictDataService.getWarehouseNameByCode(accountSerialBill.getWarehouseCode()));
-        if (StringUtils.isBlank(accountSerialBill.getCurrencyName()))
+        }
+        if (StringUtils.isBlank(accountSerialBill.getCurrencyName())) {
             accountSerialBill.setCurrencyName(sysDictDataService.getCurrencyNameByCode(dto.getCurrencyCode()));
+        }
         accountSerialBill.setBusinessCategory(accountSerialBill.getChargeCategory());//性质列内容，同费用类别
         //单号不为空的时候
         if (StringUtils.isNotBlank(dto.getNo())){
@@ -221,11 +256,20 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
                    accountSerialBill.setSpecifications(delOutbound.getSpecifications());
                }
            }
-
-
-
         }
+
+        String serialNumber = this.createSerialNumber();
+        accountSerialBill.setSerialNumber(serialNumber);
+
         return accountSerialBillMapper.insert(accountSerialBill);
+    }
+
+    private String createSerialNumber(){
+
+        String s = DateUtils.dateTime();
+        String randomNums = RandomUtil.randomNumbers(8);
+
+        return s + randomNums;
     }
 
     @Override
@@ -252,6 +296,10 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
                     }
                 }
             }
+
+            String serialNumber = this.createSerialNumber();
+            value.setSerialNumber(serialNumber);
+
             return value;
         }).collect(Collectors.toList());
         boolean b = this.saveBatch(collect);
@@ -285,4 +333,128 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
 
         return flag;
     }
+
+    @Override
+    public void executeSerialBillNature() {
+
+        List<AccountSerialBillNatureDTO> accountSerialBillDTOList = accountSerialBillMapper.selectBillOutbount();
+
+        for(AccountSerialBillNatureDTO billNatureDTO : accountSerialBillDTOList){
+
+            String chargeCategory = billNatureDTO.getChargeCategory();
+            String businessCategory = billNatureDTO.getBusinessCategory();
+            String orderType = billNatureDTO.getOrderType();
+            Long id = billNatureDTO.getId();
+
+            if(StringUtils.isBlank(businessCategory) || StringUtils.isBlank(orderType)){
+                continue;
+            }
+
+            List<ChargeRelation> chargeRelationList = chargeRelationMapper.findChargeRelation(businessCategory,orderType);
+
+            if(CollectionUtils.isNotEmpty(chargeRelationList)){
+
+                ChargeRelation chargeRelation = chargeRelationList.get(0);
+
+                AccountSerialBill accountSerialBill = new AccountSerialBill();
+                accountSerialBill.setId(id);
+                accountSerialBill.setNature(chargeRelation.getNature());
+                accountSerialBill.setBusinessType(chargeRelation.getBusinessType());
+                accountSerialBill.setChargeCategoryChange(chargeRelation.getChargeCategoryChange());
+
+                accountSerialBillMapper.updateById(accountSerialBill);
+            }
+        }
+
+    }
+
+    @Override
+    public List<AccountBalanceBillCurrencyVO> findBillCurrencyData(AccountSerialBillDTO dto) {
+
+        if (Objects.nonNull(SecurityUtils.getLoginUser())) {
+            String cusCode = StringUtils.isNotEmpty(SecurityUtils.getLoginUser().getSellerCode()) ? SecurityUtils.getLoginUser().getSellerCode() : "";
+            if (com.szmsd.common.core.utils.StringUtils.isEmpty(dto.getCusCode())) {
+                dto.setCusCode(cusCode);
+            }
+        }
+
+        if(StringUtils.isNotBlank(dto.getCreateTimeStart())) {
+            String billStartTime = dto.getCreateTimeStart() + " 00:00:00";
+            dto.setCreateTimeStart(billStartTime);
+        }
+
+        if(StringUtils.isNotBlank(dto.getCreateTimeEnd())) {
+            String billEndTime = dto.getCreateTimeEnd() + " 23:59:59";
+            dto.setCreateTimeEnd(billEndTime);
+        }
+
+        if(StringUtils.isNotBlank(dto.getPaymentTimeStart())) {
+            String billStartTime = dto.getPaymentTimeStart() + " 00:00:00";
+            dto.setPaymentTimeStart(billStartTime);
+        }
+        if(StringUtils.isNotBlank(dto.getPaymentTimeEnd())) {
+            String billEndTime = dto.getPaymentTimeEnd() + " 23:59:59";
+            dto.setPaymentTimeEnd(billEndTime);
+        }
+
+        return accountSerialBillMapper.findBillCurrencyData(dto);
+    }
+
+    @Override
+    public void exportBillTotal(HttpServletResponse response, AccountSerialBillDTO dto) {
+
+        if(StringUtils.isNotBlank(dto.getCreateTimeStart())) {
+            String billStartTime = dto.getCreateTimeStart() + " 00:00:00";
+            dto.setCreateTimeStart(billStartTime);
+        }
+
+        if(StringUtils.isNotBlank(dto.getCreateTimeEnd())) {
+            String billEndTime = dto.getCreateTimeEnd() + " 23:59:59";
+            dto.setCreateTimeEnd(billEndTime);
+        }
+
+        if(StringUtils.isNotBlank(dto.getPaymentTimeStart())) {
+            String billStartTime = dto.getPaymentTimeStart() + " 00:00:00";
+            dto.setPaymentTimeStart(billStartTime);
+        }
+        if(StringUtils.isNotBlank(dto.getPaymentTimeEnd())) {
+            String billEndTime = dto.getPaymentTimeEnd() + " 23:59:59";
+            dto.setPaymentTimeEnd(billEndTime);
+        }
+
+        List<AccountSerialBillTotalVO> accountSerialBillTotalVOS = accountSerialBillMapper.selectBillTotal(dto);
+
+        ExcelUtil<AccountSerialBillTotalVO> util = new ExcelUtil<>(AccountSerialBillTotalVO.class);
+        util.exportExcel(response,accountSerialBillTotalVOS,"业务明细汇总");
+
+    }
+
+    @Override
+    public List<AccountSerialBillExcelVO> exportData(AccountSerialBillDTO dto) {
+
+        if(StringUtils.isNotBlank(dto.getCreateTimeStart())) {
+            String billStartTime = dto.getCreateTimeStart() + " 00:00:00";
+            dto.setCreateTimeStart(billStartTime);
+        }
+
+        if(StringUtils.isNotBlank(dto.getCreateTimeEnd())) {
+            String billEndTime = dto.getCreateTimeEnd() + " 23:59:59";
+            dto.setCreateTimeEnd(billEndTime);
+        }
+
+        if(StringUtils.isNotBlank(dto.getPaymentTimeStart())) {
+            String billStartTime = dto.getPaymentTimeStart() + " 00:00:00";
+            dto.setPaymentTimeStart(billStartTime);
+        }
+        if(StringUtils.isNotBlank(dto.getPaymentTimeEnd())) {
+            String billEndTime = dto.getPaymentTimeEnd() + " 23:59:59";
+            dto.setPaymentTimeEnd(billEndTime);
+        }
+
+        List<AccountSerialBillExcelVO> accountSerialBillTotalVOS = accountSerialBillMapper.exportData(dto);
+
+        return accountSerialBillTotalVOS;
+    }
+
+
 }

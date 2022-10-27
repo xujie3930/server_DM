@@ -52,6 +52,11 @@ public class DelOutboundOpenController extends BaseController {
     @Resource
     private DelOutboundTransferTimer delOutboundTransferTimer;
 
+//    @Resource
+//    private DelOutboundCarrierTimer delOutboundCarrierTimer;
+
+
+
     @Log(title = "出库单模块", businessType = BusinessType.UPDATE)
     @PostMapping("/shipment")
     @ApiOperation(value = "出库管理 - Open - #D1 接收出库单状态", position = 100)
@@ -122,4 +127,10 @@ public class DelOutboundOpenController extends BaseController {
         delOutboundTransferTimer.processing2();
         return R.ok("通知订单执行WMS任务完成");
     }
+
+    /*@PostMapping(value = "/delOutboundCarrierTimer")
+    public R<String> delOutboundCarrierTimer() {
+        delOutboundCarrierTimer.process();
+        return R.ok("通知挂号更新服务");
+    }*/
 }

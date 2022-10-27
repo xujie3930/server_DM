@@ -2,6 +2,64 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.szmsd.finance.mapper.AccountSerialBillMapper">
 
+    <resultMap id="DirectDeliveryVOMap" type="com.szmsd.finance.vo.BillDirectDeliveryTotalVO">
+        <result column="cus_code" property="cusCode"/>
+        <result column="business_category" property="businessCategory"/>
+        <result column="calc_weight" property="calcWeight"/>
+        <result column="create_time" property="createTime"/>
+        <result column="currency_code" property="currencyCode"/>
+        <result column="destination_delivery" property="destinationDelivery"/>
+        <result column="no" property="orderNo"/>
+        <result column="tracking_no" property="trackingNo"/>
+        <result column="specifications" property="specifications"/>
+        <result column="ref_no" property="refNo"/>
+        <result column="order_type" property="orderType"/>
+        <result column="warehouse_code" property="warehouseCode"/>
+        <result column="product_name" property="productName"/>
+        <result column="sku" property="sku"/>
+        <result column="weight" property="weight"/>
+        <result column="forecast_weight" property="forecastWeight"/>
+        <result column="total_amount" property="totalAmount"/>
+        <result column="freight_fee" property="freightFee"/>
+        <result column="warehouse_fee" property="warehouseFee"/>
+        <result column="ex_warehourse_fee" property="exWarehourseFee"/>
+        <result column="package_fee" property="packageFee"/>
+        <result column="hander_fee" property="handerFee"/>
+        <result column="remote_fee" property="remoteFee"/>
+        <result column="fuel_fee" property="fuelFee"/>
+        <result column="return_fee" property="returnFee"/>
+        <result column="package_destrue_fee" property="packageDestrueFee"/>
+        <result column="other_fee" property="otherFee"/>
+        <result column="payment_time" property="paymentTime"/>
+        <result column="country" property="country"/>
+        <result column="shipment_rule" property="shipmentRule"/>
+        <result column="shipment_service" property="shipmentService"/>
+        <result column="shipment_rule_name" property="shipmentRuleName"/>
+        <result column="calc_weight_unit" property="calcWeightUnit"/>
+    </resultMap>
+
+    <resultMap id="AccountSerialBillExcelVOMap" type="com.szmsd.finance.vo.AccountSerialBillExcelVO">
+        <result column="cus_code" property="cusCode"/>
+        <result column="business_category" property="businessCategory"/>
+        <result column="calc_weight" property="calcWeight"/>
+        <result column="tracking_no" property="trackingNo"/>
+        <result column="specifications" property="specifications"/>
+        <result column="ref_no" property="refNo"/>
+        <result column="warehouse_code" property="warehouseCode"/>
+        <result column="weight" property="weight"/>
+        <result column="payment_time" property="paymentTime"/>
+        <result column="shipment_rule" property="shipmentRule"/>
+        <result column="shipment_rule_name" property="shipmentRuleName"/>
+        <result column="nature" property="nature"/>
+        <result column="remark" property="remark"/>
+        <result column="serial_number" property="serialNumber"/>
+        <result column="currency_name" property="currencyName"/>
+        <result column="amount" property="amount"/>
+        <result column="charge_category" property="chargeCategory"/>
+        <result column="charge_type" property="chargeType"/>
+
+    </resultMap>
+
     <select id="selectPageList" resultType="com.szmsd.finance.domain.AccountSerialBill" parameterType="com.szmsd.finance.dto.AccountSerialBillDTO">
 
         SELECT
@@ -9,70 +67,493 @@
         a.warehouse_code,a.warehouse_name,a.pay_method,a.business_category,a.product_code,a.product_category,
         a.charge_category,a.charge_type,a.create_by_name,a.create_time,a.update_by_name,a.update_time,
         a.create_by,a.update_by,a.remark,a.order_time,a.payment_time,a.ref_no,a.shipment_service,a.weight,
-        a.calc_weight,a.specifications
+        a.calc_weight,a.specifications,a.nature
 
-        FROM
-        `fss_account_serial_bill` a
-
-        <where>
-        1=1
-<!--        <if test="cusCode != null  and cusCode!=''">-->
-<!--        and a.cus_code=#{cusCode}-->
-<!--        </if>-->
-        <if test="noList != null  and noList.size()>0">
-            and a.no IN
-            <foreach collection="noList" item="item" index="i" open="(" close=")" separator=",">
-                #{item}
-            </foreach>
-        </if>
-        <if test="cusCodeList != null  and cusCodeList.size()>0">
-          and a.cus_code IN
-         <foreach collection="cusCodeList" item="item" index="i" open="(" close=")" separator=",">
-                    #{item}
-           </foreach>
-        </if>
-       <if test="productCodeList != null  and productCodeList.size()>0">
-                and a.product_code IN
-          <foreach collection="productCodeList" item="item" index="i" open="(" close=")" separator=",">
-                    #{item}
-           </foreach>
-       </if>
-
-       <if test="chargeType != null  and chargeType!=''">
-                and a.charge_type =#{chargeType}
-        </if>
-        <if test="warehouseCode != null  and warehouseCode!=''">
-                and a.warehouse_code =#{warehouseCode}
-          </if>
-
-         <if test="currencyCode != null  and currencyCode!=''">
-                and a.currency_code =#{currencyCode}
-         </if>
-        <if test="businessCategory != null  and businessCategory!=''">
-            and a.business_category =#{businessCategory}
-        </if>
-        <if test="productCategory != null  and productCategory!=''">
-            and a.product_category =#{productCategory}
-        </if>
-        <if test="chargeCategory != null  and chargeCategory!=''">
-            and a.charge_category =#{chargeCategory}
-        </if>
-        <if test="createTimeStart != null  and createTimeStart!=''">
-            and date_format(a.create_time,'%y%m%d') &gt;= date_format(#{createTimeStart},'%y%m%d')
-
-        </if>
-        <if test="createTimeEnd != null  and createTimeEnd!=''">
-            and date_format(a.create_time,'%y%m%d') &lt;= date_format(#{createTimeEnd},'%y%m%d')
-        </if>
-        <if test="ids != null  and ids!=''">
-            and FIND_IN_SET(a.id,#{ids})
-        </if>
-        </where>
+        FROM `fss_account_serial_bill` a
+        <include refid="SelectSerialBillWhere"/>
         ORDER BY a.payment_time DESC
     </select>
+
+    <sql id="SelectSerialBillWhere">
+
+        <where>
+            <if test="noList != null  and noList.size()>0">
+                and a.no IN
+                <foreach collection="noList" item="item" index="i" open="(" close=")" separator=",">
+                    #{item}
+                </foreach>
+            </if>
+            <if test="cusCodeList != null  and cusCodeList.size()>0">
+                and a.cus_code IN
+                <foreach collection="cusCodeList" item="item" index="i" open="(" close=")" separator=",">
+                    #{item}
+                </foreach>
+            </if>
+            <if test="productCodeList != null  and productCodeList.size()>0">
+                and a.product_code IN
+                <foreach collection="productCodeList" item="item" index="i" open="(" close=")" separator=",">
+                    #{item}
+                </foreach>
+            </if>
+
+            <if test="chargeType != null  and chargeType!=''">
+                and a.charge_type = #{chargeType}
+            </if>
+            <if test="warehouseCode != null  and warehouseCode!=''">
+                and a.warehouse_code = #{warehouseCode}
+            </if>
+
+            <if test="currencyCode != null  and currencyCode!=''">
+                and a.currency_code = #{currencyCode}
+            </if>
+            <if test="businessCategory != null  and businessCategory!=''">
+                and a.business_category = #{businessCategory}
+            </if>
+            <if test="productCategory != null  and productCategory!=''">
+                and a.product_category = #{productCategory}
+            </if>
+            <if test="chargeCategory != null  and chargeCategory!=''">
+                and a.charge_category = #{chargeCategory}
+            </if>
+            <if test="createTimeStart != null  and createTimeStart!=''">
+                and a.create_time <![CDATA[ >= ]]> #{createTimeStart}
+            </if>
+            <if test="createTimeEnd != null  and createTimeEnd!=''">
+                and a.create_time <![CDATA[ <= ]]> #{createTimeEnd}
+            </if>
+
+            <if test="paymentTimeStart != null  and paymentTimeStart!=''">
+                and a.payment_time <![CDATA[ >= ]]> #{paymentTimeStart}
+            </if>
+            <if test="paymentTimeEnd != null  and paymentTimeEnd!=''">
+                and a.payment_time <![CDATA[ <= ]]> #{paymentTimeEnd}
+            </if>
+
+            <if test="ids != null  and ids!=''">
+                and FIND_IN_SET(a.id,#{ids})
+            </if>
+        </where>
+
+    </sql>
+
+
     <select id="selectDelOutbound" resultType="com.szmsd.delivery.domain.DelOutbound"
             parameterType="java.lang.String">
         select * from del_outbound where order_no=#{no} LIMIT 0,1
+
+    </select>
+
+    <select id="findAccountBillResultData" resultType="com.szmsd.finance.dto.AccountBalanceBillResultDTO" parameterType="com.szmsd.finance.vo.EleBillQueryVO">
+
+        select FASB.cus_code as cusCode,FASB.currency_code as currencyCode,
+               <!--本期收入-->
+            sum(
+                case when
+                (
+                FASB.pay_method in ('ONLINE_INCOME','OFFLINE_INCOME','EXCHANGE_INCOME')
+                or FASB.business_category in ('优惠','赔偿','退费')
+                )
+                then abs(FASB.amount) else 0 end
+            ) as currentIncomeAmount,
+
+                <!--本期支出-->
+            sum(
+                case when
+                (
+                FASB.pay_method in ('EXCHANGE_PAYMENT','WITHDRAW_PAYMENT','BALANCE_DEDUCTIONS','WAREHOUSE_RENT','BUSINESS_OPERATE','SPECIAL_OPERATE')
+                or FASB.business_category in ('补收','增值消费','仓租')
+                )
+                then abs(FASB.amount) else 0 end
+            ) as currentExpenditureAmount
+
+        from fss_account_serial_bill as FASB
+
+        <where>
+
+            <if test="cusCode != null and cusCode != ''">
+                and FASB.cus_code = #{cusCode}
+            </if>
+
+            <if test="billStartTime != null  and billStartTime !='' ">
+                and FASB.payment_time <![CDATA[ >= ]]> (#{billStartTime})
+            </if>
+
+            <if test="billEndTime != null  and billEndTime != ''">
+                and FASB.payment_time <![CDATA[ <= ]]> (#{billEndTime})
+            </if>
+
+            <if test="cusCodes != null">
+                and FASB.cus_code in
+                <foreach collection="cusCodes" close=")" open="(" separator="," item="item">
+                    #{item}
+                </foreach>
+            </if>
+
+        </where>
+        group by FASB.cus_code,FASB.currency_code
+
+    </select>
+
+    <select id="selectBusinessTotal" resultType="com.szmsd.finance.vo.BillBusinessTotalVO" parameterType="com.szmsd.finance.vo.EleBillQueryVO">
+
+        select FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,
+               FASB.warehouse_code as warehouse,
+               sum(FASB.amount) as amount,
+               FASB.remark
+        from fss_account_serial_bill as FASB
+        <where>
+            <if test="cusCode != null and cusCode != ''">
+                and FASB.cus_code = #{cusCode}
+            </if>
+
+            <if test="billStartTime != null  and billStartTime !='' ">
+                and FASB.payment_time <![CDATA[ >= ]]> (#{billStartTime})
+            </if>
+
+            <if test="billEndTime != null  and billEndTime != ''">
+                and FASB.payment_time <![CDATA[ <= ]]> (#{billEndTime})
+            </if>
+        </where>
+        group by FASB.charge_category,FASB.warehouse_code,FASB.currency_code
+    </select>
+
+    <select id="selectDirectDelivery" resultMap="DirectDeliveryVOMap" parameterType="com.szmsd.finance.vo.EleBillQueryVO">
+
+        select
+            FASB.nature as business_category,FASB.`no`,FASB.currency_code,FASB.payment_time,
+            FASB.cus_code,
+            <if test="sheetNo != null">
+                <if test="sheetNo == 1">
+                    '国内直发' as order_type,
+                </if>
+                <if test="sheetNo == 2">
+                    '仓储服务' as order_type,
+                </if>
+                <if test="sheetNo == 4">
+                    '大货服务' as order_type,
+                </if>
+            </if>
+            DOB.tracking_no,DOB.ref_no,DOB.warehouse_code,
+            DOB.shipment_rule,DOB.shipment_service,
+            DOB.shipment_rule_name,
+            DOB.destination_delivery,DOB.weight,DOB.forecast_weight,
+            DOB.calc_weight,DOB.calc_weight_unit,
+            DOB.create_time,
+            DOB.specifications,
+            DOD.product_name,DOD.sku,
+            DOA.country,DOA.country_code,
+            sum(FASB.amount) as total_amount,
+            sum(case when FASB.charge_category = '物流基础费' then abs(FASB.amount) else 0 end ) as freight_fee,
+            sum(case when FASB.charge_category in ('操作费','业务操作') then abs(FASB.amount) else 0 end) as ex_warehourse_fee,
+            sum(case when FASB.charge_category = '物料费' then abs(FASB.amount) else 0 end) as package_fee,
+            sum(case when FASB.charge_category = '处理费' then abs(FASB.amount) else 0 end) as hander_fee,
+            sum(case when FASB.charge_category = '燃油附加费' then abs(FASB.amount) else 0 end) as fuel_fee,
+            sum(case when FASB.charge_category = '偏远地区费' then abs(FASB.amount) else 0 end) as remote_fee,
+            sum(case when
+                FASB.charge_category in ('偏远地区费','住宅派送费','增值税','挂号费','超大附加费','超重处理费','退费')
+                then FASB.amount else 0 end) as other_fee
+        from fss_account_serial_bill as FASB
+        inner join del_outbound as DOB on FASB.`no` = DOB.order_no
+        left join del_outbound_detail as DOD on DOB.order_no = DOD.order_no
+        left join del_outbound_address as DOA on DOB.order_no = DOA.order_no
+        <where>
+            and DOB.del_flag = 0
+            <if test="orderTypeList != null">
+                and DOB.order_type in
+                <foreach collection="orderTypeList" close=")" open="(" separator="," item="item">
+                    #{item}
+                </foreach>
+            </if>
+            <if test="cusCode != null and cusCode != ''">
+                and FASB.cus_code = #{cusCode}
+            </if>
+
+            <if test="billStartTime != null  and billStartTime !='' ">
+                and FASB.payment_time <![CDATA[ >= ]]> #{billStartTime}
+            </if>
+
+            <if test="billEndTime != null  and billEndTime != ''">
+                and FASB.payment_time <![CDATA[ <= ]]> #{billEndTime}
+            </if>
+        </where>
+
+        group by FASB.nature,FASB.no,FASB.currency_code,FASB.payment_time
+
+    </select>
+
+    <select id="selectBillDetails" resultType="com.szmsd.finance.domain.AccountSerialBill" parameterType="com.szmsd.finance.vo.EleBillQueryVO">
+        SELECT
+            a.id,a.no,a.tracking_no,a.cus_code,a.cus_name,a.currency_code,a.currency_name,a.amount,
+            a.warehouse_code,a.warehouse_name,a.pay_method,a.business_category,a.product_code,a.product_category,
+            a.charge_category,a.charge_type,a.create_by_name,a.create_time,a.update_by_name,a.update_time,
+            a.create_by,a.update_by,a.remark,a.order_time,a.payment_time,a.ref_no,a.shipment_service,a.weight,
+            a.calc_weight,a.specifications,a.serial_number
+        FROM `fss_account_serial_bill` a
+        <where>
+            <if test="cusCode != null and cusCode != ''">
+                and a.cus_code = #{cusCode}
+            </if>
+
+            <if test="sheetNo != null and sheetNo == 5">
+                and (a.business_category in ('线下充值','在线充值') or a.business_category like '%转%' or a.business_category like '%提现%')
+            </if>
+
+            <if test="sheetNo != null and sheetNo == 6">
+                and a.business_category in ('优惠','赔偿')
+            </if>
+
+            <if test="billStartTime != null  and billStartTime !='' ">
+                and a.payment_time <![CDATA[ >= ]]> #{billStartTime}
+            </if>
+
+            <if test="billEndTime != null  and billEndTime != ''">
+                and a.payment_time <![CDATA[ <= ]]> #{billEndTime}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectAllOrderType" resultType="com.szmsd.finance.vo.BillBusinessTotalVO" parameterType="com.szmsd.finance.vo.EleBillQueryVO">
+
+        select
+            FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,FASB.warehouse_code as warehouse,
+            '物流消费' as nature,
+            <if test="sheetNo != null">
+                <if test="sheetNo == 1">
+                    '国内直发' as businessType,
+                </if>
+                <if test="sheetNo == 2">
+                    '仓储服务' as businessType,
+                </if>
+                <if test="sheetNo == 4">
+                    '大货服务' as businessType,
+                </if>
+            </if>
+            sum(FASB.amount) as amount,FASB.remark
+        from fss_account_serial_bill as FASB
+        inner join del_outbound as DOB on FASB.`no` = DOB.order_no
+        <where>
+            and DOB.del_flag = 0
+            <if test="orderTypeList != null">
+                and DOB.order_type in
+                <foreach collection="orderTypeList" close=")" open="(" separator="," item="item">
+                    #{item}
+                </foreach>
+            </if>
+            <if test="cusCode != null and cusCode != ''">
+                and FASB.cus_code = #{cusCode}
+            </if>
+
+            <if test="billStartTime != null  and billStartTime !='' ">
+                and FASB.payment_time <![CDATA[ >= ]]> #{billStartTime}
+            </if>
+
+            <if test="billEndTime != null  and billEndTime != ''">
+                and FASB.payment_time <![CDATA[ <= ]]> #{billEndTime}
+            </if>
+        </where>
+        group by FASB.charge_category,FASB.currency_code,FASB.warehouse_code
+
+    </select>
+
+    <select id="recharge" resultType="com.szmsd.finance.vo.BillBusinessTotalVO" parameterType="com.szmsd.finance.vo.EleBillQueryVO">
+
+        select
+            FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,
+            '充值' as nature,
+            sum(FASB.amount) as amount,FASB.remark
+        from fss_account_serial_bill as FASB
+        <where>
+
+            and FASB.charge_category like '%充值%'
+
+            <if test="cusCode != null and cusCode != ''">
+                and FASB.cus_code = #{cusCode}
+            </if>
+
+            <if test="billStartTime != null  and billStartTime !='' ">
+                and FASB.payment_time <![CDATA[ >= ]]> #{billStartTime}
+            </if>
+
+            <if test="billEndTime != null  and billEndTime != ''">
+                and FASB.payment_time <![CDATA[ <= ]]> #{billEndTime}
+            </if>
+        </where>
+
+        group by FASB.charge_category,FASB.currency_code
+
+    </select>
+
+    <select id="withdrawal" resultType="com.szmsd.finance.vo.BillBusinessTotalVO" parameterType="com.szmsd.finance.vo.EleBillQueryVO">
+
+        select
+        FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,
+        '提现' as nature,
+        sum(FASB.amount) as amount,FASB.remark
+        from fss_account_serial_bill as FASB
+        <where>
+
+            and FASB.business_category like '%提现%'
+
+            <if test="cusCode != null and cusCode != ''">
+                and FASB.cus_code = #{cusCode}
+            </if>
+
+            <if test="billStartTime != null  and billStartTime !='' ">
+                and FASB.payment_time <![CDATA[ >= ]]> #{billStartTime}
+            </if>
+
+            <if test="billEndTime != null  and billEndTime != ''">
+                and FASB.payment_time <![CDATA[ <= ]]> #{billEndTime}
+            </if>
+        </where>
+
+        group by FASB.charge_category,FASB.currency_code
+
+    </select>
+
+    <select id="businessAll" resultType="com.szmsd.finance.vo.BillBusinessTotalVO" parameterType="com.szmsd.finance.vo.EleBillQueryVO">
+
+        select
+        FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,
+        '优惠/退费/赔偿' as nature,
+        sum(FASB.amount) as amount,FASB.remark
+        from fss_account_serial_bill as FASB
+        <where>
+
+            and FASB.business_category in ('优惠','退费','赔偿')
+
+            <if test="cusCode != null and cusCode != ''">
+                and FASB.cus_code = #{cusCode}
+            </if>
+
+            <if test="billStartTime != null  and billStartTime !='' ">
+                and FASB.payment_time <![CDATA[ >= ]]> #{billStartTime}
+            </if>
+
+            <if test="billEndTime != null  and billEndTime != ''">
+                and FASB.payment_time <![CDATA[ <= ]]> #{billEndTime}
+            </if>
+        </where>
+
+        group by FASB.charge_category,FASB.currency_code
+
+    </select>
+
+    <select id="supplementary" resultType="com.szmsd.finance.vo.BillBusinessTotalVO" parameterType="com.szmsd.finance.vo.EleBillQueryVO">
+
+        select
+        FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,
+        '补收' as nature,
+        sum(FASB.amount) as amount,FASB.remark
+        from fss_account_serial_bill as FASB
+        <where>
+
+            and FASB.business_category like '%补收%'
+
+            <if test="cusCode != null and cusCode != ''">
+                and FASB.cus_code = #{cusCode}
+            </if>
+
+            <if test="billStartTime != null  and billStartTime !='' ">
+                and FASB.payment_time <![CDATA[ >= ]]> #{billStartTime}
+            </if>
+
+            <if test="billEndTime != null  and billEndTime != ''">
+                and FASB.payment_time <![CDATA[ <= ]]> #{billEndTime}
+            </if>
+        </where>
+
+        group by FASB.charge_category,FASB.currency_code
+
+    </select>
+
+    <select id="balanceConversion" resultType="com.szmsd.finance.vo.BillBusinessTotalVO" parameterType="com.szmsd.finance.vo.EleBillQueryVO">
+
+        select
+        FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,
+        '余额转换' as nature,'余额转换' as businessType,
+        sum(FASB.amount) as amount,FASB.remark
+        from fss_account_serial_bill as FASB
+        <where>
+
+            and FASB.business_category like '%转%'
+
+            <if test="cusCode != null and cusCode != ''">
+                and FASB.cus_code = #{cusCode}
+            </if>
+
+            <if test="billStartTime != null  and billStartTime !='' ">
+                and FASB.payment_time <![CDATA[ >= ]]> #{billStartTime}
+            </if>
+
+            <if test="billEndTime != null  and billEndTime != ''">
+                and FASB.payment_time <![CDATA[ <= ]]> #{billEndTime}
+            </if>
+        </where>
+
+        group by FASB.charge_category,FASB.currency_code
+
+    </select>
+
+    <select id="selectBillOutbount"  resultType="com.szmsd.finance.dto.AccountSerialBillNatureDTO">
+        select  FASB.charge_type as chargeType,FASB.business_category as businessCategory,
+                FASB.charge_category as chargeCategory,FASB.`no`,FASB.id,
+                DOB.order_type as orderType
+        from fss_account_serial_bill as FASB
+        inner join del_outbound as DOB on FASB.`no` = DOB.order_no
+        where FASB.nature is null
+    </select>
+
+    <select id="findBillCurrencyData"  resultType="com.szmsd.finance.dto.AccountBalanceBillCurrencyVO" parameterType="com.szmsd.finance.dto.AccountSerialBillDTO">
+        select  a.currency_code as currencyCode,
+            sum(
+            case when (a.business_category like '%费%' or a.charge_type like '%费%' or a.business_category like '%税%' or a.charge_type like '%税%' or a.charge_type like '%包材%') then 0-a.amount else a.amount end) as amount
+        from fss_account_serial_bill as a
+        <include refid="SelectSerialBillWhere"/>
+        group by a.currency_code
+    </select>
+
+    <select id="selectBillTotal" resultType="com.szmsd.finance.domain.AccountSerialBillTotalVO" parameterType="com.szmsd.finance.dto.AccountSerialBillDTO">
+
+        SELECT
+            a.nature,
+            DOB.shipment_rule_name as shipmentRuleName,
+            DOB.shipment_rule as shipmentRule,
+            a.cus_code AS cusCode,
+            a.warehouse_name AS warehouseName,
+            a.`business_category` AS businessCategory,
+            a.charge_category AS chargeCategory,
+        sum(
+        case when (a.business_category like '%费%' or a.charge_type like '%费%' or a.business_category like '%税%' or a.charge_type like '%税%' or a.charge_type like '%包材%') then 0-a.amount else a.amount end) as amount,
+            a.currency_code AS currencyCode,
+            a.currency_name as currencyName
+        FROM
+        fss_account_serial_bill a
+        left join del_outbound as DOB on a.no = DOB.order_no
+        <include refid="SelectSerialBillWhere"/>
+        GROUP BY
+        a.cus_code,
+        a.warehouse_name,
+        a.charge_category,
+        a.currency_code,
+        a.nature,
+        a.charge_type
+
+    </select>
+
+    <select id="exportData" resultMap="AccountSerialBillExcelVOMap" parameterType="com.szmsd.finance.dto.AccountSerialBillDTO">
+
+        SELECT
+            a.id,a.no,a.tracking_no,a.cus_code,a.cus_name,a.currency_code,a.currency_name,a.amount,
+            a.warehouse_code,a.warehouse_name,a.pay_method,a.business_category,a.product_code,a.product_category,
+            a.charge_category,a.charge_type,a.create_by_name,a.create_time,a.update_by_name,a.update_time,
+            a.create_by,a.update_by,a.remark,a.order_time,a.payment_time,a.ref_no,a.shipment_service,a.weight,
+            a.calc_weight,a.specifications,a.nature,a.serial_number,
+            a.charge_type,DOB.shipment_rule_name,DOB.shipment_rule
+        FROM `fss_account_serial_bill` a
+        left join del_outbound as DOB on DOB.order_no =  a.no
+        <include refid="SelectSerialBillWhere"/>
+        ORDER BY a.payment_time DESC
 
     </select>
 

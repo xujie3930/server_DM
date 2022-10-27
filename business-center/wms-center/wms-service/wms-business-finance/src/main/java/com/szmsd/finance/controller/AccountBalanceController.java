@@ -9,6 +9,7 @@ import com.szmsd.common.core.web.page.TableDataInfo;
 import com.szmsd.common.log.annotation.Log;
 import com.szmsd.common.log.enums.BusinessType;
 import com.szmsd.common.plugin.annotation.AutoValue;
+import com.szmsd.delivery.domain.DelOutboundTarckError;
 import com.szmsd.finance.domain.AccountBalance;
 import com.szmsd.finance.domain.AccountBalanceChange;
 import com.szmsd.finance.domain.AccountBalanceExcle;
@@ -45,7 +46,7 @@ public class AccountBalanceController extends FssBaseController {
     @GetMapping("/listPage")
     @AutoValue
     public R<PageInfo<AccountBalance>> listPage(AccountBalanceDTO dto) {
-        String len=getLen();
+         String len=getLen();
 
         return  accountBalanceService.listPage(dto,len);
     }
