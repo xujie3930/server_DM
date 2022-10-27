@@ -1,14 +1,11 @@
 package com.szmsd.finance.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.szmsd.common.core.domain.R;
 import com.szmsd.finance.domain.AccountSerialBill;
+import com.szmsd.finance.dto.AccountBalanceBillCurrencyVO;
 import com.szmsd.finance.dto.AccountSerialBillDTO;
 import com.szmsd.finance.dto.CustPayDTO;
-import com.szmsd.finance.vo.BillBalanceVO;
-import com.szmsd.finance.vo.EleBillQueryVO;
-import com.szmsd.finance.vo.ElectronicBillVO;
-import com.szmsd.finance.vo.BillGeneratorRequestVO;
+import com.szmsd.finance.vo.AccountSerialBillExcelVO;
 
 import javax.servlet.http.HttpServletResponse;
 import java.util.List;
@@ -27,23 +24,18 @@ public interface IAccountSerialBillService extends IService<AccountSerialBill> {
     boolean checkForDuplicateCharges(CustPayDTO dto);
 
     /**
-     * 电子账单
-     * @param queryVO
-     * @return
+     * 更新业务账单表 nature、business_type、charge_category_change 信息
      */
-    List<ElectronicBillVO> electronicPage(EleBillQueryVO queryVO);
+    void executeSerialBillNature();
 
     /**
-     * 生成账单
-     * @param billRequestVO
+     * 流水账单按币种统计
+     * @param dto
      * @return
      */
-    void generatorBill(BillGeneratorRequestVO billRequestVO, HttpServletResponse response);
+    List<AccountBalanceBillCurrencyVO> findBillCurrencyData(AccountSerialBillDTO dto);
 
-    /**
-     * 资金结余
-     * @param queryVO
-     * @return
-     */
-    List<BillBalanceVO> balancePage(EleBillQueryVO queryVO);
+    void exportBillTotal(HttpServletResponse response, AccountSerialBillDTO dto);
+
+    List<AccountSerialBillExcelVO> exportData(AccountSerialBillDTO dto);
 }

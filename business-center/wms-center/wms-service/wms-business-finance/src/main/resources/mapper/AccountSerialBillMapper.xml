@@ -34,7 +34,30 @@
         <result column="country" property="country"/>
         <result column="shipment_rule" property="shipmentRule"/>
         <result column="shipment_service" property="shipmentService"/>
+        <result column="shipment_rule_name" property="shipmentRuleName"/>
         <result column="calc_weight_unit" property="calcWeightUnit"/>
+    </resultMap>
+
+    <resultMap id="AccountSerialBillExcelVOMap" type="com.szmsd.finance.vo.AccountSerialBillExcelVO">
+        <result column="cus_code" property="cusCode"/>
+        <result column="business_category" property="businessCategory"/>
+        <result column="calc_weight" property="calcWeight"/>
+        <result column="tracking_no" property="trackingNo"/>
+        <result column="specifications" property="specifications"/>
+        <result column="ref_no" property="refNo"/>
+        <result column="warehouse_code" property="warehouseCode"/>
+        <result column="weight" property="weight"/>
+        <result column="payment_time" property="paymentTime"/>
+        <result column="shipment_rule" property="shipmentRule"/>
+        <result column="shipment_rule_name" property="shipmentRuleName"/>
+        <result column="nature" property="nature"/>
+        <result column="remark" property="remark"/>
+        <result column="serial_number" property="serialNumber"/>
+        <result column="currency_name" property="currencyName"/>
+        <result column="amount" property="amount"/>
+        <result column="charge_category" property="chargeCategory"/>
+        <result column="charge_type" property="chargeType"/>
+
     </resultMap>
 
     <select id="selectPageList" resultType="com.szmsd.finance.domain.AccountSerialBill" parameterType="com.szmsd.finance.dto.AccountSerialBillDTO">
@@ -44,67 +67,74 @@
         a.warehouse_code,a.warehouse_name,a.pay_method,a.business_category,a.product_code,a.product_category,
         a.charge_category,a.charge_type,a.create_by_name,a.create_time,a.update_by_name,a.update_time,
         a.create_by,a.update_by,a.remark,a.order_time,a.payment_time,a.ref_no,a.shipment_service,a.weight,
-        a.calc_weight,a.specifications
+        a.calc_weight,a.specifications,a.nature
 
-        FROM
-        `fss_account_serial_bill` a
-
-        <where>
-        1=1
-<!--        <if test="cusCode != null  and cusCode!=''">-->
-<!--        and a.cus_code=#{cusCode}-->
-<!--        </if>-->
-        <if test="noList != null  and noList.size()>0">
-            and a.no IN
-            <foreach collection="noList" item="item" index="i" open="(" close=")" separator=",">
-                #{item}
-            </foreach>
-        </if>
-        <if test="cusCodeList != null  and cusCodeList.size()>0">
-          and a.cus_code IN
-         <foreach collection="cusCodeList" item="item" index="i" open="(" close=")" separator=",">
-                    #{item}
-           </foreach>
-        </if>
-       <if test="productCodeList != null  and productCodeList.size()>0">
-                and a.product_code IN
-          <foreach collection="productCodeList" item="item" index="i" open="(" close=")" separator=",">
-                    #{item}
-           </foreach>
-       </if>
-
-       <if test="chargeType != null  and chargeType!=''">
-                and a.charge_type =#{chargeType}
-        </if>
-        <if test="warehouseCode != null  and warehouseCode!=''">
-                and a.warehouse_code =#{warehouseCode}
-          </if>
-
-         <if test="currencyCode != null  and currencyCode!=''">
-                and a.currency_code =#{currencyCode}
-         </if>
-        <if test="businessCategory != null  and businessCategory!=''">
-            and a.business_category =#{businessCategory}
-        </if>
-        <if test="productCategory != null  and productCategory!=''">
-            and a.product_category =#{productCategory}
-        </if>
-        <if test="chargeCategory != null  and chargeCategory!=''">
-            and a.charge_category =#{chargeCategory}
-        </if>
-        <if test="createTimeStart != null  and createTimeStart!=''">
-            and date_format(a.create_time,'%y%m%d') &gt;= date_format(#{createTimeStart},'%y%m%d')
-
-        </if>
-        <if test="createTimeEnd != null  and createTimeEnd!=''">
-            and date_format(a.create_time,'%y%m%d') &lt;= date_format(#{createTimeEnd},'%y%m%d')
-        </if>
-        <if test="ids != null  and ids!=''">
-            and FIND_IN_SET(a.id,#{ids})
-        </if>
-        </where>
+        FROM `fss_account_serial_bill` a
+        <include refid="SelectSerialBillWhere"/>
         ORDER BY a.payment_time DESC
     </select>
+
+    <sql id="SelectSerialBillWhere">
+
+        <where>
+            <if test="noList != null  and noList.size()>0">
+                and a.no IN
+                <foreach collection="noList" item="item" index="i" open="(" close=")" separator=",">
+                    #{item}
+                </foreach>
+            </if>
+            <if test="cusCodeList != null  and cusCodeList.size()>0">
+                and a.cus_code IN
+                <foreach collection="cusCodeList" item="item" index="i" open="(" close=")" separator=",">
+                    #{item}
+                </foreach>
+            </if>
+            <if test="productCodeList != null  and productCodeList.size()>0">
+                and a.product_code IN
+                <foreach collection="productCodeList" item="item" index="i" open="(" close=")" separator=",">
+                    #{item}
+                </foreach>
+            </if>
+
+            <if test="chargeType != null  and chargeType!=''">
+                and a.charge_type = #{chargeType}
+            </if>
+            <if test="warehouseCode != null  and warehouseCode!=''">
+                and a.warehouse_code = #{warehouseCode}
+            </if>
+
+            <if test="currencyCode != null  and currencyCode!=''">
+                and a.currency_code = #{currencyCode}
+            </if>
+            <if test="businessCategory != null  and businessCategory!=''">
+                and a.business_category = #{businessCategory}
+            </if>
+            <if test="productCategory != null  and productCategory!=''">
+                and a.product_category = #{productCategory}
+            </if>
+            <if test="chargeCategory != null  and chargeCategory!=''">
+                and a.charge_category = #{chargeCategory}
+            </if>
+            <if test="createTimeStart != null  and createTimeStart!=''">
+                and a.create_time <![CDATA[ >= ]]> #{createTimeStart}
+            </if>
+            <if test="createTimeEnd != null  and createTimeEnd!=''">
+                and a.create_time <![CDATA[ <= ]]> #{createTimeEnd}
+            </if>
+
+            <if test="paymentTimeStart != null  and paymentTimeStart!=''">
+                and a.payment_time <![CDATA[ >= ]]> #{paymentTimeStart}
+            </if>
+            <if test="paymentTimeEnd != null  and paymentTimeEnd!=''">
+                and a.payment_time <![CDATA[ <= ]]> #{paymentTimeEnd}
+            </if>
+
+            <if test="ids != null  and ids!=''">
+                and FIND_IN_SET(a.id,#{ids})
+            </if>
+        </where>
+
+    </sql>
 
 
     <select id="selectDelOutbound" resultType="com.szmsd.delivery.domain.DelOutbound"
@@ -121,7 +151,7 @@
                 case when
                 (
                 FASB.pay_method in ('ONLINE_INCOME','OFFLINE_INCOME','EXCHANGE_INCOME')
-                or (FASB.pay_method = 'REFUND' and (FASB.business_category in ('优惠','赔偿','退费')))
+                or FASB.business_category in ('优惠','赔偿','退费')
                 )
                 then abs(FASB.amount) else 0 end
             ) as currentIncomeAmount,
@@ -131,7 +161,7 @@
                 case when
                 (
                 FASB.pay_method in ('EXCHANGE_PAYMENT','WITHDRAW_PAYMENT','BALANCE_DEDUCTIONS','WAREHOUSE_RENT','BUSINESS_OPERATE','SPECIAL_OPERATE')
-                or (FASB.pay_method = 'REFUND' and (FASB.business_category in ('补收','增值消费')))
+                or FASB.business_category in ('补收','增值消费','仓租')
                 )
                 then abs(FASB.amount) else 0 end
             ) as currentExpenditureAmount
@@ -150,6 +180,13 @@
 
             <if test="billEndTime != null  and billEndTime != ''">
                 and FASB.payment_time <![CDATA[ <= ]]> (#{billEndTime})
+            </if>
+
+            <if test="cusCodes != null">
+                and FASB.cus_code in
+                <foreach collection="cusCodes" close=")" open="(" separator="," item="item">
+                    #{item}
+                </foreach>
             </if>
 
         </where>
@@ -183,7 +220,7 @@
     <select id="selectDirectDelivery" resultMap="DirectDeliveryVOMap" parameterType="com.szmsd.finance.vo.EleBillQueryVO">
 
         select
-            FASB.business_category,FASB.`no`,FASB.currency_code,FASB.payment_time,
+            FASB.nature as business_category,FASB.`no`,FASB.currency_code,FASB.payment_time,
             FASB.cus_code,
             <if test="sheetNo != null">
                 <if test="sheetNo == 1">
@@ -198,6 +235,7 @@
             </if>
             DOB.tracking_no,DOB.ref_no,DOB.warehouse_code,
             DOB.shipment_rule,DOB.shipment_service,
+            DOB.shipment_rule_name,
             DOB.destination_delivery,DOB.weight,DOB.forecast_weight,
             DOB.calc_weight,DOB.calc_weight_unit,
             DOB.create_time,
@@ -206,7 +244,7 @@
             DOA.country,DOA.country_code,
             sum(FASB.amount) as total_amount,
             sum(case when FASB.charge_category = '物流基础费' then abs(FASB.amount) else 0 end ) as freight_fee,
-            sum(case when FASB.charge_category in ('操作费','特殊操作费','业务操作') then abs(FASB.amount) else 0 end) as ex_warehourse_fee,
+            sum(case when FASB.charge_category in ('操作费','业务操作') then abs(FASB.amount) else 0 end) as ex_warehourse_fee,
             sum(case when FASB.charge_category = '物料费' then abs(FASB.amount) else 0 end) as package_fee,
             sum(case when FASB.charge_category = '处理费' then abs(FASB.amount) else 0 end) as hander_fee,
             sum(case when FASB.charge_category = '燃油附加费' then abs(FASB.amount) else 0 end) as fuel_fee,
@@ -239,7 +277,7 @@
             </if>
         </where>
 
-        group by FASB.business_category,FASB.no,FASB.currency_code,FASB.payment_time
+        group by FASB.nature,FASB.no,FASB.currency_code,FASB.payment_time
 
     </select>
 
@@ -454,6 +492,68 @@
         </where>
 
         group by FASB.charge_category,FASB.currency_code
+
+    </select>
+
+    <select id="selectBillOutbount"  resultType="com.szmsd.finance.dto.AccountSerialBillNatureDTO">
+        select  FASB.charge_type as chargeType,FASB.business_category as businessCategory,
+                FASB.charge_category as chargeCategory,FASB.`no`,FASB.id,
+                DOB.order_type as orderType
+        from fss_account_serial_bill as FASB
+        inner join del_outbound as DOB on FASB.`no` = DOB.order_no
+        where FASB.nature is null
+    </select>
+
+    <select id="findBillCurrencyData"  resultType="com.szmsd.finance.dto.AccountBalanceBillCurrencyVO" parameterType="com.szmsd.finance.dto.AccountSerialBillDTO">
+        select  a.currency_code as currencyCode,
+            sum(
+            case when (a.business_category like '%费%' or a.charge_type like '%费%' or a.business_category like '%税%' or a.charge_type like '%税%' or a.charge_type like '%包材%') then 0-a.amount else a.amount end) as amount
+        from fss_account_serial_bill as a
+        <include refid="SelectSerialBillWhere"/>
+        group by a.currency_code
+    </select>
+
+    <select id="selectBillTotal" resultType="com.szmsd.finance.domain.AccountSerialBillTotalVO" parameterType="com.szmsd.finance.dto.AccountSerialBillDTO">
+
+        SELECT
+            a.nature,
+            DOB.shipment_rule_name as shipmentRuleName,
+            DOB.shipment_rule as shipmentRule,
+            a.cus_code AS cusCode,
+            a.warehouse_name AS warehouseName,
+            a.`business_category` AS businessCategory,
+            a.charge_category AS chargeCategory,
+        sum(
+        case when (a.business_category like '%费%' or a.charge_type like '%费%' or a.business_category like '%税%' or a.charge_type like '%税%' or a.charge_type like '%包材%') then 0-a.amount else a.amount end) as amount,
+            a.currency_code AS currencyCode,
+            a.currency_name as currencyName
+        FROM
+        fss_account_serial_bill a
+        left join del_outbound as DOB on a.no = DOB.order_no
+        <include refid="SelectSerialBillWhere"/>
+        GROUP BY
+        a.cus_code,
+        a.warehouse_name,
+        a.charge_category,
+        a.currency_code,
+        a.nature,
+        a.charge_type
+
+    </select>
+
+    <select id="exportData" resultMap="AccountSerialBillExcelVOMap" parameterType="com.szmsd.finance.dto.AccountSerialBillDTO">
+
+        SELECT
+            a.id,a.no,a.tracking_no,a.cus_code,a.cus_name,a.currency_code,a.currency_name,a.amount,
+            a.warehouse_code,a.warehouse_name,a.pay_method,a.business_category,a.product_code,a.product_category,
+            a.charge_category,a.charge_type,a.create_by_name,a.create_time,a.update_by_name,a.update_time,
+            a.create_by,a.update_by,a.remark,a.order_time,a.payment_time,a.ref_no,a.shipment_service,a.weight,
+            a.calc_weight,a.specifications,a.nature,a.serial_number,
+            a.charge_type,DOB.shipment_rule_name,DOB.shipment_rule
+        FROM `fss_account_serial_bill` a
+        left join del_outbound as DOB on DOB.order_no =  a.no
+        <include refid="SelectSerialBillWhere"/>
+        ORDER BY a.payment_time DESC
 
     </select>
 

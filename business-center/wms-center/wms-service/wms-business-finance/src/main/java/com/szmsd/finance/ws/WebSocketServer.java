@@ -11,8 +11,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 
 @Slf4j
-@Component
-@ServerEndpoint("/ws/rechargeCallback/result/{customCode}")
+//@Component
+//@ServerEndpoint("/ws/rechargeCallback/result/{customCode}")
 public class WebSocketServer {
 
     /**

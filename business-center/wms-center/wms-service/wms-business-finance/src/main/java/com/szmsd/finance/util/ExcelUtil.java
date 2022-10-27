@@ -11,6 +11,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -172,8 +173,15 @@ public class ExcelUtil {
         //从第一行开始
         //int mergeRowIndex = 1;
 
+        List<CellStyleModel> cellStyleList = new ArrayList<>();
+        cellStyleList.add(CellStyleModel.createWrapTextCellStyleModel("客户资金结余", 4, 1, true));
+        cellStyleList.add(CellStyleModel.createWrapTextCellStyleModel("客户资金结余", 4, 2, true));
+
         try {
-            excelWriter = EasyExcel.write(file).withTemplate(inputStream).registerWriteHandler(new MergeStrategy(mergeCollindex,mergeRowIndex)).build();
+            excelWriter = EasyExcel.write(file).withTemplate(inputStream).build();
+                    //.registerWriteHandler(new MergeStrategy(mergeCollindex,mergeRowIndex))
+                    //.registerWriteHandler(new CustomCellStyleHandler(cellStyleList))
+                    //.build();
             for(Map.Entry<Integer, List<?>> entry : sheetAndDataMap.entrySet()){
                 List<?> value = entry.getValue();
                 Integer key = entry.getKey();
@@ -187,8 +195,13 @@ public class ExcelUtil {
                 if(titleDataMap != null){
                     titleData = titleDataMap.get(key);
                 }
+                WriteSheet writeSheet = null;
+                if(key == 0) {
+                    writeSheet = EasyExcel.writerSheet(key).registerWriteHandler(new MergeStrategy(mergeCollindex, mergeRowIndex)).build();
+                }else{
+                    writeSheet = EasyExcel.writerSheet(key).build();
+                }
 
-                WriteSheet writeSheet = EasyExcel.writerSheet(key).build();
                 FillConfig fillConfig = FillConfig.builder().forceNewRow(Boolean.TRUE).build();
                 excelWriter.fill(new FillWrapper(sheetKey,value),fillConfig, writeSheet);
 

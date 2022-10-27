@@ -169,19 +169,19 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
             accountBalances.forEach(AccountBalance::showCredit);
 
             accountBalances.forEach(x-> {
-                if (len.equals("en")) {
-                    x.setCurrencyName(x.getCurrencyCode());
-                } else if (len.equals("zh")) {
-                    x.setCurrencyName(x.getCurrencyName());
-                }
-            });
+                        if (len.equals("en")) {
+                            x.setCurrencyName(x.getCurrencyCode());
+                        } else if (len.equals("zh")) {
+                            x.setCurrencyName(x.getCurrencyName());
+                        }
+                    });
 
             //获取分页信息
             PageInfo<AccountBalance> pageInfo=new PageInfo<>(accountBalances);
             return R.ok(pageInfo);
         }catch (Exception e){
             e.printStackTrace();
-            return R.failed("Query failed");
+           return R.failed("Query failed");
         }
 
 
