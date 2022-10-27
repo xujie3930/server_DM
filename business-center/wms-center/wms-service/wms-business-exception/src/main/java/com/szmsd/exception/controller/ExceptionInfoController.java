@@ -204,7 +204,7 @@ public class ExceptionInfoController extends BaseController {
         exportContext.setStateCacheAdapter(listMap.get("085"));
         QueryDto queryDto1 = new QueryDto();
         queryDto1.setPageNum(1);
-        queryDto1.setPageSize(300);
+        queryDto1.setPageSize(80000);
         QueryPage<ExceptionInfoExportDto> queryPage = new ExceptionInfoExportQueryPage(dto, queryDto1, exportContext, this.exceptionInfoService);
         List<ExceptionInfoExportDto> list=queryPage.getPage();
         list.forEach(x->{
