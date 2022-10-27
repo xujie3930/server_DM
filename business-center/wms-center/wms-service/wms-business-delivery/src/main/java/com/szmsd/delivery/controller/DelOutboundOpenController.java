@@ -9,7 +9,6 @@ import com.szmsd.delivery.dto.ShipmentPackingMaterialRequestDto;
 import com.szmsd.delivery.dto.ShipmentRequestDto;
 import com.szmsd.delivery.service.IDelOutboundService;
 import com.szmsd.delivery.service.wrapper.IDelOutboundOpenService;
-import com.szmsd.delivery.timer.DelOutboundCarrierTimer;
 import com.szmsd.delivery.timer.DelOutboundThirdPartyTimer;
 import com.szmsd.delivery.timer.DelOutboundTimer;
 import com.szmsd.delivery.timer.DelOutboundTransferTimer;
@@ -53,8 +52,8 @@ public class DelOutboundOpenController extends BaseController {
     @Resource
     private DelOutboundTransferTimer delOutboundTransferTimer;
 
-    @Resource
-    private DelOutboundCarrierTimer delOutboundCarrierTimer;
+//    @Resource
+//    private DelOutboundCarrierTimer delOutboundCarrierTimer;
 
 
 
@@ -129,9 +128,9 @@ public class DelOutboundOpenController extends BaseController {
         return R.ok("通知订单执行WMS任务完成");
     }
 
-    @PostMapping(value = "/delOutboundCarrierTimer")
+    /*@PostMapping(value = "/delOutboundCarrierTimer")
     public R<String> delOutboundCarrierTimer() {
         delOutboundCarrierTimer.process();
         return R.ok("通知挂号更新服务");
-    }
+    }*/
 }
