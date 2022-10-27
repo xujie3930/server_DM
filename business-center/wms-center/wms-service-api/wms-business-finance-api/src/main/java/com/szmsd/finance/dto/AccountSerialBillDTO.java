@@ -1,7 +1,9 @@
 package com.szmsd.finance.dto;
 
+import com.szmsd.common.core.annotation.Excel;
 import com.szmsd.common.core.utils.StringToolkit;
 import com.szmsd.common.core.utils.StringUtils;
+import com.szmsd.common.plugin.annotation.AutoFieldI18n;
 import com.szmsd.finance.enums.BillEnum;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.AllArgsConstructor;
@@ -113,11 +115,44 @@ public class AccountSerialBillDTO {
     @ApiModelProperty(value = "结算时间")
     private Date paymentTime;
 
-    @ApiModelProperty(value = "计算时间开始")
+    @ApiModelProperty(value = "时间开始")
     private String createTimeStart;
 
-    @ApiModelProperty(value = "计算时间结束")
+    @ApiModelProperty(value = "时间结束")
     private String createTimeEnd;
+
+    @ApiModelProperty(value = "结算开始时间")
+    private String paymentTimeStart;
+
+    @ApiModelProperty(value = "结算结束时间")
+    private String paymentTimeEnd;
+
+
+    @ApiModelProperty(value = "实重")
+    private Double weight;
+
+
+    @ApiModelProperty(value = "计费重")
+    private BigDecimal calcWeight;
+
+
+    @ApiModelProperty(value = "规格")
+    private String specifications;
+
+
+    @ApiModelProperty(value = "创建时间")
+    private Date createTime;
+
+    @ApiModelProperty(value = "性质")
+    private String nature;
+
+    @ApiModelProperty(value = "业务类型")
+    private String businessType;
+
+    @ApiModelProperty(value = "费用类别转换后")
+    private String chargeCategoryChange;
+
+
 
     @ApiModelProperty(value = "备注")
     private String remark;

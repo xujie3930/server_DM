@@ -1,7 +1,6 @@
 package com.szmsd.finance.domain;
 
 import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -26,6 +25,10 @@ public class AccountSerialBill extends FssBaseEntity {
     @ApiModelProperty(value = "ID")
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
+
+    @ApiModelProperty(value = "流水号")
+    @Excel(name = "流水号")
+    private String serialNumber;
 
     @ApiModelProperty(value = "单号")
     @Excel(name = "单号")
@@ -92,7 +95,7 @@ public class AccountSerialBill extends FssBaseEntity {
     private String payMethod;
     @AutoFieldI18n
     @ApiModelProperty(value = "业务类别（性质）")
-    @Excel(name = "性质")
+
     private String businessCategory;
     @ApiModelProperty(value = "产品代码")
     @Excel(name = "产品代码")
@@ -116,8 +119,6 @@ public class AccountSerialBill extends FssBaseEntity {
     private String remark;
 
 
-
-
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     @ApiModelProperty(value = "下单时间")
     @Excel(name = "下单时间", dateFormat = "yyyy-MM-dd HH:mm:ss")
@@ -127,6 +128,18 @@ public class AccountSerialBill extends FssBaseEntity {
     @ApiModelProperty(value = "结算时间")
     @Excel(name = "结算时间", dateFormat = "yyyy-MM-dd HH:mm:ss")
     private Date paymentTime;
+
+    @ApiModelProperty(value = "性质")
+    @Excel(name = "性质")
+    private String nature;
+
+    @ApiModelProperty(value = "业务类型")
+    private String businessType;
+
+    @ApiModelProperty(value = "费用类别转换后")
+    private String chargeCategoryChange;
+
+
 
     public void setRemark(String remark) {
         this.remark = remark;

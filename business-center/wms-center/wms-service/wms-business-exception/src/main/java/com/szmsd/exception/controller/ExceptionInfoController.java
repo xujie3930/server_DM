@@ -288,43 +288,55 @@ public class ExceptionInfoController extends BaseController {
             deliveryTimeCell1.setCellStyle(styleMain1);
         }
         //总行数
-        int rowNum=sheet.getLastRowNum()+2;
-        for (int j=2;j<rowNum;j++) {
-            Row row4 = sheet.getRow(j);
-            if (row4!=null) {
-                for (int x = 0; x < 23-a; x++) {
+//        int rowNum=sheet.getLastRowNum()+2;
+//        for (int j=2;j<rowNum;j++) {
+//            Row row4 = sheet.getRow(j);
+//            if (row4!=null) {
+//                for (int x = 0; x < 23-a; x++) {
+//
+//
+//                    Cell deliveryTimeCell1 = row4.getCell(x);
+//                    if (deliveryTimeCell1 != null) {
+//                        CellStyle styleMain1 = workbook.createCellStyle();
+//                        styleMain1.setVerticalAlignment(VerticalAlignment.CENTER);//垂直居中
+//                         styleMain1.setBorderBottom(BorderStyle.THIN);//下边框
+//                         styleMain1.setBorderLeft(BorderStyle.THIN);//左边框
+//                         styleMain1.setBorderTop(BorderStyle.THIN);//上边框
+//                         styleMain1.setBorderRight(BorderStyle.THIN);//右边框
+//                        //设置边框颜色黑色
+//                        styleMain1.setTopBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+//                        styleMain1.setBottomBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+//                        styleMain1.setLeftBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+//                        styleMain1.setRightBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+//
+//                        styleMain1.setAlignment(HorizontalAlignment.CENTER);
+////                        if (x==18-a){
+////                            styleMain1.setHidden(true);
+////                        }
+//
+////                        if (x==19-a) {
+////
+////                            styleMain1.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+////                            styleMain1.setLocked(true);
+////
+////                        } else {
+////                            styleMain1.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+////                            styleMain1.setLocked(false);
+////                        }
+//
+//                        deliveryTimeCell1.setCellStyle(styleMain1);
+//                    }
+//                }
+//            }
+//        }
+//        sheet.protectSheet("123456");
 
+        if (dto.getType()==1){
+            sheet.setColumnHidden(18,true);
+        }else {
+            sheet.setColumnHidden(17,true);
 
-                    Cell deliveryTimeCell1 = row4.getCell(x);
-                    if (deliveryTimeCell1 != null) {
-                        CellStyle styleMain1 = workbook.createCellStyle();
-                        styleMain1.setVerticalAlignment(VerticalAlignment.CENTER);//垂直居中
-                         styleMain1.setBorderBottom(BorderStyle.THIN);//下边框
-                         styleMain1.setBorderLeft(BorderStyle.THIN);//左边框
-                         styleMain1.setBorderTop(BorderStyle.THIN);//上边框
-                         styleMain1.setBorderRight(BorderStyle.THIN);//右边框
-                        //设置边框颜色黑色
-                        styleMain1.setTopBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
-                        styleMain1.setBottomBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
-                        styleMain1.setLeftBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
-                        styleMain1.setRightBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
-
-                        styleMain1.setAlignment(HorizontalAlignment.CENTER);
-                        if (x == 18-a||x==19-a) {
-
-                            styleMain1.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-                            styleMain1.setLocked(true);
-                        } else {
-                            styleMain1.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-                            styleMain1.setLocked(false);
-                        }
-
-                        deliveryTimeCell1.setCellStyle(styleMain1);
-                    }
-                }
-            }
         }
-        sheet.protectSheet("123456");
         try {
             String fileName="异常通知中心_异常导出"+System.currentTimeMillis();
             URLEncoder.encode(fileName, "UTF-8");
@@ -478,6 +490,7 @@ public class ExceptionInfoController extends BaseController {
                         int finalI = i;
                         fixedThreadPool.execute(() -> {
                             try {
+                                dto.setCountry(getCountryCodeS(countryCode));
                                 if (exceptionInfoService.importAgainTrackingNo(dto, countryCode)) {
                                     successSize.incrementAndGet();
                                     if(dto.getOrderTypeName().equals("出库单")){
@@ -492,7 +505,7 @@ public class ExceptionInfoController extends BaseController {
 
                                     }
                                 } else {
-                                    errorList.add("第" + (finalI + 1) + "行，" + dto.getExceptionNo() + "操作失败，不符合条件");
+                                    errorList.add("第" + (finalI + 1) + "行，" + dto.getExceptionNo() + "导入数据在异常表里面必须类型为待处理，单类型为出库单，异常类型可以为（出库-获取挂号失败，出库-超重件，出库-超规格件）");
                                     failSize.incrementAndGet();
                                 }
                             } catch (Exception e) {
@@ -537,6 +550,7 @@ public class ExceptionInfoController extends BaseController {
                             continue;
                         }
                         try {
+                            dto.setCountry(getCountryCodeS(countryCode));
                             if (exceptionInfoService.importAgainTrackingNo(dto, countryCode)) {
                                 successSize.incrementAndGet();
                                 if(dto.getOrderTypeName().equals("出库单")){
@@ -551,7 +565,7 @@ public class ExceptionInfoController extends BaseController {
 
                                 }
                             } else {
-                                errorList.add("第" + (i + 1) + "行，" + dto.getExceptionNo() + "操作失败，不符合条件");
+                                errorList.add("第" + (i + 1) + "行，" + dto.getExceptionNo() + "导入数据在异常表里面必须类型为待处理，单类型为出库单，异常类型可以为（出库-获取挂号失败，出库-超重件，出库-超规格件）");
                                 failSize.incrementAndGet();
                             }
 
@@ -582,7 +596,18 @@ public class ExceptionInfoController extends BaseController {
         R<BasRegionSelectListVO> listVOR = this.basRegionFeignService.queryByCountryName(country);
         BasRegionSelectListVO vo = R.getDataAndException(listVOR);
         if (null != vo) {
+
             return vo.getAddressCode();
+        }
+        return null;
+    }
+
+    private String getCountryCodeS(String country) {
+        R<BasRegionSelectListVO> listVOR = this.basRegionFeignService.queryByCountryName(country);
+        BasRegionSelectListVO vo = R.getDataAndException(listVOR);
+        if (null != vo) {
+            //汪俊余要改的
+            return vo.getEnName();
         }
         return null;
     }
@@ -628,9 +653,11 @@ public class ExceptionInfoController extends BaseController {
     @Log(title = "模块", businessType = BusinessType.UPDATE)
     @PutMapping("edit")
     @ApiOperation(value = " 修改模块", notes = "修改模块")
-    public R edit(@RequestBody ExceptionInfoDto exceptionInfo) {
+    public R edit(@RequestBody List<ExceptionInfoDto> exceptionInfo) {
         return toOk(exceptionInfoService.updateExceptionInfo(exceptionInfo));
     }
+
+
 
     /**
      * 删除模块
