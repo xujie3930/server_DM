@@ -13,8 +13,10 @@ import com.szmsd.common.core.web.page.TableDataInfo;
 import com.szmsd.common.plugin.annotation.AutoValue;
 import com.szmsd.finance.domain.AccountSerialBill;
 import com.szmsd.finance.domain.AccountSerialBillEn;
+import com.szmsd.finance.dto.AccountBalanceBillCurrencyVO;
 import com.szmsd.finance.dto.AccountSerialBillDTO;
 import com.szmsd.finance.service.IAccountSerialBillService;
+import com.szmsd.finance.vo.AccountSerialBillExcelVO;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.BeanUtils;
@@ -46,6 +48,8 @@ public class AccountSerialBillController extends BaseController {
     @GetMapping("/listPage")
     public TableDataInfo<AccountSerialBill> listPage(AccountSerialBillDTO dto) {
         startPage();
+
+
         return getDataTable(accountSerialBillService.listPage(dto));
     }
 
@@ -61,14 +65,27 @@ public class AccountSerialBillController extends BaseController {
         return R.ok(getDataTable(accountSerialBillService.listPage(dto)));
     }
 
+    //@AutoValue
+    //@PreAuthorize("@ss.hasPermi('AccountSerialBill:list')")
+    @ApiOperation(value = "流水账单 - 币种统计")
+    @PostMapping("/bill-currency-data")
+    public R<List<AccountBalanceBillCurrencyVO>> findBillCurrencyData(@RequestBody AccountSerialBillDTO dto){
+        return R.ok(accountSerialBillService.findBillCurrencyData(dto));
+    }
+
+    @ApiOperation(value = "流水账单 - 导出汇总")
+    @PostMapping ("/export-total")
+    public void exportTotal(HttpServletResponse response, @RequestBody AccountSerialBillDTO dto){
+
+        accountSerialBillService.exportBillTotal(response,dto);
+    }
+
+
     @PreAuthorize("@ss.hasPermi('AccountSerialBill:export')")
     @ApiOperation(value = "流水账单 - 列表导出")
     @PostMapping ("/export")
     public void export(HttpServletResponse response, @RequestBody AccountSerialBillDTO dto) {
-        List<AccountSerialBill> list = accountSerialBillService.listPage(dto);
-
-
-
+        List<AccountSerialBillExcelVO> list = accountSerialBillService.exportData(dto);
 
         String len = getLen();
         if("en".equals(len)) {
@@ -95,7 +112,7 @@ public class AccountSerialBillController extends BaseController {
 
             List<String> warehouseCodes = new ArrayList<>();
             for (int i = 0; i < list.size(); i++) {
-                AccountSerialBill vo = list.get(i);
+                AccountSerialBillExcelVO vo = list.get(i);
                 if(!warehouseCodes.contains(vo.getWarehouseCode())){
                     warehouseCodes.add(vo.getWarehouseCode());
                 }
@@ -121,7 +138,7 @@ public class AccountSerialBillController extends BaseController {
                 Map<String, BasWarehouse> collectMap = warehouseList.stream()
                         .collect(Collectors.toMap(BasWarehouse::getWarehouseCode, Function.identity(), (v1, v2) -> v1));
                 for (int i = 0; i < list.size(); i++) {
-                    AccountSerialBill vo = list.get(i);
+                    AccountSerialBillExcelVO vo = list.get(i);
                     if(collectMap.containsKey(vo.getWarehouseCode())){
                         vo.setWarehouseCode(collectMap.get(vo.getWarehouseCode()).getWarehouseNameEn());
                     }
@@ -132,7 +149,7 @@ public class AccountSerialBillController extends BaseController {
 
             List<AccountSerialBillEn> enList = new ArrayList();
             for (int i = 0; i < list.size(); i++) {
-                AccountSerialBill vo = list.get(i);
+                AccountSerialBillExcelVO vo = list.get(i);
                 AccountSerialBillEn enDto = new AccountSerialBillEn();
                 BeanUtils.copyProperties(vo, enDto);
                 enList.add(enDto);
@@ -141,8 +158,7 @@ public class AccountSerialBillController extends BaseController {
             ExcelUtil<AccountSerialBillEn> util = new ExcelUtil<AccountSerialBillEn>(AccountSerialBillEn.class);
             util.exportExcel(response, enList, "bill" + DateUtils.dateTimeNow());
         }else{
-
-            ExcelUtil<AccountSerialBill> util = new ExcelUtil<>(AccountSerialBill.class);
+            ExcelUtil<AccountSerialBillExcelVO> util = new ExcelUtil<>(AccountSerialBillExcelVO.class);
             util.exportExcel(response,list,"业务明细");
 
         }
