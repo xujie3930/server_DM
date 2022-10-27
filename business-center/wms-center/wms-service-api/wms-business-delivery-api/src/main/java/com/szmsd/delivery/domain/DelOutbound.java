@@ -71,6 +71,7 @@ public class DelOutbound extends BaseEntity {
     @ApiModelProperty(value = "发货规则名称（也就是物流承运商，必须填写指定值，例如Fedex, USPS等，相同代表一起交货。）")
     private String shipmentRuleName;
 
+
     @ApiModelProperty(value = "发货服务名称")
     private String shipmentService;
 

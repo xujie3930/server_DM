@@ -82,10 +82,7 @@ import com.szmsd.http.api.feign.HtpOutboundFeignService;
 import com.szmsd.http.api.feign.HtpPricedProductFeignService;
 import com.szmsd.http.api.service.IHtpOutboundClientService;
 import com.szmsd.http.api.service.IHtpRmiClientService;
-import com.szmsd.http.dto.HttpRequestDto;
-import com.szmsd.http.dto.ShipmentCancelRequestDto;
-import com.szmsd.http.dto.ShipmentOrderResult;
-import com.szmsd.http.dto.ShipmentTrackingChangeRequestDto;
+import com.szmsd.http.dto.*;
 import com.szmsd.http.enums.DomainEnum;
 import com.szmsd.http.vo.HttpResponseVO;
 import com.szmsd.http.vo.PricedProductInfo;
@@ -842,13 +839,13 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                     delOutbound.setShipmentRuleName(info.getData().getName());
                 }
                 //校验产品服务是否可下单
-//                R<List<BasProductService>> r= chargeFeignService.selectBasProductService(Arrays.asList(dto.getShipmentRule()));
-//                if(r.getCode() == 200 && r.getData()!= null && r.getData().size() > 0){
-//                    Boolean isInService = r.getData().get(0).getInService();
-//                    if(isInService != null && isInService == false){
-//                        throw new CommonException("400", "Logistics services are not available");
-//                    }
-//                }
+                R<List<BasProductService>> r= chargeFeignService.selectBasProductService(Arrays.asList(dto.getShipmentRule()));
+                if(r.getCode() == 200 && r.getData()!= null && r.getData().size() > 0){
+                    Boolean isInService = r.getData().get(0).getInService();
+                    if(isInService != null && isInService == false){
+                        throw new CommonException("400", "Logistics services are not available");
+                    }
+                }
             }
 
 
@@ -1293,14 +1290,14 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             if(info.getCode() == 200 && info.getData() != null){
                 delOutbound.setShipmentRuleName(info.getData().getName());
             }
-//            //校验产品服务是否可下单
-//            R<List<BasProductService>> r= chargeFeignService.selectBasProductService(Arrays.asList(dto.getShipmentRule()));
-//            if(r.getCode() == 200 && r.getData()!= null && r.getData().size() > 0){
-//                Boolean isInService = r.getData().get(0).getInService();
-//                if(isInService != null && isInService == false){
-//                    throw new CommonException("400", "Logistics services are not available");
-//                }
-//            }
+            //校验产品服务是否可下单
+            R<List<BasProductService>> r= chargeFeignService.selectBasProductService(Arrays.asList(dto.getShipmentRule()));
+            if(r.getCode() == 200 && r.getData()!= null && r.getData().size() > 0){
+                Boolean isInService = r.getData().get(0).getInService();
+                if(isInService != null && isInService == false){
+                    throw new CommonException("400", "Logistics services are not available");
+                }
+            }
         }
 
         // 先取消冻结，再冻结
