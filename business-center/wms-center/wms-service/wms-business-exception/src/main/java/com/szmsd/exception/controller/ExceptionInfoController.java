@@ -204,7 +204,7 @@ public class ExceptionInfoController extends BaseController {
         exportContext.setStateCacheAdapter(listMap.get("085"));
         QueryDto queryDto1 = new QueryDto();
         queryDto1.setPageNum(1);
-        queryDto1.setPageSize(300);
+        queryDto1.setPageSize(80000);
         QueryPage<ExceptionInfoExportDto> queryPage = new ExceptionInfoExportQueryPage(dto, queryDto1, exportContext, this.exceptionInfoService);
         List<ExceptionInfoExportDto> list=queryPage.getPage();
         list.forEach(x->{
@@ -643,6 +643,16 @@ public class ExceptionInfoController extends BaseController {
     @ApiOperation(value = "处理模块", notes = "处理模块")
     public R process(@RequestBody ProcessExceptionRequest processExceptionRequest) {
         exceptionInfoService.processExceptionInfo(processExceptionRequest);
+        return R.ok();
+    }
+
+
+    @PreAuthorize("@ss.hasPermi('ExceptionInfo:ExceptionInfo:add')")
+    @Log(title = "模块", businessType = BusinessType.INSERT)
+    @PostMapping("processByOrderNo")
+    @ApiOperation(value = "处理模块-订单号", notes = "处理模块-订单号")
+    public R processByOrderNo(@RequestBody ProcessExceptionOrderRequest processExceptionRequest) {
+        exceptionInfoService.processByOrderNo(processExceptionRequest);
         return R.ok();
     }
 
