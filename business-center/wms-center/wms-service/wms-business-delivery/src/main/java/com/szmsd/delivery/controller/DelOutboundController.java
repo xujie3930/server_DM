@@ -1079,6 +1079,8 @@ public class DelOutboundController extends BaseController {
                         response.setHeader("Content-Disposition", "attachment;filename=" + URLEncoder.encode(fileName, "UTF-8") + ".xls");
 
                         response.setCharacterEncoding("UTF-8");
+                        response.setContentType("application/octet-stream");
+
                         response.addHeader("Pargam", "no-cache");
                         response.addHeader("Cache-Control", "no-cache");
 
