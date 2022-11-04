@@ -17,7 +17,6 @@ public interface BasCustomPricesgradeMapper {
     List<BasCustomPricesgrade> selectByPrimaryKey(BasCustomPricesgrade basCustomPricesgrade);
 
     int updateByPrimaryKeySelective(UpdateCustomMainDto record);
-
     int updateByPrimaryKeySelectiveby(BasCustomPricesgrade record);
 
 
