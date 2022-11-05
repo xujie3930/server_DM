@@ -21,6 +21,10 @@ public interface BasCustomPricesgradeMapper {
 
 
 
+    int updateByPrimaryKeySelectiveby(BasCustomPricesgrade record);
+
+
+
     int updateByPrimaryKey(BasCustomPricesgrade record);
 
     BasCustomPricesgrade  selectByPrimaryKeys(@Param("templateId") String templateId,@Param("customprType") String customprType);
