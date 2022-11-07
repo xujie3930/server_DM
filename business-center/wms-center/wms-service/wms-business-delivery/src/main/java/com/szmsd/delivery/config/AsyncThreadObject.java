@@ -34,7 +34,7 @@ public class AsyncThreadObject implements Serializable {
     }
 
     public void loadTid() {
-        MDC.put("TID", String.valueOf(this.threadId));
+        MDC.put("TID", this.tid);
     }
 
     public void unloadTid() {
