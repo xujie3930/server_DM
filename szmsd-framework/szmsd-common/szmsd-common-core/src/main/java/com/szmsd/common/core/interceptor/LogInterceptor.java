@@ -23,7 +23,7 @@ import java.util.UUID;
 @Component
 public class LogInterceptor implements HandlerInterceptor {
     // 会话ID
-    private final static String SESSION_ID = "sessionId";
+    private final static String SESSION_ID = "TID";
 
     @Override
     public boolean preHandle(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Object o) {
