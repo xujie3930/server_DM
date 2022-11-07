@@ -105,10 +105,9 @@ public class DelOutboundBringVerifyAsyncServiceImpl implements IDelOutboundBring
         long startTime = System.currentTimeMillis();
         boolean isAsyncThread = !asyncThreadObject.isAsyncThread();
         logger.info("(1)任务开始执行，当前任务名称：{}，当前任务ID：{}，是否为异步任务：{}，任务相关参数：{}", thread.getName(), thread.getId(), isAsyncThread, JSON.toJSONString(asyncThreadObject));
-        /*if (isAsyncThread) {
+        if (isAsyncThread) {
             asyncThreadObject.loadTid();
-        }*/
-        asyncThreadObject.loadTid();
+        }
         stopWatch.start();
         DelOutboundWrapperContext context = this.delOutboundBringVerifyService.initContext(delOutbound);
         stopWatch.stop();
