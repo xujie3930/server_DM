@@ -182,6 +182,16 @@
             <artifactId>wms-business-ec-api</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.szmsd</groupId>
+            <artifactId>szmsd-common-core</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework</groupId>
+                    <artifactId>spring-webmvc</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
     </dependencies>
 
     <build>
