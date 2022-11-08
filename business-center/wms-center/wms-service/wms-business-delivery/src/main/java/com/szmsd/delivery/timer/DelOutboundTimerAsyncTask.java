@@ -6,6 +6,7 @@ import com.szmsd.delivery.service.IDelOutboundCompletedService;
 import com.szmsd.delivery.service.wrapper.IDelOutboundAsyncService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -55,6 +56,7 @@ public class DelOutboundTimerAsyncTask {
 
     private void handle(Consumer<String> consumer, Long id) {
         try {
+            MDC.put("TID", String.valueOf(Thread.currentThread().getId()));
             consumer.accept(null);
             // 处理成功
             this.delOutboundCompletedService.success(id);

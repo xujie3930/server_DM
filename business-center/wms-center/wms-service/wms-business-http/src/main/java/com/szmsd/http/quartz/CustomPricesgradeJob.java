@@ -49,14 +49,14 @@ public class CustomPricesgradeJob extends QuartzJobBean {
                          basCustomPricesgrade.setShowTime(new Date());
                          basCustomPricesgrade.setOrderOn(i.getOrder());
                          basCustomPricesgrade.setSellerCode(s);
-                         BasCustomPricesgrade   basCustomPricesgrade1 =basCustomPricesgradeMapper.selectByPrimaryKey(basCustomPricesgrade);
-                         if (basCustomPricesgrade1!=null){
-                             basCustomPricesgradeMapper.deleteByPrimaryKey(basCustomPricesgrade1.getId());
-                             basCustomPricesgradeMapper.insertSelective(basCustomPricesgrade);
+                         List<BasCustomPricesgrade>   basCustomPricesgrade1 =basCustomPricesgradeMapper.selectByPrimaryKey(basCustomPricesgrade);
+                         if (basCustomPricesgrade1.size()>0){
+
+                             basCustomPricesgradeMapper.updateByPrimaryKeySelectiveby(basCustomPricesgrade);
                          }
 
-                         BasCustomPricesgrade   basCustomPricesgrade2 =basCustomPricesgradeMapper.selectByPrimaryKeys(i.getTemplateId(),"1");
-                         if (basCustomPricesgrade2==null){
+                         //BasCustomPricesgrade   basCustomPricesgrade2 =basCustomPricesgradeMapper.selectByPrimaryKeys(i.getTemplateId(),"1");
+                         if (basCustomPricesgrade1.size()==0){
                              basCustomPricesgradeMapper.insertSelective(basCustomPricesgrade);
                          }
 
@@ -77,14 +77,13 @@ public class CustomPricesgradeJob extends QuartzJobBean {
                          basCustomPricesgrade.setCreateByName("系统自动创建");
                          basCustomPricesgrade.setShowTime(new Date());
                          basCustomPricesgrade.setSellerCode(s);
-                         BasCustomPricesgrade   basCustomPricesgrade1 =basCustomPricesgradeMapper.selectByPrimaryKey(basCustomPricesgrade);
-                         if (basCustomPricesgrade1!=null){
-                             basCustomPricesgradeMapper.deleteByPrimaryKey(basCustomPricesgrade1.getId());
-                             basCustomPricesgradeMapper.insertSelective(basCustomPricesgrade);
+                         List<BasCustomPricesgrade>   basCustomPricesgrade1 =basCustomPricesgradeMapper.selectByPrimaryKey(basCustomPricesgrade);
+                         if (basCustomPricesgrade1.size()>0){
+                             basCustomPricesgradeMapper.updateByPrimaryKeySelectiveby(basCustomPricesgrade);
                          }
 
-                         BasCustomPricesgrade   basCustomPricesgrade2 =basCustomPricesgradeMapper.selectByPrimaryKeys(q.getTemplateId(),"0");
-                         if (basCustomPricesgrade2==null){
+//                         BasCustomPricesgrade   basCustomPricesgrade2 =basCustomPricesgradeMapper.selectByPrimaryKeys(q.getTemplateId(),"0");
+                         if (basCustomPricesgrade1.size()==0){
                              basCustomPricesgradeMapper.insertSelective(basCustomPricesgrade);
                          }
                      });
