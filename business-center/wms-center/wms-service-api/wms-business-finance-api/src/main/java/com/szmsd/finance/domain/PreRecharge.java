@@ -73,7 +73,7 @@ public class PreRecharge extends FssBaseEntity {
     private String paymentVoucher;
 
     @AutoFieldI18n
-    @ApiModelProperty(value = "审核状态(默认0=未审核，1=审核，2=审核未通过)")
+    @ApiModelProperty(value = "审核状态(默认0=未审核，1=审核，2=审核未通过 3=审核驳回)")
     private String verifyStatus;
 
     @AutoFieldI18n
@@ -86,4 +86,10 @@ public class PreRecharge extends FssBaseEntity {
 
     @ApiModelProperty(value = "收款银行名称")
     private String dueBankName;
+
+    @ApiModelProperty(value = "银行账号ID")
+    private String bankId;
+
+    @ApiModelProperty(value = "驳回意见")
+    private String rejectRemark;
 }
