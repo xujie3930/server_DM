@@ -43,7 +43,6 @@ public class LogInterceptor implements HandlerInterceptor {
     @Override
     public void postHandle(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Object o, ModelAndView modelAndView) {
         MDC.remove(SESSION_ID);
-        MDC.remove(TRACE_ID);
 
     }
 
