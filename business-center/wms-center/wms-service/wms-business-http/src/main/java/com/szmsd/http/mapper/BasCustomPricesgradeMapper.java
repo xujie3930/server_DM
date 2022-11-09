@@ -21,9 +21,6 @@ public interface BasCustomPricesgradeMapper {
 
 
 
-    int updateByPrimaryKeySelectiveby(BasCustomPricesgrade record);
-
-
 
     int updateByPrimaryKey(BasCustomPricesgrade record);
 
