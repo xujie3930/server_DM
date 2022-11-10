@@ -6,6 +6,7 @@ package com.szmsd.common.core.interceptor;
  * @create 2022-11-07 17:25
  **/
 
+import com.szmsd.common.core.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
@@ -24,11 +25,18 @@ import java.util.UUID;
 public class LogInterceptor implements HandlerInterceptor {
     // 会话ID
     private final static String SESSION_ID = "TID";
+    private final static String TRACE_ID = "traceId";
 
     @Override
     public boolean preHandle(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Object o) {
-        String uuid = UUID.randomUUID().toString().replaceAll("-", "");
+        String uuid;
+        if (StringUtils.isNotEmpty(httpServletRequest.getHeader(TRACE_ID))){
+            uuid = httpServletRequest.getHeader(TRACE_ID);
+        }else {
+            uuid = UUID.randomUUID().toString().replaceAll("-", "");
+        }
         MDC.put(SESSION_ID, uuid);
+        MDC.put(TRACE_ID, uuid);
         return true;
     }
 
