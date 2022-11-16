@@ -402,7 +402,7 @@ public interface IDelOutboundService extends IService<DelOutbound> {
      *
      * @param list list
      */
-    void emailBatchUpdateTrackingNo(List<Map<String, Object>> list,String filepath);
+void emailBatchUpdateTrackingNo(List<Map<String, Object>> list,String filepath);
 
     /**
      * 重新获取挂号
@@ -464,5 +464,13 @@ public interface IDelOutboundService extends IService<DelOutbound> {
 
     //导出挂号失败的数据
     List<DelOutboundTarckError> selectbatchTrackingexport();
+
+    void carrierRegister(DelOutbound delOutbound);
+
+    boolean serviceChannelNamePushWMS(DelOutbound delOutbound, DelOutbound updateDelOutbound);
+
+
+    public void doDirectExpressOrders();
+
 }
 

@@ -68,7 +68,9 @@
             o.amazon_logistics_route_id,
             o.house_no,
             o.currency_describe,
-            o.expected_no
+            o.expected_no,
+            a.tax_number,
+            a.id_number
         FROM del_outbound o
         LEFT JOIN del_outbound_address a ON a.order_no = o.order_no
         ${ew.customSqlSegment}
@@ -321,5 +323,14 @@
     <select id="selectdelsellerCodes" resultType="com.szmsd.bas.domain.BasSeller">
 
         SELECT * from bas_seller where del_flag=0
+    </select>
+
+
+    <select id="selectByState" resultType="com.szmsd.delivery.domain.DelOutbound">
+
+        SELECT * from del_outbound
+        where state = #{state}
+        limit #{pageNumber},#{pageSize}
+
     </select>
 </mapper>

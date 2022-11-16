@@ -2,6 +2,7 @@ package com.szmsd.delivery.service.wrapper;
 
 import cn.hutool.core.codec.Base64;
 import cn.hutool.core.util.ArrayUtil;
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.szmsd.bas.api.domain.BasAttachment;
 import com.szmsd.bas.api.domain.dto.BasAttachmentQueryDTO;
@@ -18,11 +19,13 @@ import com.szmsd.common.core.utils.MessageUtil;
 import com.szmsd.common.core.utils.SpringUtils;
 import com.szmsd.common.core.utils.StringUtils;
 import com.szmsd.delivery.domain.*;
+import com.szmsd.delivery.dto.BasShipmentRulesDto;
 import com.szmsd.delivery.dto.DelOutboundLabelDto;
 import com.szmsd.delivery.enums.*;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
 import com.szmsd.delivery.service.*;
 import com.szmsd.delivery.service.impl.DelOutboundServiceImplUtil;
+import com.szmsd.delivery.util.BigDecimalUtil;
 import com.szmsd.delivery.util.PdfUtil;
 import com.szmsd.delivery.util.Utils;
 import com.szmsd.delivery.vo.DelOutboundOperationDetailVO;
@@ -79,6 +82,9 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
 
     // #1 PRC 计费        - 无回滚
     PRC_PRICING,
+
+    //# 1 IOSS 检查     - 有回滚
+    IOSS_CHECK,
 
     // #2 冻结物流费用    - 有回滚
     FREEZE_BALANCE,
@@ -138,6 +144,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
         Map<String, ApplicationHandle> map = new HashMap<>();
         map.put(BEGIN.name(), new BeginHandle());
         map.put(PRC_PRICING.name(), new PrcPricingHandle());
+        map.put(IOSS_CHECK.name(), new IossChekcHandle());
         map.put(FREEZE_BALANCE.name(), new FreezeBalanceHandle());
         map.put(PRODUCT_INFO.name(), new ProductInfoHandle());
         map.put(SHIPMENT_RULE.name(), new ShipmentRuleHandle());
@@ -403,16 +410,22 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             //分组计算货币金额
             Map<String, BigDecimal> currencyMap = new HashMap<String, BigDecimal>();
             for (DelOutboundCharge charge: delOutboundCharges){
-                if(currencyMap.containsKey(charge.getCurrencyCode())){
-                    currencyMap.put(charge.getCurrencyCode(), currencyMap.get(charge.getCurrencyCode()).add(charge.getAmount()));
+
+                String currencyCode = charge.getCurrencyCode();
+                BigDecimal amount = BigDecimalUtil.setScale(charge.getAmount(),3);
+
+                if(currencyMap.containsKey(currencyCode)){
+                    BigDecimal chargeamount = currencyMap.get(currencyCode).add(amount);
+                    currencyMap.put(currencyCode, chargeamount);
                 }else{
-                    currencyMap.put(charge.getCurrencyCode(), charge.getAmount());
+                    currencyMap.put(currencyCode, amount);
                 }
             }
-            delOutbound.setCurrencyDescribe(ArrayUtil.join(currencyMap.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getValue))
-                    .map(e -> e.getValue() + e.getKey()).collect(Collectors.toList()).toArray(), "；"));
 
+            String currencyDescribe = ArrayUtil.join(currencyMap.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getValue))
+                    .map(e -> e.getValue() + e.getKey()).collect(Collectors.toList()).toArray(), "；");
 
+            delOutbound.setCurrencyDescribe(currencyDescribe);
 
 
             //更新PRC发货服务
@@ -464,6 +477,105 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
 
         @Override
         public ApplicationState nextState() {
+            return IOSS_CHECK;
+        }
+    }
+
+    static class IossChekcHandle extends CommonApplicationHandle {
+
+        @Override
+        public ApplicationState preState() {
+            return PRC_PRICING;
+        }
+
+        @Override
+        public ApplicationState quoState() {
+            return IOSS_CHECK;
+        }
+
+        @Override
+        public boolean otherCondition(ApplicationContext context, ApplicationState currentState) {
+            //批量出库->自提出库 不做prc
+            return super.batchSelfPick(context, currentState);
+        }
+
+        @Override
+        public void handle(ApplicationContext context) {
+            StopWatch stopWatch = new StopWatch();
+
+            //IDelOutboundBringVerifyService delOutboundBringVerifyService = SpringUtils.getBean(IDelOutboundBringVerifyService.class);
+            DelOutboundWrapperContext delOutboundWrapperContext = (DelOutboundWrapperContext) context;
+            DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
+            logger.info(">>>>>[创建出库单{}]-开始执行IOSS_CHECK", delOutbound.getOrderNo());
+
+            BasShipmenRulesService basShipmenRulesService = SpringUtils.getBean(BasShipmenRulesService.class);
+
+            String customCode = delOutbound.getSellerCode();
+            String shipmentService = delOutbound.getShipmentService();
+            String ioss = delOutbound.getIoss();
+
+            stopWatch.start();
+
+            BasShipmentRulesDto basShipmentRulesDto = new BasShipmentRulesDto();
+            basShipmentRulesDto.setCustomCode(customCode);
+            basShipmentRulesDto.setServiceChannelName(shipmentService);
+
+            logger.info(">>>>>[创建出库单{}]-IOSS_CHECK参数：耗时{}",delOutbound.getOrderNo(), JSON.toJSONString(basShipmentRulesDto));
+
+            boolean checkIoss = basShipmenRulesService.selectbasShipmentRules(basShipmentRulesDto);
+
+            stopWatch.stop();
+            logger.info(">>>>>[创建出库单{}]-IOSS_CHECK计算返回结果：{}", delOutbound.getOrderNo(), checkIoss);
+
+            if (checkIoss) {
+                if(StringUtils.isEmpty(ioss)) {
+
+                    String exceptionMessage = "["+delOutbound.getOrderNo()+"]单号，此物流服务需要必填IOSS";
+                    throw new CommonException("400", exceptionMessage);
+                }
+            }
+
+            //DelOutboundOperationLogEnum.BRV_PRC_PRICING.listener(delOutbound);
+        }
+
+        @Override
+        public void rollback(ApplicationContext context) {
+            DelOutboundWrapperContext delOutboundWrapperContext = (DelOutboundWrapperContext) context;
+            DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
+            IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
+            DelOutbound updateDelOutbound = new DelOutbound();
+            updateDelOutbound.setId(delOutbound.getId());
+            updateDelOutbound.setBringVerifyState(BEGIN.name());
+            // PRC计费
+            updateDelOutbound.setCalcWeight(BigDecimal.ZERO);
+            updateDelOutbound.setCalcWeightUnit("");
+            updateDelOutbound.setAmount(BigDecimal.ZERO);
+            updateDelOutbound.setCurrencyCode("");
+            updateDelOutbound.setCurrencyDescribe("");
+
+            updateDelOutbound.setSupplierCalcType("");
+            updateDelOutbound.setSupplierCalcId("");
+            // 产品信息
+            updateDelOutbound.setTrackingAcquireType("");
+            updateDelOutbound.setShipmentService("");
+            updateDelOutbound.setLogisticsProviderCode("");
+            updateDelOutbound.setProductShipmentRule("");
+            updateDelOutbound.setPackingRule("");
+            // 创建承运商物流订单
+            updateDelOutbound.setTrackingNo("");
+            updateDelOutbound.setShipmentOrderNumber("");
+            updateDelOutbound.setShipmentOrderLabelUrl("");
+            // 推单WMS
+            updateDelOutbound.setRefOrderNo("");
+
+            // 提审失败
+            updateDelOutbound.setState(DelOutboundStateEnum.AUDIT_FAILED.getCode());
+            delOutboundService.updateById(updateDelOutbound);
+            super.rollback(context);
+        }
+
+        @Override
+        public ApplicationState nextState() {
             return FREEZE_BALANCE;
         }
     }
@@ -472,7 +584,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
 
         @Override
         public ApplicationState preState() {
-            return PRC_PRICING;
+            return IOSS_CHECK;
         }
 
         @Override
@@ -500,15 +612,15 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             logger.info("出库单{}-开始冻结费用：{}", delOutbound.getOrderNo(), JSONObject.toJSONString(delOutbound));
             DelOutboundOperationLogEnum.BRV_FREEZE_BALANCE.listener(delOutbound);
 
-            RedissonClient redissonClient = SpringUtils.getBean(RedissonClient.class);
+            //RedissonClient redissonClient = SpringUtils.getBean(RedissonClient.class);
 
-            String key = "bringVerify-fss-freeze-balance" + delOutbound.getCustomCode() + ":" + delOutbound.getOrderNo();
-
-            RLock lock = redissonClient.getLock(key);
-
+//            String key = "bringVerify-fss-freeze-balance" + delOutbound.getCustomCode() + ":" + delOutbound.getOrderNo();
+//
+//            RLock lock = redissonClient.getLock(key);
+//
             try {
-
-                lock.tryLock(time, unit);
+//
+//                lock.tryLock(time, unit);
 
                 /**
                  *  获取要冻结的费用数据，并按货币分组冻结
@@ -563,9 +675,9 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                 logger.info("异常信息:" + e.getMessage());
                 throw new RuntimeException(e.getMessage());
             }finally {
-                if (lock.isLocked() && lock.isHeldByCurrentThread()) {
-                    lock.unlock();
-                }
+//                if (lock.isLocked() && lock.isHeldByCurrentThread()) {
+//                    lock.unlock();
+//                }
             }
 
         }
@@ -752,10 +864,22 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             String shipmentService = delOutbound.getShipmentService();
             String trackingAcquireType = delOutbound.getTrackingAcquireType();
 
+            //BasShipmenRulesService basShipmenRulesService = SpringUtils.getBean(BasShipmenRulesService.class);
+
             //8431 提审订单时，如果返回的物流服务是空的，跳过调用供应商
             if(StringUtils.isEmpty(shipmentService) || trackingAcquireType.equals(DelOutboundTrackingAcquireTypeEnum.NONE.getCode())){
                 return;
             }
+
+//            BasShipmentRulesDto paramBasShipmentRulesDto = new BasShipmentRulesDto();
+//            paramBasShipmentRulesDto.setCustomCode(delOutbound.getSellerCode());
+//            paramBasShipmentRulesDto.setServiceChannelName(shipmentService);
+//            List<BasShipmentRules> list = basShipmenRulesService.selectBasShipmentRules(paramBasShipmentRulesDto);
+//            if(CollectionUtils.isNotEmpty(list)){
+//                return;
+//            }
+
+            IDelOutboundService iDelOutboundService = SpringUtils.getBean(IDelOutboundService.class);
 
             logger.info("{}-创建承运商物流订单：{}", delOutbound.getOrderNo(), JSONObject.toJSONString(delOutbound));
             // 判断是否需要创建物流订单
@@ -769,7 +893,14 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                     delOutbound.setTrackingNo(shipmentOrderResult.getMainTrackingNumber());
                     delOutbound.setShipmentOrderNumber(shipmentOrderResult.getOrderNumber());
                     delOutbound.setShipmentOrderLabelUrl(shipmentOrderResult.getOrderLabelUrl());
+                    delOutbound.setReferenceNumber(shipmentOrderResult.getReferenceNumber());
                 }
+
+                DelOutbound delOutboundUpd = new DelOutbound();
+                delOutboundUpd.setId(delOutbound.getId());
+                delOutboundUpd.setReferenceNumber(delOutbound.getReferenceNumber());
+                iDelOutboundService.updateById(delOutboundUpd);
+
                 logger.info(">>>>>[创建出库单{}]创建承运商 耗时{}", delOutbound.getOrderNo(), stopWatch.getLastTaskInfo().getTimeMillis());
 
                 DelOutboundOperationLogEnum.BRV_SHIPMENT_ORDER.listener(delOutbound);
@@ -1033,9 +1164,14 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                 updateDelOutbound.setTrackingNo(delOutbound.getTrackingNo());
                 updateDelOutbound.setShipmentOrderNumber(delOutbound.getShipmentOrderNumber());
                 updateDelOutbound.setShipmentOrderLabelUrl(delOutbound.getShipmentOrderLabelUrl());
-                delOutboundService.bringVerifySuccess(updateDelOutbound);
 
                 if(!DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())){
+                    //判断物流服务是否推送WMS
+                    if(delOutboundService.serviceChannelNamePushWMS(delOutbound, updateDelOutbound)){
+                        return;
+                    }
+
+
                     // 提交一个WMS任务
                     stopWatch.start();
                     IDelOutboundThirdPartyService delOutboundThirdPartyService = SpringUtils.getBean(IDelOutboundThirdPartyService.class);
@@ -1047,6 +1183,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                     stopWatch.stop();
                     logger.info(">>>>>[创建出库单{}]提交一个WMS订单任务,耗时{}", delOutbound.getOrderNo(), stopWatch.getLastTaskTimeMillis());
                 }
+            delOutboundService.bringVerifySuccess(updateDelOutbound);
 
 
 
