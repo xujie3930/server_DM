@@ -5,6 +5,7 @@ import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.szmsd.bas.domain.BasDeliveryServiceMatching;
 import com.szmsd.delivery.config.ThreadPoolExecutorConfiguration;
 import com.szmsd.delivery.domain.DelOutboundCompleted;
 import com.szmsd.delivery.enums.DelOutboundCompletedStateEnum;
@@ -116,6 +117,9 @@ public class DelOutboundTimer {
             LambdaQueryWrapper<DelOutboundCompleted> queryWrapper = Wrappers.lambdaQuery();
             queryWrapper.eq(DelOutboundCompleted::getState, DelOutboundCompletedStateEnum.INIT.getCode());
             queryWrapper.eq(DelOutboundCompleted::getOperationType, DelOutboundOperationTypeEnum.SHIPPED.getCode());
+            queryWrapper.and(x -> x.ne(DelOutboundCompleted::getCreateByName, "pushDate").
+                    or().le(DelOutboundCompleted::getNextHandleTime, new Date())
+            );
             handleCompleted(queryWrapper);
         });
     }
@@ -203,38 +207,14 @@ public class DelOutboundTimer {
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
         String key = applicationName + ":DelOutboundTimer:bringVerify";
-        final List<String> uuidList = new ArrayList<>();
-        uuidList.add(UUID.fastUUID().toString());
         this.doWorker(key, () -> {
+            // 查询初始化的任务执行
             LambdaQueryWrapper<DelOutboundCompleted> queryWrapper = Wrappers.lambdaQuery();
             queryWrapper.eq(DelOutboundCompleted::getState, DelOutboundCompletedStateEnum.INIT.getCode());
             queryWrapper.eq(DelOutboundCompleted::getOperationType, DelOutboundOperationTypeEnum.BRING_VERIFY.getCode());
-            queryWrapper.isNull(DelOutboundCompleted::getUuid);
-            queryWrapper.last("LIMIT "+trialLimit);
-            List<DelOutboundCompleted> delOutboundCompletedList = this.delOutboundCompletedService.list(queryWrapper);
-            if(delOutboundCompletedList.size() == 0){
-                uuidList.set(0, null);
-                return;
-            }
-            List<Long> ids = delOutboundCompletedList.stream().map( DelOutboundCompleted::getId).collect(Collectors.toList());
-            LambdaUpdateWrapper<DelOutboundCompleted> updateQueryWrapper = Wrappers.lambdaUpdate();
-            updateQueryWrapper.set(DelOutboundCompleted::getUuid, uuidList.get(0));
-            updateQueryWrapper.in(DelOutboundCompleted::getId, ids);
-            this.delOutboundCompletedService.update(updateQueryWrapper);
+            handleBringVerify(queryWrapper);
         });
-        stopWatch.stop();
-        logger.info(">>>>>[创建出库单]bringVerify处理200条数据{}"+stopWatch.getLastTaskTimeMillis(), uuidList);
 
-        if(uuidList.get(0) == null){
-            return;
-        }
-        logger.debug("开始执行任务 - 提审 版本"+uuidList.get(0));
-        // 查询初始化的任务执行
-        LambdaQueryWrapper<DelOutboundCompleted> queryWrapper = Wrappers.lambdaQuery();
-        queryWrapper.eq(DelOutboundCompleted::getState, DelOutboundCompletedStateEnum.INIT.getCode());
-        queryWrapper.eq(DelOutboundCompleted::getOperationType, DelOutboundOperationTypeEnum.BRING_VERIFY.getCode());
-        queryWrapper.eq(DelOutboundCompleted::getUuid, uuidList.get(0));
-        handleBringVerify(queryWrapper);
     }
 
     /**
@@ -301,7 +281,7 @@ public class DelOutboundTimer {
     }
 
     private void handleCompleted(LambdaQueryWrapper<DelOutboundCompleted> queryWrapper) {
-        this.handle(queryWrapper, (orderNo, id) -> this.delOutboundTimerAsyncTask.asyncHandleCompleted(orderNo, id), 200, true);
+        this.handlePush(queryWrapper, (orderNo, completed) -> this.delOutboundTimerAsyncTask.asyncHandleCompleted(completed), 200, true);
     }
 
     public void handleCancelled(LambdaQueryWrapper<DelOutboundCompleted> queryWrapper) {
@@ -319,6 +299,60 @@ public class DelOutboundTimer {
     private void handle(LambdaQueryWrapper<DelOutboundCompleted> queryWrapper, BiConsumer<String, Long> consumer, int limit) {
         // 默认100
         this.handle(queryWrapper, consumer, limit, false);
+    }
+
+    private void handlePush(LambdaQueryWrapper<DelOutboundCompleted> queryWrapper, BiConsumer<String, DelOutboundCompleted> consumer, int limit, boolean needLock) {
+        // 一次处理200
+        queryWrapper.last("limit " + limit);
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        List<DelOutboundCompleted> delOutboundCompletedList = this.delOutboundCompletedService.list(queryWrapper);
+        stopWatch.stop();
+        logger.info(">>>>>[创建出库单]第二次查询出库临时表"+stopWatch.getLastTaskTimeMillis());
+        if (CollectionUtils.isNotEmpty(delOutboundCompletedList)) {
+            for (DelOutboundCompleted delOutboundCompleted : delOutboundCompletedList) {
+                if (needLock) {
+                    // 增加守护锁，同一条记录如果被多次扫描到，只允许有一个在执行，其它的忽略掉
+                    String key = applicationName + ":DelOutboundTimer:handle:" + delOutboundCompleted.getId();
+                    RLock lock = redissonClient.getLock(key);
+                    try {
+                        if (lock.tryLock(0, TimeUnit.SECONDS)) {
+                            consumer.accept(delOutboundCompleted.getOrderNo(), delOutboundCompleted);
+                        }
+                    } catch (Exception e) {
+                        logger.error(e.getMessage(), e);
+                        // 处理失败
+                        this.delOutboundCompletedService.fail(delOutboundCompleted.getId(), e.getMessage());
+                        // 线程池任务满了，停止执行
+                        if (e instanceof RejectedExecutionException) {
+                            logger.error("=============================================");
+                            logger.error(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>线程池队列任务溢出");
+                            logger.error("=============================================");
+                            break;
+                        }
+                    } finally {
+                        if (lock.isLocked() && lock.isHeldByCurrentThread()) {
+                            lock.unlock();
+                        }
+                    }
+                } else {
+                    try {
+                        consumer.accept(delOutboundCompleted.getOrderNo(), delOutboundCompleted);
+                    } catch (Exception e) {
+                        logger.error(e.getMessage(), e);
+                        // 处理失败
+                        this.delOutboundCompletedService.fail(delOutboundCompleted.getId(), e.getMessage());
+                        // 线程池任务满了，停止执行
+                        if (e instanceof RejectedExecutionException) {
+                            logger.error("=============================================");
+                            logger.error(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>线程池队列任务溢出");
+                            logger.error("=============================================");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private void handle(LambdaQueryWrapper<DelOutboundCompleted> queryWrapper, BiConsumer<String, Long> consumer, int limit, boolean needLock) {

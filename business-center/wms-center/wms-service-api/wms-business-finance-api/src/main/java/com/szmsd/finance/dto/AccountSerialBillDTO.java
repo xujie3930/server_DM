@@ -1,23 +1,27 @@
 package com.szmsd.finance.dto;
 
-import com.szmsd.common.core.annotation.Excel;
 import com.szmsd.common.core.utils.StringToolkit;
 import com.szmsd.common.core.utils.StringUtils;
-import com.szmsd.common.plugin.annotation.AutoFieldI18n;
 import com.szmsd.finance.enums.BillEnum;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
 
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class AccountSerialBillDTO {
+public class AccountSerialBillDTO implements Serializable {
+
+    private static final long serialVersionUID = 13242786321243523L;
 
     @ApiModelProperty(value = "当前起始页索引")
     private int pageNum;
@@ -84,6 +88,15 @@ public class AccountSerialBillDTO {
 
     @ApiModelProperty(value = "附注")
     private String note;
+
+    @ApiModelProperty(value = "亚马逊服务id")
+    private String amazonLogisticsRouteId;
+
+    @ApiModelProperty(value = "国家代码")
+    private String countryCode;
+
+    @ApiModelProperty(value = "国家名称")
+    private String country;
 
     public void setBusinessCategory(String businessCategory) {
         this.businessCategory = businessCategory;
@@ -188,5 +201,10 @@ public class AccountSerialBillDTO {
         this.orderTime = details.getOrderTime();
         this.paymentTime = details.getPaymentTime();
         this.remark = details.getRemark();
+        this.shipmentRuleName = details.getShipmentRuleName();
+        this.shipmentRule = details.getShipmentRule();
+        this.amazonLogisticsRouteId = details.getAmazonLogisticsRouteId();
+        this.country = details.getCountry();
+        this.countryCode = details.getCountryCode();
     }
 }

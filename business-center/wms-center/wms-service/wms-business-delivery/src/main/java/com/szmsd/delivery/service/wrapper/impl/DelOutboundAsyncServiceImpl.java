@@ -31,7 +31,6 @@ import com.szmsd.delivery.util.Utils;
 import com.szmsd.delivery.vo.DelOutboundOperationVO;
 import com.szmsd.exception.api.feign.ExceptionInfoFeignService;
 import com.szmsd.exception.dto.ProcessExceptionOrderRequest;
-import com.szmsd.exception.dto.ProcessExceptionRequest;
 import com.szmsd.finance.api.feign.RechargesFeignService;
 import com.szmsd.finance.dto.AccountSerialBillDTO;
 import com.szmsd.finance.dto.CusFreezeBalanceDTO;
@@ -64,7 +63,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.annotation.Resource;
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -81,6 +79,10 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
 
     @Autowired
     private IDelOutboundService delOutboundService;
+
+    @Autowired
+    private IDelOutboundAddressService iDelOutboundAddressService;
+
     @Autowired
     @Lazy
     private IDelOutboundBringVerifyService delOutboundBringVerifyService;
@@ -114,8 +116,7 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
     private IDelOutboundExceptionService delOutboundExceptionService;
     @Autowired
     private IDelOutboundCompletedService delOutboundCompletedService;
-    @Autowired
-    private IDelSrmCostLogService delSrmCostLogService;
+
     @SuppressWarnings({"all"})
     @Autowired
     private PackageDeliveryConditionsFeignService packageDeliveryConditionsFeignService;
@@ -292,7 +293,7 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
     }
 
     @Override
-    public void completed(String orderNo) {
+    public void completed(String orderNo, String type) {
         // 处理阶段
         // 1.扣减库存              DE
         // 2.1扣减费用             FEE_DE
@@ -314,7 +315,7 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
         String key = applicationName + ":DelOutbound:completed:" + orderNo;
         RLock lock = this.redissonClient.getLock(key);
         try {
-            if (lock.tryLock(0, TimeUnit.SECONDS)) {
+            if (lock.tryLock(180,180, TimeUnit.SECONDS)) {
                 // 空值默认处理
                 if (StringUtils.isEmpty(completedState)) {
                     // 重派订单不扣库存
@@ -341,6 +342,12 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
 
                         List<DelOutboundCharge> chargeList = this.delOutboundChargeService.listCharges(orderNo);
 
+                        //汪总说：一个出库只会有一个地址
+                        List<DelOutboundAddress> addresses = this.iDelOutboundAddressService.list(Wrappers.<DelOutboundAddress>query().lambda().eq(DelOutboundAddress::getOrderNo,orderNo));
+                        DelOutboundAddress address = new DelOutboundAddress();
+                        if(CollectionUtils.isNotEmpty(addresses)){
+                            address = addresses.get(0);
+                        }
 
                         Map<String, List<DelOutboundCharge>> groupByCharge =
                                 chargeList.stream().collect(Collectors.groupingBy(DelOutboundCharge::getCurrencyCode));
@@ -375,6 +382,13 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                                     serialBill.setOrderTime(delOutbound.getCreateTime());
                                     serialBill.setPaymentTime(delOutbound.getShipmentsTime());
                                     serialBill.setProductCode(delOutbound.getShipmentRule());
+                                    serialBill.setShipmentRule(delOutbound.getShipmentRule());
+                                    serialBill.setShipmentRuleName(delOutbound.getShipmentRuleName());
+                                    serialBill.setRemark(delOutbound.getRemark());
+                                    serialBill.setAmazonLogisticsRouteId(delOutbound.getAmazonLogisticsRouteId());
+                                    serialBill.setCountry(address.getCountry());
+                                    serialBill.setCountryCode(address.getCountryCode());
+
                                     serialBillInfoList.add(serialBill);
                                 }
                                 custPayDTO.setSerialBillInfoList(serialBillInfoList);
@@ -406,6 +420,14 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                     completedState = "PM_FEE_DE";
                 }
                 if ("PM_FEE_DE".equalsIgnoreCase(completedState)) {
+
+                    //汪总说：一个出库只会有一个地址
+                    List<DelOutboundAddress> addresses = this.iDelOutboundAddressService.list(Wrappers.<DelOutboundAddress>query().lambda().eq(DelOutboundAddress::getOrderNo,orderNo));
+                    DelOutboundAddress address = new DelOutboundAddress();
+                    if(CollectionUtils.isNotEmpty(addresses)){
+                        address = addresses.get(0);
+                    }
+
                     // 根据出库单上的包材类型进行扣去物料费。
                     String packingMaterial = delOutbound.getPackingMaterial();
                     if (StringUtils.isNotEmpty(packingMaterial)) {
@@ -429,6 +451,9 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                             dto.setProductCategory(BillEnum.PayMethod.BALANCE_DEDUCTIONS.getPaymentName());
                             dto.setChargeCategory(BillEnum.CostCategoryEnum.MATERIAL_COST.getName());
                             dto.setWarehouseCode(basePacking.getWarehouseCode());
+                            dto.setShipmentRule(delOutbound.getShipmentRule());
+                            dto.setShipmentRuleName(delOutbound.getShipmentRuleName());
+                            dto.setNote(delOutbound.getRemark());
                             R<List<BasWarehouse>> listR = basWarehouseFeignService.queryByWarehouseCodes(Collections.singletonList(basePacking.getWarehouseCode()));
                             if (listR.getCode() == HttpStatus.SUCCESS) {
                                 List<BasWarehouse> data = listR.getData();
@@ -437,6 +462,11 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                                 dto.setWarehouseName(warehouseName);
                             }
                             dto.setChargeType(BillEnum.FeeTypeEnum.BALANCE_DEDUCTIONS.getName());
+
+                            dto.setAmazonLogisticsRouteId(delOutbound.getAmazonLogisticsRouteId());
+                            dto.setCountryCode(address.getCountryCode());
+                            dto.setCountry(address.getCountry());
+
                             list.add(dto);
                             custPayDTO.setSerialBillInfoList(list);
                             R<?> r = this.rechargesFeignService.feeDeductions(custPayDTO);
@@ -573,6 +603,27 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                             .setTrackingStatus("WarehouseShipped")
                             .setDescription("DMF, Departure Scan"));
 
+                    if(StringUtils.equals(type, "pushDate")){
+                        //不调用wms的订单
+                        ShipmentOrderSubmissionParam param = new ShipmentOrderSubmissionParam();
+                        param.setReferenceNumber(delOutbound.getReferenceNumber());
+                        try {
+
+                            logger.info("请求submission请求参数：{},{}",delOutbound.getOrderNo(),JSONUtil.toJsonStr(param));
+
+                            //回写状态提交承运商物流订单（客户端）
+                            R r = htpCarrierFeignService.submission(param);
+
+                            logger.info("请求submission返回数据：{},{}",delOutbound.getOrderNo(),JSONUtil.toJsonStr(r.getData()));
+
+                            if(r == null || r.getCode() != 200){
+                                logger.error("{}订单完成同步状态失败{}", delOutbound.getOrderNo(), JSONUtil.toJsonStr(r.getData()));
+                            }
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
+
+                    }
                 }
             }
         } catch (Exception e) {

@@ -343,7 +343,14 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 }
 
             }
-            delOutbound.setShipmentRule(furtherHandlerDto.getShipmentRule());
+
+            //汪总说：不存在取数据库名称
+            if(StringUtils.isNotEmpty(furtherHandlerDto.getShipmentRule())){
+                delOutbound.setShipmentRule(furtherHandlerDto.getShipmentRule());
+            }else{
+                delOutbound.setShipmentRule(delOutbound.getShipmentRule());
+            }
+
             delOutbound.setShipmentService(furtherHandlerDto.getShipmentService());
 
             if(StringUtils.isNotEmpty(furtherHandlerDto.getTrackingAcquireType())){
@@ -613,8 +620,9 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         // 创建承运商物流订单
         CreateShipmentOrderCommand createShipmentOrderCommand = new CreateShipmentOrderCommand();
         createShipmentOrderCommand.setWarehouseCode(delOutbound.getWarehouseCode());
+        String referenceNumber = UUID.randomUUID().toString().replaceAll("-", "").toUpperCase();
         // 改成uuid
-        createShipmentOrderCommand.setReferenceNumber(UUID.randomUUID().toString().replaceAll("-", "").toUpperCase());
+        createShipmentOrderCommand.setReferenceNumber(referenceNumber);
         // 订单号传refno
         if (DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())) {
             createShipmentOrderCommand.setOrderNumber(delOutbound.getRefNo());
@@ -631,7 +639,10 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 address.getCity(),
                 address.getStateOrProvince(),
                 address.getPostCode(),
-                country.getEnName()));
+                country.getEnName(),
+                address.getTaxNumber(),
+                address.getIdNumber()
+        ));
         createShipmentOrderCommand.setReturnAddress(new AddressCommand(warehouse.getContact(),
                 warehouse.getTelephone(),
                 null,
@@ -641,7 +652,10 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 warehouse.getCity(),
                 warehouse.getProvince(),
                 warehouse.getPostcode(),
-                warehouse.getCountryName()));
+                warehouse.getCountryName(),
+                address.getTaxNumber(),
+                address.getIdNumber()
+                ));
         // 税号信息
         String ioss = delOutbound.getIoss();
         if (StringUtils.isNotEmpty(ioss)) {
@@ -763,6 +777,7 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 }
             }
             this.transferCallback(delOutbound.getOrderNo(), delOutbound.getShopifyOrderNo(), shipmentService, shipmentOrderResult.getMainTrackingNumber(), null);
+            shipmentOrderResult.setReferenceNumber(referenceNumber);
             return shipmentOrderResult;
         } else {
             String exceptionMessage = Utils.defaultValue(ProblemDetails.getErrorMessageOrNull(responseObjectWrapper.getError(), true), "创建承运商物流订单失败，调用承运商系统失败");
@@ -839,7 +854,10 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 address.getCity(),
                 address.getStateOrProvince(),
                 address.getPostCode(),
-                country.getEnName()));
+                country.getEnName(),
+                address.getTaxNumber(),
+                address.getIdNumber()
+        ));
         createShipmentOrderCommand.setReturnAddress(new AddressCommand(warehouse.getContact(),
                 warehouse.getTelephone(),
                 null,
@@ -849,7 +867,10 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 warehouse.getCity(),
                 warehouse.getProvince(),
                 warehouse.getPostcode(),
-                warehouse.getCountryName()));
+                warehouse.getCountryName(),
+                address.getTaxNumber(),
+                address.getIdNumber()
+            ));
         // 税号信息
         String ioss = delOutbound.getIoss();
         if (StringUtils.isNotEmpty(ioss)) {
