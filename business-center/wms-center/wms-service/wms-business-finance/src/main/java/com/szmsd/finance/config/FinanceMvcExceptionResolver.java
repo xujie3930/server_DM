@@ -50,7 +50,7 @@ class  Email implements Runnable {
     @Override
     public void run() {
 
-        //emailFeingService.sendEmailError(emailDto);
+        emailFeingService.sendEmailError(emailDto);
 
     }
 
