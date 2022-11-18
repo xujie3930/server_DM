@@ -7,6 +7,7 @@ import com.szmsd.http.dto.custom.BasCustomPricesgradeDto;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 public interface BasProductServiceMapper {
     int deleteByPrimaryKey(Integer id);
@@ -25,5 +26,5 @@ public interface BasProductServiceMapper {
 
     List<BasCustomPricesgradeDto>  selectbasCustomPricesgradeList(BasCustomPricesgradeDto basCustomPricesgradeDto);
 
-    String  selectProductCode(@Param("productCode") String productCode);
+    Map selectProductCode(@Param("productCode") String productCode);
 }
