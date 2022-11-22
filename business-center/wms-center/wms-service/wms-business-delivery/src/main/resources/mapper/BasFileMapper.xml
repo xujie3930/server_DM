@@ -35,6 +35,9 @@
            LEFT JOIN del_outbound_address a ON a.order_no = o.order_no
       ${ew.customSqlSegment}
   </select>
+  <select id="selectModularName" resultType="java.lang.String">
+    SELECT modular_name_zh  from bas_file  GROUP BY modular_name_zh
+  </select>
   <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer" >
     delete from bas_file
     where id = #{id,jdbcType=INTEGER}

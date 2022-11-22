@@ -22,11 +22,13 @@
     <result column="remark" jdbcType="VARCHAR" property="remark" />
     <result column="del_flag" jdbcType="VARCHAR" property="delFlag" />
     <result column="compare_trackingno" jdbcType="VARCHAR" property="compareTrackingno" />
+    <result column="recevie_warehouse_status" property="recevieWarehouseStatus"/>
   </resultMap>
   <sql id="Base_Column_List">
     id, product_code, product_name, is_show, in_service, tracking_acquire_type, logistics_route_id, 
     terminal_carrier, logistics_provider_code, packing_rule, shipment_rule, create_by, 
-    create_by_name, create_time, update_by, update_by_name, update_time, remark, del_flag,compare_trackingno
+    create_by_name, create_time, update_by, update_by_name, update_time, remark, del_flag,compare_trackingno,
+    recevie_warehouse_status
   </sql>
   <select id="selectByPrimaryKey" parameterType="java.lang.String" resultMap="BaseResultMap">
     select 
@@ -38,10 +40,16 @@
       select
       <include refid="Base_Column_List" />
       from bas_product_service
-      where product_code in (
-      <foreach collection="list" item="v" separator=",">
-          #{v}
-      </foreach>)
+      <where>
+          and del_flag = 1
+          <if test="list != null and list.size() > 0">
+            and  product_code in
+            <foreach collection="list" open="(" separator="," close=")" item="item">
+              #{item}
+            </foreach>
+          </if>
+      </where>
+
     </select>
   <select id="selectbasCustomPricesgradeList" resultType="com.szmsd.http.dto.custom.BasCustomPricesgradeDto"
           parameterType="com.szmsd.http.dto.custom.BasCustomPricesgradeDto">
@@ -56,8 +64,8 @@
      </if>
    </where>
   </select>
-  <select id="selectProductCode" resultType="java.lang.String" parameterType="java.lang.String">
-    SELECT compare_trackingno from bas_product_service where product_code=#{productCode}
+  <select id="selectProductCode" resultType="java.util.Map" parameterType="java.lang.String">
+    SELECT compare_trackingno as compareTrackingno,recevie_warehouse_status as recevieWarehouseStatus  from bas_product_service where product_code=#{productCode}
   </select>
   <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
     delete from bas_product_service
@@ -142,6 +150,9 @@
       <if test="compareTrackingno != null">
         compare_trackingno,
       </if>
+      <if test="recevieWarehouseStatus != null">
+        recevie_warehouse_status,
+      </if>
     </trim>
     <trim prefix="values (" suffix=")" suffixOverrides=",">
       <if test="id != null">
@@ -204,6 +215,9 @@
       <if test="compareTrackingno != null">
         #{compareTrackingno,jdbcType=VARCHAR},
       </if>
+      <if test="recevieWarehouseStatus != null">
+        #{recevieWarehouseStatus,jdbcType=BIT},
+      </if>
     </trim>
   </insert>
   <update id="updateByPrimaryKeySelective" parameterType="com.szmsd.chargerules.domain.BasProductService">
@@ -265,6 +279,9 @@
       </if>
       <if test="compareTrackingno != null">
         compare_trackingno = #{compareTrackingno,jdbcType=VARCHAR},
+      </if>
+      <if test="recevieWarehouseStatus != null">
+        recevie_warehouse_status = #{recevieWarehouseStatus,jdbcType=BIT},
       </if>
     </set>
     where product_code = #{productCode,jdbcType=VARCHAR}
