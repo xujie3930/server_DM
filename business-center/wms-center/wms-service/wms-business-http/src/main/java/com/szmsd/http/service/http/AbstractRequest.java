@@ -9,7 +9,6 @@ import com.szmsd.common.core.utils.FileStream;
 import com.szmsd.common.core.utils.HttpClientHelper;
 import com.szmsd.common.core.utils.HttpResponseBody;
 import com.szmsd.http.annotation.LogIgnore;
-import com.szmsd.http.config.BusinessAsyncUncaughtExceptionHandler;
 import com.szmsd.http.config.HttpConfig;
 import com.szmsd.http.config.inner.DefaultApiConfig;
 import com.szmsd.http.config.inner.UrlGroupConfig;
@@ -25,8 +24,6 @@ import com.szmsd.http.service.http.resolver.ResponseResolverActuatorParameter;
 import com.szmsd.putinstorage.api.feign.InboundReceiptFeignService;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.http.Header;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.web.multipart.MultipartFile;
@@ -47,8 +44,6 @@ abstract class AbstractRequest extends BaseRequest {
     private IHtpConfigService iHtpConfigService;
     @Autowired
     private Actuator actuator;
-
-    private final Logger logger = LoggerFactory.getLogger(AbstractRequest.class);
 
     @Autowired
     private InboundReceiptFeignService inboundReceiptFeignService;
@@ -328,10 +323,7 @@ abstract class AbstractRequest extends BaseRequest {
         // 先调用自己的服务，自己的服务调用成功之后再去调用其它的服务
         String urlGroupName = this.getUrlGroupName(warehouseCode);
         UrlConfig urlConfig = this.getUrlConfig(urlGroupName);
-        //调用前后增加日志,用于查看耗时
-        logger.info("调用服务前:urlConfig:{},urlGroupName:{}", urlConfig.toString(), urlGroupName);
         HttpResponseBody httpResponseBody = reFunction.apply(urlGroupName, urlConfig);
-        logger.info("调用服务后:{}", httpResponseBody.getBody());
         if (!this.hasMultipleChannelUrlSet(api)) {
             // 不是多通道api，直接返回结果集
             return httpResponseBody;
@@ -356,9 +348,7 @@ abstract class AbstractRequest extends BaseRequest {
                 MultipleChannelRequest.run(() -> {
                     UrlGroupConfig urlGroupConfig = entry.getValue();
                     UrlConfig urlConfigAdapter = getUrlConfigAdapter(urlGroupConfig, httpUrlType);
-                    logger.info("推送多服务器前:urlConfig:{},urlConfigAdapter:{}", entry.getKey(), urlConfigAdapter.toString());
                     reFunction.apply(entry.getKey(), urlConfigAdapter);
-                    logger.info("推送多服务器后:urlConfig:{},urlConfigAdapter:{}", entry.getKey(), urlConfigAdapter.toString());
                 });
             }
         }
