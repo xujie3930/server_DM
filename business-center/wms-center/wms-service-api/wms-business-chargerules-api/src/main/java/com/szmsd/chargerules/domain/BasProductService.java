@@ -52,7 +52,6 @@ public class BasProductService extends BaseEntity {
     @ApiModelProperty(value = "创建账号")
     private String createBy;
 
-
     @ApiModelProperty(value = "修改账号")
     private String updateBy;
 
@@ -61,6 +60,10 @@ public class BasProductService extends BaseEntity {
 
     @ApiModelProperty(value = "有效标识")
     private String compareTrackingno;
+
+    @ApiModelProperty(value = "是否收货仓库1")
+    private Integer recevieWarehouseStatus;
+
 
 
 
