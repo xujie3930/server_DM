@@ -2,6 +2,7 @@ package com.szmsd.bas.domain;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.szmsd.common.core.annotation.Excel;
 import com.szmsd.common.core.web.domain.BaseEntity;
 import io.swagger.annotations.ApiModel;
@@ -11,6 +12,7 @@ import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
 
 import java.math.BigDecimal;
+import java.util.Date;
 
 
 /**
@@ -30,7 +32,7 @@ public class BasMessage extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     @ApiModelProperty(value = "id")
-            @TableId(value = "id", type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.AUTO)
     @Excel(name = "id")
     private Long id;
 
@@ -65,6 +67,20 @@ public class BasMessage extends BaseEntity {
     @ApiModelProperty(value = "是否弹框")
     @Excel(name = "是否弹框")
     private Boolean bullet;
+
+
+    @ApiModelProperty(value = "生效日期")
+    @JsonFormat(pattern = "yyyy-MM-dd", timezone = "GMT+8")
+    private Date takeEffectDate;
+
+    @ApiModelProperty(value = "文件路径")
+    private String fileRoute;
+
+    @ApiModelProperty(value = "文件名")
+    private String fileName;
+
+    @ApiModelProperty(value = "文件大小")
+    private String fileSize;
 
 
 }

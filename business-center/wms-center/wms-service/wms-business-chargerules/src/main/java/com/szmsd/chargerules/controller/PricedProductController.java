@@ -38,6 +38,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Api(tags = {"PricedProduct"})
@@ -87,8 +88,17 @@ public class PricedProductController extends BaseController {
     @ApiOperation(value = "根据产品代码获取计价产品信息")
     public R<PricedProductInfoVO> info(@PathVariable("productCode") String productCode) {
         PricedProductInfoVO pricedProductInfoVO = iPricedProductService.getInfo(productCode);
-        String compareTrackingno=iPricedProductService.selectProductCode(productCode);
-        pricedProductInfoVO.setCompareTrackingno(compareTrackingno);
+            Map map =iPricedProductService.selectProductCode(productCode);
+            if (map!=null) {
+                if (map.get("compareTrackingno")!=null&&String.valueOf(map.get("compareTrackingno")) != null) {
+
+                    pricedProductInfoVO.setCompareTrackingno(String.valueOf(map.get("compareTrackingno")));
+                }
+                if (map.get("recevieWarehouseStatus")!=null&&String.valueOf(map.get("recevieWarehouseStatus")) != null) {
+                    pricedProductInfoVO.setRecevieWarehouseStatus(Integer.parseInt(String.valueOf(map.get("recevieWarehouseStatus"))));
+                }
+            }
+
         String type = pricedProductInfoVO.getSupplierCalcType();
         List<PricedServiceListVO> list = new ArrayList<>();
         if ("LogisticsService".equals(type)) {
@@ -146,8 +156,7 @@ public class PricedProductController extends BaseController {
         List<PricedServiceListVO> cacheService = CACHE_SERVICE.get("CACHE_SERVICE");
         if (CollectionUtils.isNotEmpty(cacheService)) return R.ok(cacheService);
 
-//        String requestUrl = "https://dmsrm-api.dsloco.com/api/services/list";
-        String requestUrl = "https://srm-api.dmfcn.net/api/services/list";
+        String requestUrl = "https://dmsrm-api.dsloco.com/api/services/list";
         HttpResponseBody responseBody = HttpClientHelper.httpGet(requestUrl, null, new HashMap<String, String>());
         String body = responseBody.getBody();
         JSONObject resultObj = JSONObject.parseObject(body);
@@ -166,8 +175,7 @@ public class PricedProductController extends BaseController {
         List<PricedServiceListVO> cacheService = CACHE_SERVICE.get("CACHE_ROUTES");
         if (CollectionUtils.isNotEmpty(cacheService)) return R.ok(cacheService);
 
-//        String requestUrl = "https://dmsrm-api.dsloco.com/api/routes";
-        String requestUrl = "https://srm-api.dmfcn.net/api/routes";
+        String requestUrl = "https://dmsrm-api.dsloco.com/api/routes";
         HttpResponseBody responseBody = HttpClientHelper.httpGet(requestUrl, null, new HashMap<String, String>());
         String body = responseBody.getBody();
         JSONObject resultObj = JSONObject.parseObject(body);

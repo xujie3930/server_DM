@@ -60,10 +60,16 @@ public class AccountSerialBillEn{
     private String logisticsCode;
 
 
-
+    @AutoFieldI18n
     @ApiModelProperty(value = "产品代码")
     @Excel(name = "Product Code")
-    private String productCode;
+    private String shipmentRule;
+
+    @AutoFieldI18n
+    @ApiModelProperty(value = "产品名称")
+    @Excel(name = "Product Name")
+    private String shipmentRuleName;
+
     @AutoFieldI18n
     @ApiModelProperty(value = "费用类别")
     @Excel(name = "Cost Code")
@@ -82,5 +88,17 @@ public class AccountSerialBillEn{
     @ApiModelProperty(value = "结算时间")
     @Excel(name = "Settlement Time", dateFormat = "yyyy-MM-dd HH:mm:ss")
     private Date paymentTime;
+
+    @ApiModelProperty(value = "平台标记单号")
+    @Excel(name = "平台标记单号")
+    private String amazonLogisticsRouteId;
+
+    @ApiModelProperty(value = "国家代码")
+    @Excel(name = "国家代码")
+    private String countryCode;
+
+    @ApiModelProperty(value = "国家名称")
+    @Excel(name = "国家名称")
+    private String country;
 
 }

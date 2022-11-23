@@ -384,6 +384,16 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
               if (list.get(0).get("shipmentRuleName")!=null){
                   x.setShipmentRuleName(String.valueOf(list.get(0).get("shipmentRuleName")));
               }
+              if (String.valueOf(list.get(0).get("amazonReferenceId"))!=null){
+                  x.setAmazonReferenceId(String.valueOf(list.get(0).get("amazonReferenceId")));
+              }
+
+              if (String.valueOf(list.get(0).get("country"))!=null){
+                  x.setCountry(String.valueOf(list.get(0).get("country")));
+              }
+              if (String.valueOf(list.get(0).get("countryCode"))!=null){
+                  x.setCountryCode(String.valueOf(list.get(0).get("countryCode")));
+              }
           }
         });
         Map<RefundProcessEnum, List<FssRefundRequest>> collect = fssRefundRequests.stream().collect(Collectors.groupingBy(x -> {
@@ -439,11 +449,11 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
         custPayDTO.setWarehouseName(x.getWarehouseName());
         List<AccountSerialBillDTO> accountSerialBillList = new ArrayList<>();
         AccountSerialBillDTO accountSerialBillDTO = new AccountSerialBillDTO();
-        accountSerialBillDTO.setChargeType(x.getFeeTypeName());
+        accountSerialBillDTO.setChargeType(x.getFeeCategoryCode());
         accountSerialBillDTO.setPayMethod(BillEnum.PayMethod.REFUND);
 //        accountSerialBillDTO.setBusinessCategory(BillEnum.CostCategoryEnum.REFUND.getName());
         accountSerialBillDTO.setBusinessCategory(x.getTreatmentProperties());
-        accountSerialBillDTO.setChargeCategory(x.getFeeCategoryCode());
+        accountSerialBillDTO.setChargeCategory(x.getFeeTypeName());
         accountSerialBillDTO.setAmount(x.getAmount());
         accountSerialBillDTO.setCusCode(x.getCusCode());
         accountSerialBillDTO.setCusName(x.getCusName());
@@ -467,6 +477,9 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
 
         accountSerialBillDTO.setProductCode(x.getShipmentRule());
         accountSerialBillDTO.setRemark(x.getRemark());
+        accountSerialBillDTO.setAmazonLogisticsRouteId(x.getAmazonReferenceId());
+        accountSerialBillDTO.setCountry(x.getCountry());
+        accountSerialBillDTO.setCountryCode(x.getCountryCode());
         accountSerialBillDTO.setShipmentRuleName(x.getShipmentRuleName());
         accountSerialBillDTO.setShipmentRule(x.getShipmentRule());
         accountSerialBillDTO.setNote(x.getNoteAppended());

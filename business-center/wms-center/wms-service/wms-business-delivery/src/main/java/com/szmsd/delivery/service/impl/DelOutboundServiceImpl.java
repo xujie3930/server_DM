@@ -1,8 +1,5 @@
 package com.szmsd.delivery.service.impl;
 
-import cn.afterturn.easypoi.excel.ExcelExportUtil;
-import cn.afterturn.easypoi.excel.entity.ExportParams;
-import cn.afterturn.easypoi.excel.entity.enmus.ExcelType;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.date.TimeInterval;
 import cn.hutool.core.io.IoUtil;
@@ -49,14 +46,10 @@ import com.szmsd.common.core.utils.StringUtils;
 import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.common.core.utils.bean.BeanUtils;
 import com.szmsd.common.security.utils.SecurityUtils;
+import com.szmsd.delivery.config.AsyncThreadObject;
 import com.szmsd.delivery.domain.*;
 import com.szmsd.delivery.dto.*;
-import com.szmsd.delivery.enums.DelOutboundConstant;
-import com.szmsd.delivery.enums.DelOutboundExceptionStateEnum;
-import com.szmsd.delivery.enums.DelOutboundOperationTypeEnum;
-import com.szmsd.delivery.enums.DelOutboundOrderTypeEnum;
-import com.szmsd.delivery.enums.DelOutboundPackingTypeConstant;
-import com.szmsd.delivery.enums.DelOutboundStateEnum;
+import com.szmsd.delivery.enums.*;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
 import com.szmsd.delivery.mapper.*;
 import com.szmsd.delivery.service.*;
@@ -64,25 +57,17 @@ import com.szmsd.delivery.service.wrapper.*;
 import com.szmsd.delivery.util.PackageInfo;
 import com.szmsd.delivery.util.PackageUtil;
 import com.szmsd.delivery.util.Utils;
-import com.szmsd.delivery.vo.DelOutboundAddResponse;
-import com.szmsd.delivery.vo.DelOutboundAddressVO;
-import com.szmsd.delivery.vo.DelOutboundDetailListVO;
-import com.szmsd.delivery.vo.DelOutboundDetailVO;
-import com.szmsd.delivery.vo.DelOutboundLabelResponse;
-import com.szmsd.delivery.vo.DelOutboundListExceptionMessageExportVO;
-import com.szmsd.delivery.vo.DelOutboundListExceptionMessageVO;
-import com.szmsd.delivery.vo.DelOutboundListVO;
-import com.szmsd.delivery.vo.DelOutboundOperationVO;
-import com.szmsd.delivery.vo.DelOutboundReassignExportListVO;
-import com.szmsd.delivery.vo.DelOutboundThirdPartyVO;
-import com.szmsd.delivery.vo.DelOutboundVO;
+import com.szmsd.delivery.vo.*;
 import com.szmsd.finance.dto.QueryChargeDto;
 import com.szmsd.finance.vo.QueryChargeVO;
 import com.szmsd.http.api.feign.HtpOutboundFeignService;
 import com.szmsd.http.api.feign.HtpPricedProductFeignService;
 import com.szmsd.http.api.service.IHtpOutboundClientService;
 import com.szmsd.http.api.service.IHtpRmiClientService;
-import com.szmsd.http.dto.*;
+import com.szmsd.http.dto.DirectExpressOrderApiDTO;
+import com.szmsd.http.dto.HttpRequestDto;
+import com.szmsd.http.dto.ShipmentCancelRequestDto;
+import com.szmsd.http.dto.ShipmentOrderResult;
 import com.szmsd.http.enums.DomainEnum;
 import com.szmsd.http.vo.HttpResponseVO;
 import com.szmsd.http.vo.PricedProductInfo;
@@ -101,14 +86,14 @@ import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.time.DateFormatUtils;
-import org.apache.http.HttpRequest;
 import org.apache.ibatis.binding.MapperMethod;
 import org.apache.ibatis.executor.BatchResult;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.ss.usermodel.Workbook;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
@@ -122,7 +107,6 @@ import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.math.BigDecimal;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -131,7 +115,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 /**
  * <p>
@@ -145,6 +128,9 @@ import java.util.stream.Stream;
 @Slf4j
 public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOutbound> implements IDelOutboundService {
     private Logger logger = LoggerFactory.getLogger(DelOutboundServiceImpl.class);
+
+    @Value("${spring.application.name}")
+    private String applicationName;
 
     @Autowired
     private IDelOutboundAddressService delOutboundAddressService;
@@ -221,6 +207,10 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
     @Autowired
     private BasTrackingPushMapper basTrackingPushMapper;
+
+    @Autowired
+    private RedissonClient redissonClient;
+
     /**
      * 查询出库单模块
      *
@@ -655,7 +645,15 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
             if (org.apache.commons.lang3.StringUtils.isNotEmpty(dto.getWarehouseCode())) {
                 String warehouseCode = dto.getWarehouseCode();
+
+                Long s = System.currentTimeMillis();
+
                 BasWarehouse warehouse = this.basWarehouseClientService.queryByWarehouseCode(warehouseCode);
+
+                Long e = System.currentTimeMillis();
+
+                logger.info("basWarehouseClientService.queryByWarehouseCode,{}",e-s);
+
                 if (null == warehouse) {
                     throw new CommonException("400", "仓库信息不存在");
                 }else if(!"1".equals(warehouse.getStatus())){
@@ -674,7 +672,13 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 inServiceDto.setWarehouseCode(dto.getWarehouseCode());
                 inServiceDto.setSkus(skus);
                 String shipmentRule = dto.getShipmentRule();
-                if (!this.delOutboundDocService.inServiceValid(inServiceDto, shipmentRule)) {
+
+                Long s = System.currentTimeMillis();
+                boolean f = !this.delOutboundDocService.inServiceValid(inServiceDto, shipmentRule);
+                Long e = System.currentTimeMillis();
+
+                logger.info("delOutboundDocService.inServiceValid,{}",e-s);
+                if (f) {
                     throw new CommonException("400", "发货规则[" + shipmentRule + "]不存在");
                 }
             }
@@ -690,7 +694,13 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 // 集运出库只查询集运的SKU
                 productConditionQueryDto.setSource("084002");
             }
+
+            Long s = System.currentTimeMillis();
             List<BaseProduct> productList = this.baseProductClientService.queryProductList(productConditionQueryDto);
+            Long e = System.currentTimeMillis();
+
+            logger.info("baseProductClientService.queryProductList,{}",e-s);
+
             if (CollectionUtils.isEmpty(productList)) {
                 throw new CommonException("400", "查询SKU信息失败");
             }
@@ -715,7 +725,12 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 inventoryAvailableQueryDto.setSkus(skus);
                 // 库存是0的也查询出来，自行做数量验证。同时也能验证SKU是不是自己的
                 inventoryAvailableQueryDto.setQueryType(2);
+
+                Long st = System.currentTimeMillis();
                 List<InventoryAvailableListVO> availableList = this.inventoryFeignClientService.queryAvailableList2(inventoryAvailableQueryDto);
+                Long en = System.currentTimeMillis();
+                logger.info("inventoryFeignClientService.queryAvailableList2,{}",en-st);
+
                 Map<String, InventoryAvailableListVO> availableMap = new HashMap<>();
                 Map<String, Integer> availableInventoryMap = new HashMap<>();
                 if (CollectionUtils.isNotEmpty(availableList)) {
@@ -800,7 +815,18 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             if (id != null) {
                 queryWrapper.ne(DelOutbound::getId, dto.getId());
             }
-            queryWrapper.ne(DelOutbound::getState, DelOutboundStateEnum.CANCELLED.getCode());
+            String states[] = {
+                    DelOutboundStateEnum.DELIVERED.getCode(),
+                    DelOutboundStateEnum.REVIEWED.getCode(),
+                    DelOutboundStateEnum.WHSE_CANCELING.getCode(),
+                    DelOutboundStateEnum.AUDIT_FAILED.getCode(),
+                    DelOutboundStateEnum.COMPLETED.getCode(),
+                    DelOutboundStateEnum.PROCESSING.getCode(),
+                    DelOutboundStateEnum.NOTIFY_WHSE_PROCESSING.getCode(),
+                    DelOutboundStateEnum.REVIEWED_DOING.getCode(),
+                    DelOutboundStateEnum.WHSE_PROCESSING.getCode()
+            };
+            queryWrapper.in(DelOutbound::getState, states);
             queryWrapper.eq(DelOutbound::getDelFlag, "0");
             Integer size = baseMapper.selectCount(queryWrapper);
             if (size > 0) {
@@ -890,7 +916,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             }
             long shettTime = System.currentTimeMillis();
 
-            delOutbound.setOrderNo(orderNo = (prefix + sellerCode + this.serialNumberClientService.generateNumber(SerialNumberConstant.DEL_OUTBOUND_NO)));
+            delOutbound.setOrderNo(orderNo = (prefix + sellerCode + this.serialNumberClientService.generatorNumber(SerialNumberConstant.DEL_OUTBOUND_NO)));
             logger.info(">>>>>[创建出库单{}]3.0创建出库单流水号时间，耗时{}", delOutbound.getOrderNo(), System.currentTimeMillis()-shettTime);
 
 
@@ -2278,7 +2304,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 DelOutboundOperationLogEnum.HANDLER.listener(delOutbound);
                 if (DelOutboundStateEnum.WHSE_COMPLETED.getCode().equals(delOutbound.getState())) {
                     // 仓库发货，调用完成的接口
-                    this.delOutboundAsyncService.completed(delOutbound.getOrderNo());
+                    this.delOutboundAsyncService.completed(delOutbound.getOrderNo(), null);
                     result++;
                 } else if (DelOutboundStateEnum.WHSE_CANCELLED.getCode().equals(delOutbound.getState())) {
                     // 仓库取消，调用取消的接口
@@ -2304,7 +2330,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         int result;
         if (DelOutboundStateEnum.WHSE_COMPLETED.getCode().equals(delOutbound.getState())) {
             // 仓库发货，调用完成的接口
-            this.delOutboundAsyncService.completed(delOutbound.getOrderNo());
+            this.delOutboundAsyncService.completed(delOutbound.getOrderNo(), null);
             result = 1;
         } else if (DelOutboundStateEnum.WHSE_CANCELLED.getCode().equals(delOutbound.getState())) {
             // 仓库取消，调用取消的接口
@@ -2541,107 +2567,269 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         delOutboundTarckErrorMapper.deleteByPrimaryKey();
         return list;
     }
-//    @Override
-//    @Transactional(rollbackFor = Exception.class)
-//    public void carrierRegister(DelOutbound delOutbound) {
-//        //查询最新的挂号数据
-//        try {
-//            R<ShipmentOrderResult> r = htpOutboundFeignService.shipmentOrderRealResult(String.valueOf(delOutbound.getId()));
-//            if (r.getCode() == 200 && r.getData() != null) {
-//                if(!r.getData().getSuccess()){
-//                    throw new RuntimeException(r.getData().getError().getMessage());
-//                }
-//                ShipmentOrderResult data = r.getData();
-//                if (!StringUtils.equals(delOutbound.getTrackingNo(), data.getMainTrackingNumber())) {
-//                    //新老挂号不一样，更新数据库
-//                    DelOutbound dataDelOutbound = this.getById(delOutbound.getId());
-//                    dataDelOutbound.setTrackingNo(data.getMainTrackingNumber());
-//                    this.updateById(dataDelOutbound);
-//
-//
-//                    //新增挂号修改记录
-//                    DelOutboundTarckOn delOutboundTarckOn = new DelOutboundTarckOn();
-//                    delOutboundTarckOn.setOrderNo(dataDelOutbound.getOrderNo());
-//                    delOutboundTarckOn.setTrackingNo(delOutbound.getTrackingNo());
-//                    delOutboundTarckOn.setUpdateTime(new Date());
-//                    delOutboundTarckOn.setTrackingNoNew(data.getMainTrackingNumber());
-//                    delOutboundTarckOnMapper.insertSelective(delOutboundTarckOn);
-//
-//
-//                    List<String> orders = new ArrayList<String>();
-//                    orders.add(dataDelOutbound.getOrderNo());
-//                    // 推送ty系统
-//                    manualTrackingYee(orders);
-//
-//
-//                    //推邮箱
-//                    R<BasSellerInfoVO> info = basSellerFeignService.getInfoBySellerCode(dataDelOutbound.getSellerCode());
-//                    if(info.getData() == null) {
-//                        throw new RuntimeException("客户信息获取失败");
-//                    }
-//                    BasSellerInfoVO userInfo = R.getDataAndException(info);
-//
-//                    EmailDto emailDto=new EmailDto();
-//                    emailDto.setModularType(1);
-//                    emailDto.setTo(userInfo.getEmail());
-//                    EmailObjectDto emailDtoDetail=new EmailObjectDto();
-//                    emailDtoDetail.setCustomCode(dataDelOutbound.getSellerCode());
-//                    emailDtoDetail.setOrderNo(dataDelOutbound.getOrderNo());
-//                    emailDtoDetail.setServiceManagerName(userInfo.getServiceManagerName());
-//                    emailDtoDetail.setServiceStaffName(userInfo.getServiceStaffName());
-//                    emailDtoDetail.setNoTrackingNo(delOutbound.getTrackingNo());
-//                    emailDtoDetail.setTrackingNo(data.getMainTrackingNumber());
-//                    emailDto.setList(Arrays.asList(emailDtoDetail));
-//                    emailFeingService.sendEmail(emailDto);
-//
-//
-//                }
-//            }
-//        }catch (Exception e){
-//            throw new RuntimeException(e);
-//        }
-//
-//    }
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void carrierRegister(DelOutbound delOutbound) {
+        //查询最新的挂号数据
+        try {
 
-//    @Override
-//    @Transactional(propagation = Propagation.REQUIRES_NEW)
-//    public boolean serviceChannelNamePushWMS(DelOutbound delOutbound, DelOutbound updateDelOutbound) {
-//
-//
-//        BasShipmentRulesDto paramBasShipmentRulesDto = new BasShipmentRulesDto();
-//        paramBasShipmentRulesDto.setCustomCode(delOutbound.getSellerCode());
-//        paramBasShipmentRulesDto.setServiceChannelName(delOutbound.getShipmentService());
-//        paramBasShipmentRulesDto.setDelFlag("1");
-//        List<BasShipmentRules> list = basShipmenRulesService.selectBasShipmentRules(paramBasShipmentRulesDto);
-//        if(list.isEmpty()){
-//            return false;
-//        }
-//
-//        //直接变成仓库发货状态
-//        updateDelOutbound.setState(DelOutboundStateEnum.WHSE_COMPLETED.getCode());
-//        updateDelOutbound.setExceptionState(DelOutboundExceptionStateEnum.NORMAL.getCode());
-//        // 清空异常信息
-//        updateDelOutbound.setExceptionMessage("");
-//        // 设置提审时间
-//        updateDelOutbound.setBringVerifyTime(new Date());
-//
-//
-//
-//        updateDelOutbound.setOperationTime(new Date());
-//        updateDelOutbound.setOperationType(DelOutboundOperationTypeEnum.SHIPPED.getCode());
-//
-//        this.updateById(updateDelOutbound);
-//        // 增加出库单已完成记录，异步处理，定时任务
-//
-//        Date pushDate = DateUtils.parseDate(DateUtil.format(new Date(), "yyyy-MM-dd") + " " + list.get(0).getPushDate());
-//        if(pushDate.getTime() > System.currentTimeMillis()){
-//            //推送时间大于当前时间的明日推送
-//            pushDate = DateUtils.parseDate(DateUtil.format(tomorrow(new Date()), "yyyy-MM-dd") + " " + list.get(0).getPushDate());
-//        }
-//        this.delOutboundCompletedService.add(delOutbound.getOrderNo(), DelOutboundOperationTypeEnum.SHIPPED.getCode(), pushDate);
-//
-//        return true;
-//    }
+            String referenceNumber = delOutbound.getReferenceNumber();
+
+            if(StringUtils.isEmpty(referenceNumber)){
+                log.error("订单号["+delOutbound.getOrderNo()+"] referenceNumber 为空");
+                return;
+            }
+
+            R<ShipmentOrderResult> r = htpOutboundFeignService.shipmentOrderRealResult(referenceNumber);
+
+            if (r.getCode() != 200) {
+                log.error("订单号["+delOutbound.getOrderNo()+"]调用根据参考号返回真实的挂号和标签数据接口失败,{}",r.getMsg());
+                throw new RuntimeException(r.getData().getError().getMessage());
+            }
+
+            if(!r.getData().getSuccess()){
+                throw new RuntimeException(r.getData().getError().getMessage());
+            }
+            ShipmentOrderResult data = r.getData();
+            if (!StringUtils.equals(delOutbound.getTrackingNo(), data.getMainTrackingNumber())) {
+                //新老挂号不一样，更新数据库
+                DelOutbound dataDelOutbound = this.getById(delOutbound.getId());
+                dataDelOutbound.setTrackingNo(data.getMainTrackingNumber());
+                this.updateById(dataDelOutbound);
+
+
+                //新增挂号修改记录
+                DelOutboundTarckOn delOutboundTarckOn = new DelOutboundTarckOn();
+                delOutboundTarckOn.setOrderNo(dataDelOutbound.getOrderNo());
+                delOutboundTarckOn.setTrackingNo(delOutbound.getTrackingNo());
+                delOutboundTarckOn.setUpdateTime(new Date());
+                delOutboundTarckOn.setTrackingNoNew(data.getMainTrackingNumber());
+                delOutboundTarckOnMapper.insertSelective(delOutboundTarckOn);
+
+
+                List<String> orders = new ArrayList<String>();
+                orders.add(dataDelOutbound.getOrderNo());
+                // 推送ty系统
+                manualTrackingYee(orders);
+
+
+                //推邮箱
+                R<BasSellerInfoVO> info = basSellerFeignService.getInfoBySellerCode(dataDelOutbound.getSellerCode());
+                if(info.getData() == null) {
+                    throw new RuntimeException("客户信息获取失败");
+                }
+                BasSellerInfoVO userInfo = R.getDataAndException(info);
+
+                EmailDto emailDto=new EmailDto();
+                emailDto.setModularType(1);
+                emailDto.setTo(userInfo.getEmail());
+                EmailObjectDto emailDtoDetail=new EmailObjectDto();
+                emailDtoDetail.setCustomCode(dataDelOutbound.getSellerCode());
+                emailDtoDetail.setOrderNo(dataDelOutbound.getOrderNo());
+                emailDtoDetail.setServiceManagerName(userInfo.getServiceManagerName());
+                emailDtoDetail.setServiceStaffName(userInfo.getServiceStaffName());
+                emailDtoDetail.setNoTrackingNo(delOutbound.getTrackingNo());
+                emailDtoDetail.setTrackingNo(data.getMainTrackingNumber());
+                emailDto.setList(Arrays.asList(emailDtoDetail));
+                emailFeingService.sendEmail(emailDto);
+
+
+            }
+        }catch (Exception e){
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean serviceChannelNamePushWMS(DelOutbound delOutbound, DelOutbound updateDelOutbound) {
+
+
+        BasShipmentRulesDto paramBasShipmentRulesDto = new BasShipmentRulesDto();
+        paramBasShipmentRulesDto.setCustomCode(delOutbound.getSellerCode());
+        paramBasShipmentRulesDto.setServiceChannelName(delOutbound.getShipmentService());
+        paramBasShipmentRulesDto.setDelFlag("1");
+        List<BasShipmentRules> list = basShipmenRulesService.selectBasShipmentRules(paramBasShipmentRulesDto);
+        if(list.isEmpty()){
+            return false;
+        }
+
+        //直接变成仓库发货状态
+        updateDelOutbound.setState(DelOutboundStateEnum.WHSE_COMPLETED.getCode());
+        updateDelOutbound.setExceptionState(DelOutboundExceptionStateEnum.NORMAL.getCode());
+        // 清空异常信息
+        updateDelOutbound.setExceptionMessage("");
+        // 设置提审时间
+        updateDelOutbound.setBringVerifyTime(new Date());
+
+
+
+        updateDelOutbound.setOperationTime(new Date());
+        updateDelOutbound.setOperationType(DelOutboundOperationTypeEnum.SHIPPED.getCode());
+
+        this.updateById(updateDelOutbound);
+        // 增加出库单已完成记录，异步处理，定时任务
+
+        Date pushDate = DateUtils.parseDate(DateUtil.format(new Date(), "yyyy-MM-dd") + " " + list.get(0).getPushDate());
+        if(pushDate.getTime() < System.currentTimeMillis()){
+            //推送时间大于当前时间的明日推送
+            pushDate = DateUtils.parseDate(DateUtil.format(tomorrow(new Date()), "yyyy-MM-dd") + " " + list.get(0).getPushDate());
+        }
+        this.delOutboundCompletedService.add(delOutbound.getOrderNo(), DelOutboundOperationTypeEnum.SHIPPED.getCode(), pushDate);
+
+        return true;
+    }
+
+    @Override
+    public void doDirectExpressOrders() {
+
+        Integer totalRecord = baseMapper.selectCount(Wrappers.<DelOutbound>query().lambda()
+                        .eq(DelOutbound::getState,DelOutboundStateEnum.DELIVERED.getCode()));
+
+        if(totalRecord == 0){
+            return ;
+        }
+
+        Integer pageSize = 500;
+
+        Integer totalPage = (totalRecord + pageSize -1) / pageSize;
+
+        for(int i= 0;i<totalPage;i++) {
+
+
+            List<DelOutbound> delOutbounds = baseMapper.selectByState(DelOutboundStateEnum.DELIVERED.getCode(), i, pageSize);
+
+
+            //R<DirectExpressOrderApiDTO> directExpressOrderApiDTOR = htpOutboundFeignService.getDirectExpressOrder("CKCNFGZ622101800000018");
+
+            List<DelOutbound> updateData = new ArrayList<>();
+
+            for (DelOutbound delOutbound : delOutbounds) {
+
+                R<DirectExpressOrderApiDTO> directExpressOrderApiDTOR = htpOutboundFeignService.getDirectExpressOrder(delOutbound.getOrderNo());
+
+                if (directExpressOrderApiDTOR.getCode() != 200) {
+                    continue;
+                }
+
+                DirectExpressOrderApiDTO directExpressOrderApiDTO = directExpressOrderApiDTOR.getData();
+
+                String handleStatus = directExpressOrderApiDTO.getHandleStatus();
+
+                if (handleStatus.equals(DelOutboundOperationTypeEnum.SHIPPED.getCode())) {
+
+                    this.bringThridPartyAsync(delOutbound);
+
+                    DelOutbound updatedata = new DelOutbound();
+                    updatedata.setId(delOutbound.getId());
+
+                    Double length = directExpressOrderApiDTO.getPacking().getLength().doubleValue();
+                    Double width = directExpressOrderApiDTO.getPacking().getWidth().doubleValue();
+                    Double height = directExpressOrderApiDTO.getPacking().getHeight().doubleValue();
+
+                    Double weight = null;
+                    Integer w = directExpressOrderApiDTO.getWeight();
+                    if (w != null) {
+                        weight = Double.parseDouble(w.toString());
+                    }
+
+                    String specifications = length + "*" + width + "*" + height;
+
+                    updatedata.setLength(length);
+                    updatedata.setWidth(width);
+                    updatedata.setHeight(height);
+                    updatedata.setWeight(weight);
+                    updatedata.setSpecifications(specifications);
+                    updatedata.setThridPartStatus(1);
+
+                    updateData.add(updatedata);
+                }
+            }
+
+            if (CollectionUtils.isNotEmpty(updateData)) {
+                super.updateBatchById(updateData);
+            }
+
+        }
+
+    }
+
+    public void bringThridPartyAsync(DelOutbound delOutbound) {
+
+        String key = applicationName + ":DelOutbound:bringThridPartyAsync:" + delOutbound.getOrderNo();
+        RLock lock = this.redissonClient.getLock(key);
+        try {
+            if (lock.tryLock(0, TimeUnit.SECONDS)) {
+                if (DelOutboundStateEnum.DELIVERED.getCode().equals(delOutbound.getState())) {
+                    bringThridPartyAsync(delOutbound, AsyncThreadObject.build());
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            logger.error(e.getMessage(), e);
+            throw new CommonException("500", "提审操作失败，" + e.getMessage());
+        } finally {
+            if (lock.isLocked() && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
+    }
+
+    private void bringThridPartyAsync(DelOutbound delOutbound,AsyncThreadObject asyncThreadObject){
+
+        StopWatch stopWatch = new StopWatch();
+        Thread thread = Thread.currentThread();
+        // 开始时间
+        long startTime = System.currentTimeMillis();
+        boolean isAsyncThread = !asyncThreadObject.isAsyncThread();
+        logger.info("(1)任务开始执行，当前任务名称：{}，当前任务ID：{}，是否为异步任务：{}，任务相关参数：{}", thread.getName(), thread.getId(), isAsyncThread, JSON.toJSONString(asyncThreadObject));
+        if (isAsyncThread) {
+            asyncThreadObject.loadTid();
+        }
+        stopWatch.start();
+        DelOutboundWrapperContext context = this.delOutboundBringVerifyService.initContext(delOutbound);
+        stopWatch.stop();
+        logger.info(">>>>>[创建出库单{}]初始化出库对象 耗时{}", delOutbound.getOrderNo(), stopWatch.getLastTaskInfo().getTimeMillis());
+
+        ThridPartyEnum currentState;
+        String bringVerifyState = delOutbound.getBringVerifyState();
+        if (org.apache.commons.lang3.StringUtils.isEmpty(bringVerifyState)) {
+            currentState = ThridPartyEnum.BEGIN;
+        } else {
+            currentState = ThridPartyEnum.get(bringVerifyState);
+            // 兼容
+            if (null == currentState) {
+                currentState = ThridPartyEnum.BEGIN;
+            }
+        }
+        logger.info("(2)提审异步操作开始，出库单号：{}", delOutbound.getOrderNo());
+        ApplicationContainer applicationContainer = new ApplicationContainer(context, currentState, ThridPartyEnum.END, ThridPartyEnum.BEGIN);
+        try {
+            applicationContainer.action();
+
+            //if (DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())) {
+            // 增加出库单已取消记录，异步处理，定时任务
+            this.delOutboundCompletedService.add(delOutbound.getOrderNo(), DelOutboundOperationTypeEnum.SHIPPED.getCode());
+            //}
+
+            logger.info("(3)提审异步操作成功，出库单号：{}", delOutbound.getOrderNo());
+        } catch (CommonException e) {
+            // 回滚操作
+            applicationContainer.setEndState(ThridPartyEnum.BEGIN);
+            applicationContainer.rollback();
+            // 异步屏蔽异常，将异常打印到日志中
+            // 异步错误在单据里面会显示错误信息
+            this.logger.error("(4)提审异步操作失败，出库单号：" + delOutbound.getOrderNo() + "，错误原因：" + e.getMessage(), e);
+        } finally {
+            if (isAsyncThread) {
+                asyncThreadObject.unloadTid();
+            }
+        }
+        this.logger.info("(5)提审操作完成，出库单号：{}，执行耗时：{}", delOutbound.getOrderNo(), (System.currentTimeMillis() - startTime));
+
+    }
+
     public static Date tomorrow(Date today) {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(today);
@@ -3072,7 +3260,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             addressLambdaUpdateWrapper.set(DelOutboundAddress::getStateOrProvince, vo.getStateOrProvince());
             addressLambdaUpdateWrapper.set(DelOutboundAddress::getCity, vo.getCity());
             addressLambdaUpdateWrapper.set(DelOutboundAddress::getStreet1, vo.getStreet1());
-            addressLambdaUpdateWrapper.set(DelOutboundAddress::getStreet2, vo.getStreet1());
+            addressLambdaUpdateWrapper.set(DelOutboundAddress::getStreet2, vo.getStreet2());
             addressLambdaUpdateWrapper.set(DelOutboundAddress::getPostCode, vo.getPostCode());
             addressLambdaUpdateWrapper.set(DelOutboundAddress::getPhoneNo, vo.getPhoneNo());
             addressLambdaUpdateWrapper.set(DelOutboundAddress::getEmail, vo.getEmail());

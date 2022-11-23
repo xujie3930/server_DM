@@ -235,16 +235,18 @@ public class InventoryRecordServiceImpl extends ServiceImpl<InventoryRecordMappe
             records = new ArrayList<>();
         }
         Integer searchQty = records.stream().mapToInt(InventoryRecordVO::getQuantity).sum();
-        List<InventoryRecordVO> inventoryRecords = this.selectList(new InventoryRecordQueryDTO().setSku(sku).setWarehouseCode(warehouse).setTimeType(InventoryRecordQueryDTO.TimeType.OPERATE_ON).setStartTime(startTime).setEndTime(endTime).setType("1"));
+
+        InventoryRecordQueryDTO recordQueryDTO = new InventoryRecordQueryDTO().setSku(sku).setWarehouseCode(warehouse).setTimeType(InventoryRecordQueryDTO.TimeType.OPERATE_ON).setStartTime(startTime).setEndTime(endTime).setType("1");
+
+        //查询数量大于1的记录
+        recordQueryDTO.setQuantity(1);
+        List<InventoryRecordVO> inventoryRecords = this.selectList(recordQueryDTO);
 
         if(CollectionUtils.isEmpty(inventoryRecords)){
             return records;
         }
 
         for (InventoryRecordVO record : inventoryRecords) {
-            if (record.getQuantity() < 1) {
-                continue;
-            }
             searchQty += record.getQuantity();
             records.add(record);
             if (searchQty >= qty) {

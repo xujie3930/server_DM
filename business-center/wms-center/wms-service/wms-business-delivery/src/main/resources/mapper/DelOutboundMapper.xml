@@ -68,7 +68,9 @@
             o.amazon_logistics_route_id,
             o.house_no,
             o.currency_describe,
-            o.expected_no
+            o.expected_no,
+            a.tax_number,
+            a.id_number
         FROM del_outbound o
         LEFT JOIN del_outbound_address a ON a.order_no = o.order_no
         ${ew.customSqlSegment}
@@ -171,7 +173,8 @@
             o.tracking_status,
             o.tracking_description,
             o.ioss,
-            o.currency_describe
+            o.currency_describe,
+            o.amazon_logistics_route_id
         FROM del_outbound o
         LEFT JOIN del_outbound_address a ON a.order_no = o.order_no
         ${ew.customSqlSegment}
@@ -239,7 +242,7 @@
     </select>
 
     <select id="queryFinishList" resultType="com.szmsd.inventory.domain.vo.QueryFinishListVO">
-        SELECT order_no as no,create_time FROM `del_outbound` WHERE state = 'COMPLETED'
+        SELECT order_no as no,create_time FROM `del_outbound` WHERE `state` in ('COMPLETED','Returned_toWarehouse')
         <if test = "noList !=null and noList.size() > 0">
             AND order_no IN
             <foreach  collection="noList" item="orderNo" open="(" separator="," close=")">
@@ -321,5 +324,14 @@
     <select id="selectdelsellerCodes" resultType="com.szmsd.bas.domain.BasSeller">
 
         SELECT * from bas_seller where del_flag=0
+    </select>
+
+
+    <select id="selectByState" resultType="com.szmsd.delivery.domain.DelOutbound">
+
+        SELECT * from del_outbound
+        where state = #{state}
+        limit #{pageNumber},#{pageSize}
+
     </select>
 </mapper>

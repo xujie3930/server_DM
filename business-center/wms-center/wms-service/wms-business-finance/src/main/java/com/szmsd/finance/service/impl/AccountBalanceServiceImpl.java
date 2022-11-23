@@ -51,6 +51,8 @@ import com.szmsd.putinstorage.domain.vo.InboundReceiptDetailVO;
 import com.szmsd.putinstorage.domain.vo.InboundReceiptInfoVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -66,6 +68,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
+
+import static com.szmsd.finance.factory.abstractFactory.AbstractPayFactory.leaseTime;
+import static com.szmsd.finance.factory.abstractFactory.AbstractPayFactory.time;
 
 /**
  * @author liulei
@@ -107,6 +112,9 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
     @Resource
     private InboundReceiptFeignService inboundReceiptFeignService;
 
+    @Resource
+    private RedissonClient redissonClient;
+
     @Override
     public R<PageInfo<AccountBalance>> listPage(AccountBalanceDTO dto,String len) {
         try {
@@ -116,20 +124,20 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
             }
 
             LoginUser loginUser = SecurityUtils.getLoginUser();
-            List<String> sellerCodeList=null;
-            List<String> sellerCodeList1=null;
+            List<String> sellerCodeList = null;
+            List<String> sellerCodeList1 = null;
             if (null != loginUser && !loginUser.getUsername().equals("admin")) {
                 String username = loginUser.getUsername();
-                sellerCodeList=accountBalanceMapper.selectsellerCode(username);
+                sellerCodeList = accountBalanceMapper.selectsellerCode(username);
 
-                if (sellerCodeList.size()>0){
+                if (sellerCodeList.size() > 0) {
                     queryWrapper.in(AccountBalance::getCusCode, sellerCodeList);
 
-                } else if (sellerCodeList.size()==0){
-                    sellerCodeList1=accountBalanceMapper.selectsellerCodeus(username);
-                    if (sellerCodeList1.size()>0){
+                } else if (sellerCodeList.size() == 0) {
+                    sellerCodeList1 = accountBalanceMapper.selectsellerCodeus(username);
+                    if (sellerCodeList1.size() > 0) {
                         queryWrapper.in(AccountBalance::getCusCode, sellerCodeList1);
-                    }else {
+                    } else {
                         queryWrapper.in(AccountBalance::getCusCode, "");
                     }
                 }
@@ -137,44 +145,51 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
                     queryWrapper.eq(AccountBalance::getCurrencyCode, dto.getCurrencyCode());
                 }
 
-            }
-            if (null != loginUser && loginUser.getUsername().equals("admin")){
-                sellerCodeList=accountBalanceMapper.selectsellerCodes();
-                if (sellerCodeList.size()>0){
-                    queryWrapper.in(AccountBalance::getCusCode, sellerCodeList);
+
+                if (null != loginUser && loginUser.getUsername().equals("admin")) {
+                    sellerCodeList = accountBalanceMapper.selectsellerCodes();
+                    if (sellerCodeList.size() > 0) {
+                        queryWrapper.in(AccountBalance::getCusCode, sellerCodeList);
+
+                    }
+                    if (StringUtils.isNotEmpty(dto.getCurrencyCode())) {
+                        queryWrapper.eq(AccountBalance::getCurrencyCode, dto.getCurrencyCode());
+                    }
 
                 }
-                if (StringUtils.isNotEmpty(dto.getCurrencyCode())) {
-                    queryWrapper.eq(AccountBalance::getCurrencyCode, dto.getCurrencyCode());
-                }
-
             }
             //设置分页参数
             PageHelper.startPage(dto.getPageNum(),dto.getPageSize());
 
             List<AccountBalance> accountBalances = accountBalanceMapper.listPage(queryWrapper);
 
-
-
-
-            accountBalances.forEach(x -> {
-                Map<String, CreditUseInfo> creditUseInfoMap = iDeductionRecordService.queryTimeCreditUse( x.getCusCode(), new ArrayList<>(), Arrays.asList(CreditConstant.CreditBillStatusEnum.DEFAULT, CreditConstant.CreditBillStatusEnum.CHECKED));
-                Map<String, CreditUseInfo> needRepayCreditUseInfoMap = iDeductionRecordService.queryTimeCreditUse( x.getCusCode(), new ArrayList<>(), Arrays.asList(CreditConstant.CreditBillStatusEnum.CHECKED));
-                String currencyCode = x.getCurrencyCode();
-                BigDecimal creditUseAmount = Optional.ofNullable(creditUseInfoMap.get(currencyCode)).map(CreditUseInfo::getCreditUseAmount).orElse(BigDecimal.ZERO);
-                x.setCreditUseAmount(creditUseAmount);
-                BigDecimal needRepayCreditUseAmount = Optional.ofNullable(needRepayCreditUseInfoMap.get(currencyCode)).map(CreditUseInfo::getCreditUseAmount).orElse(BigDecimal.ZERO);
-                x.setNeedRepayCreditUseAmount(needRepayCreditUseAmount);
-            });
-            accountBalances.forEach(AccountBalance::showCredit);
+//            accountBalances.forEach(x -> {
+//                Map<String, CreditUseInfo> creditUseInfoMap = iDeductionRecordService.queryTimeCreditUse( x.getCusCode(), new ArrayList<>(), Arrays.asList(CreditConstant.CreditBillStatusEnum.DEFAULT, CreditConstant.CreditBillStatusEnum.CHECKED));
+//                Map<String, CreditUseInfo> needRepayCreditUseInfoMap = iDeductionRecordService.queryTimeCreditUse( x.getCusCode(), new ArrayList<>(), Arrays.asList(CreditConstant.CreditBillStatusEnum.CHECKED));
+//                String currencyCode = x.getCurrencyCode();
+//                BigDecimal creditUseAmount = Optional.ofNullable(creditUseInfoMap.get(currencyCode)).map(CreditUseInfo::getCreditUseAmount).orElse(BigDecimal.ZERO);
+//                x.setCreditUseAmount(creditUseAmount);
+//                BigDecimal needRepayCreditUseAmount = Optional.ofNullable(needRepayCreditUseInfoMap.get(currencyCode)).map(CreditUseInfo::getCreditUseAmount).orElse(BigDecimal.ZERO);
+//                x.setNeedRepayCreditUseAmount(needRepayCreditUseAmount);
+//            });
+//            accountBalances.forEach(AccountBalance::showCredit);
 
             accountBalances.forEach(x-> {
-                        if (len.equals("en")) {
-                            x.setCurrencyName(x.getCurrencyCode());
-                        } else if (len.equals("zh")) {
-                            x.setCurrencyName(x.getCurrencyName());
-                        }
-                    });
+                if (len.equals("en")) {
+                    x.setCurrencyName(x.getCurrencyCode());
+                } else if (len.equals("zh")) {
+                    x.setCurrencyName(x.getCurrencyName());
+                }
+                
+                BigDecimal creditUseAmount = x.getCreditUseAmount();
+                BigDecimal totalBalance = x.getTotalBalance();
+
+                if(creditUseAmount.compareTo(BigDecimal.ZERO) > 0){
+                    BigDecimal newTotalBalance = totalBalance.subtract(creditUseAmount);
+                    x.setTotalBalance(newTotalBalance);
+                }
+                
+            });
 
             //获取分页信息
             PageInfo<AccountBalance> pageInfo=new PageInfo<>(accountBalances);
@@ -659,9 +674,16 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
         log.info("查询用户币别余额{}-{}", cusCode, currencyCode);
         // 查询授信额使用数
 
-        Map<String, CreditUseInfo> creditUse = iDeductionRecordService.queryTimeCreditUse(cusCode, Arrays.asList(currencyCode), Arrays.asList(CreditConstant.CreditBillStatusEnum.DEFAULT, CreditConstant.CreditBillStatusEnum.CHECKED));
-        log.info("查询用户币别余额完成：{}", JSONObject.toJSONString(creditUse));
-        BigDecimal creditUseAmount =  Optional.ofNullable(creditUse.get(currencyCode)).map(CreditUseInfo::getCreditUseAmount).orElse(BigDecimal.ZERO);
+        //Map<String, CreditUseInfo> creditUse = iDeductionRecordService.queryTimeCreditUse(cusCode, Arrays.asList(currencyCode), Arrays.asList(CreditConstant.CreditBillStatusEnum.DEFAULT, CreditConstant.CreditBillStatusEnum.CHECKED));
+//        log.info("查询用户币别余额完成：{}", JSONObject.toJSONString(creditUse));
+//        BigDecimal creditUseAmount =  Optional.ofNullable(creditUse.get(currencyCode)).map(CreditUseInfo::getCreditUseAmount).orElse(BigDecimal.ZERO);
+
+//          List<CreditUseInfo> creditUseList = accountBalanceMapper.queryTimeCreditUse(cusCode,currencyCode);
+//
+//          Map<String,CreditUseInfo> creditUse = creditUseList.stream().collect(Collectors.toMap(CreditUseInfo::getCurrencyCode,v->v));
+//
+//          log.info("查询用户币别余额完成：{}", JSONObject.toJSONString(creditUse));
+//          BigDecimal creditUseAmount =  Optional.ofNullable(creditUse.get(currencyCode)).map(CreditUseInfo::getCreditUseAmount).orElse(BigDecimal.ZERO);
 
 //        CompletableFuture<BigDecimal> creditUseAmountFuture = CompletableFuture.supplyAsync(() -> {
 //            Map<String, CreditUseInfo> creditUse = iDeductionRecordService.queryTimeCreditUse(cusCode, Arrays.asList(currencyCode), Arrays.asList(CreditConstant.CreditBillStatusEnum.DEFAULT, CreditConstant.CreditBillStatusEnum.CHECKED));
@@ -743,8 +765,12 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
             CreditInfoBO creditInfoBO = balanceDTO.getCreditInfoBO();
             BeanUtils.copyProperties(accountBalance, creditInfoBO);
             balanceDTO.setCreditInfoBO(creditInfoBO);
+            BigDecimal creditUseAmount = accountBalance.getCreditUseAmount();
             balanceDTO.getCreditInfoBO().setCreditUseAmount(creditUseAmount);
             balanceDTO.setVersion(accountBalance.getVersion());
+
+            log.info("查询用户币别使用授信额度：{}", creditUseAmount);
+
             return balanceDTO;
         } catch (Exception e) {
             e.printStackTrace();
@@ -845,13 +871,32 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
         /*if (checkPayInfo(dto.getCusCode(), dto.getCurrencyCode(), dto.getAmount())) {
             return R.failed("客户编码/币种不能为空且金额必须大于0.01");
         }*/
-        setCurrencyName(dto);
-        dto.setPayType(BillEnum.PayType.REFUND);
-        dto.setPayMethod(BillEnum.PayMethod.REFUND);
-        AbstractPayFactory abstractPayFactory = payFactoryBuilder.build(dto.getPayType());
-        Boolean flag = abstractPayFactory.updateBalance(dto);
-        if (Objects.isNull(flag)) return R.ok();
-        return flag ? R.ok() : R.failed();
+        final String key = "cky-fss-freeze-balance-all:" + dto.getCusCode()+ "_"+dto.getCurrencyCode();
+        RLock lock = redissonClient.getLock(key);
+        try {
+            if (lock.tryLock(time, leaseTime, TimeUnit.SECONDS)) {
+                setCurrencyName(dto);
+                dto.setPayType(BillEnum.PayType.REFUND);
+                dto.setPayMethod(BillEnum.PayMethod.REFUND);
+                AbstractPayFactory abstractPayFactory = payFactoryBuilder.build(dto.getPayType());
+                Boolean flag = abstractPayFactory.updateBalance(dto);
+                if (Objects.isNull(flag)) {
+                    return R.ok();
+                }
+
+                return flag ? R.ok() : R.failed();
+            }
+        }catch (Exception e){
+            log.error("退费操作超时，{}",e);
+            return R.failed(e.getMessage());
+        }finally {
+            if (lock.isLocked() && lock.isHeldByCurrentThread()) {
+                log.info("退费操作超时-释放redis锁 {}",key);
+                lock.unlock();
+            }
+        }
+
+        return R.failed();
     }
 
     /**

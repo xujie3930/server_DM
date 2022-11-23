@@ -49,9 +49,15 @@ public class PayServiceImpl implements IPayService {
         chargeLog.setOperationPayMethod(custPayDTO.getPayMethod().getPaymentName());
         chargeLog.setHasFreeze(false);
         String code = DelOutboundOrderEnum.getCode(custPayDTO.getOrderType());
-        if (code != null) custPayDTO.setOrderType(code);
+        if (code != null){
+            custPayDTO.setOrderType(code);
+        }
+
         if (BigDecimal.ZERO.compareTo(custPayDTO.getAmount()) >= 0) {
             log.info("扣款金额为: {} 不执行操作", custPayDTO.getAmount());
+
+            log.info("扣款客户信息: {} ", JSONObject.toJSONString(custPayDTO));
+
             chargeLog.setSuccess(true);
             chargeLog.setMessage("成功");
             chargeLogService.save(chargeLog);
@@ -72,6 +78,7 @@ public class PayServiceImpl implements IPayService {
         chargeLogDto.setAmount(dto.getAmount());
         chargeLogDto.setOperationType(dto.getOrderType());
         chargeLogDto.setCustomCode(dto.getCusCode());
+        chargeLogDto.setHasFreeze(chargeLog.getHasFreeze());
         log.info("业务冻结操作费：{}-{}-查询条件：{}", JSONObject.toJSONString(dto), JSONObject.toJSONString(chargeLog), JSONObject.toJSONString(chargeLogDto));
         ChargeLog chargeLog2 = chargeLogService.selectLog(chargeLogDto);
         if (chargeLog2 != null) {
@@ -82,7 +89,9 @@ public class PayServiceImpl implements IPayService {
         chargeLog.setCurrencyCode(dto.getCurrencyCode());
         chargeLog.setAmount(dto.getAmount());
         String code = DelOutboundOrderEnum.getCode(dto.getOrderType());
-        if (code != null) dto.setOrderType(code);
+        if (code != null){
+            dto.setOrderType(code);
+        }
         if (BigDecimal.ZERO.compareTo(dto.getAmount()) >= 0) {
             log.info("冻结金额为: {} 不执行操作", dto.getAmount());
             chargeLog.setSuccess(true);
@@ -91,8 +100,9 @@ public class PayServiceImpl implements IPayService {
             return R.ok();
         }
         R r = rechargesFeignService.freezeBalance(dto);
-        if (r.getCode() != 200)
+        if (r.getCode() != 200){
             log.error("freezeBalance() pay failed.. msg: {},data: {}", r.getMsg(), r.getData());
+        }
         chargeLog.setSuccess(r.getCode() == 200);
         chargeLog.setMessage(r.getMsg());
         int insert = chargeLogService.save(chargeLog);

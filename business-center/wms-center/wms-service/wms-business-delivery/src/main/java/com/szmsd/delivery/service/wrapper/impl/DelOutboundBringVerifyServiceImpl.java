@@ -13,6 +13,9 @@ import com.szmsd.bas.api.service.BaseProductClientService;
 import com.szmsd.bas.domain.BasWarehouse;
 import com.szmsd.bas.domain.BaseProduct;
 import com.szmsd.bas.dto.BaseProductConditionQueryDto;
+import com.szmsd.chargerules.api.feign.ChargeFeignService;
+import com.szmsd.chargerules.domain.BasProductService;
+import com.szmsd.chargerules.enums.RecevieWarehouseStatusEnum;
 import com.szmsd.common.core.constant.Constants;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.exception.com.CommonException;
@@ -28,26 +31,11 @@ import com.szmsd.delivery.dto.DelOutboundBringVerifyDto;
 import com.szmsd.delivery.dto.DelOutboundBringVerifyNoDto;
 import com.szmsd.delivery.dto.DelOutboundFurtherHandlerDto;
 import com.szmsd.delivery.dto.DelOutboundLabelDto;
-import com.szmsd.delivery.enums.DelOutboundConstant;
-import com.szmsd.delivery.enums.DelOutboundOperationTypeEnum;
-import com.szmsd.delivery.enums.DelOutboundOrderTypeEnum;
-import com.szmsd.delivery.enums.DelOutboundPackingTypeConstant;
-import com.szmsd.delivery.enums.DelOutboundStateEnum;
-import com.szmsd.delivery.enums.DelOutboundTrackingAcquireTypeEnum;
+import com.szmsd.delivery.enums.*;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
-import com.szmsd.delivery.service.IDelOutboundAddressService;
-import com.szmsd.delivery.service.IDelOutboundCombinationService;
-import com.szmsd.delivery.service.IDelOutboundCompletedService;
-import com.szmsd.delivery.service.IDelOutboundDetailService;
-import com.szmsd.delivery.service.IDelOutboundPackingService;
-import com.szmsd.delivery.service.IDelOutboundService;
+import com.szmsd.delivery.service.*;
 import com.szmsd.delivery.service.impl.DelOutboundServiceImplUtil;
-import com.szmsd.delivery.service.wrapper.ApplicationContainer;
-import com.szmsd.delivery.service.wrapper.ApplicationContext;
-import com.szmsd.delivery.service.wrapper.DelOutboundWrapperContext;
-import com.szmsd.delivery.service.wrapper.IDelOutboundBringVerifyService;
-import com.szmsd.delivery.service.wrapper.PricingEnum;
-import com.szmsd.delivery.service.wrapper.ShipmentEnum;
+import com.szmsd.delivery.service.wrapper.*;
 import com.szmsd.delivery.util.PdfUtil;
 import com.szmsd.delivery.util.Utils;
 import com.szmsd.delivery.vo.DelOutboundBringVerifyVO;
@@ -61,38 +49,8 @@ import com.szmsd.http.api.service.IHtpCarrierClientService;
 import com.szmsd.http.api.service.IHtpIBasClientService;
 import com.szmsd.http.api.service.IHtpOutboundClientService;
 import com.szmsd.http.api.service.IHtpPricedProductClientService;
-import com.szmsd.http.dto.AddShipmentRuleRequest;
-import com.szmsd.http.dto.Address;
-import com.szmsd.http.dto.AddressCommand;
-import com.szmsd.http.dto.CalcShipmentFeeCommand;
-import com.szmsd.http.dto.CancelShipmentOrder;
-import com.szmsd.http.dto.CancelShipmentOrderBatchResult;
-import com.szmsd.http.dto.CancelShipmentOrderCommand;
-import com.szmsd.http.dto.CancelShipmentOrderResult;
-import com.szmsd.http.dto.Carrier;
-import com.szmsd.http.dto.ChargeWrapper;
-import com.szmsd.http.dto.ContactInfo;
-import com.szmsd.http.dto.CountryInfo;
-import com.szmsd.http.dto.CreateShipmentOrderCommand;
-import com.szmsd.http.dto.CreateShipmentRequestDto;
-import com.szmsd.http.dto.ErrorDataDto;
-import com.szmsd.http.dto.ErrorDto;
 import com.szmsd.http.dto.Package;
-import com.szmsd.http.dto.PackageInfo;
-import com.szmsd.http.dto.PackageItem;
-import com.szmsd.http.dto.Packing;
-import com.szmsd.http.dto.PackingRequirementInfoDto;
-import com.szmsd.http.dto.ProblemDetails;
-import com.szmsd.http.dto.ResponseObject;
-import com.szmsd.http.dto.ShipmentAddressDto;
-import com.szmsd.http.dto.ShipmentDetailInfoDto;
-import com.szmsd.http.dto.ShipmentLabelChangeRequestDto;
-import com.szmsd.http.dto.ShipmentOrderResult;
-import com.szmsd.http.dto.ShipmentUpdateRequestDto;
-import com.szmsd.http.dto.Size;
-import com.szmsd.http.dto.TaskConfigInfo;
-import com.szmsd.http.dto.Taxation;
-import com.szmsd.http.dto.Weight;
+import com.szmsd.http.dto.*;
 import com.szmsd.http.vo.BaseOperationResponse;
 import com.szmsd.http.vo.CreateShipmentResponseVO;
 import com.szmsd.http.vo.ResponseVO;
@@ -115,16 +73,7 @@ import org.springframework.util.StopWatch;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -174,6 +123,9 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
     @Autowired
     private CommonOrderFeignService commonOrderFeignService;
 
+    @Autowired
+    private ChargeFeignService chargeFeignService;
+
 
     @Autowired
     private Environment env;
@@ -218,7 +170,7 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
 
                 if(packageDeliveryConditionsR != null && packageDeliveryConditionsR.getCode() == 200){
                     if(packageDeliveryConditionsR.getData() == null || !"1".equals(packageDeliveryConditionsR.getData().getStatus())){
-                        throw new CommonException("400", delOutbound.getShipmentRule()+ MessageUtil.to("物流服务未生效", "Logistics service is not effective"));
+                        throw new CommonException("400", delOutbound.getShipmentRule()+ MessageUtil.to("物流服务未生效", "Logistics service is not effective:"+delOutbound.getOrderNo()));
                     }
                 }
 
@@ -343,7 +295,14 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 }
 
             }
-            delOutbound.setShipmentRule(furtherHandlerDto.getShipmentRule());
+
+            //汪总说：不存在取数据库名称
+            if(StringUtils.isNotEmpty(furtherHandlerDto.getShipmentRule())){
+                delOutbound.setShipmentRule(furtherHandlerDto.getShipmentRule());
+            }else{
+                delOutbound.setShipmentRule(delOutbound.getShipmentRule());
+            }
+
             delOutbound.setShipmentService(furtherHandlerDto.getShipmentService());
 
             if(StringUtils.isNotEmpty(furtherHandlerDto.getTrackingAcquireType())){
@@ -432,6 +391,9 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         BasRegionSelectListVO country = delOutboundWrapperContext.getCountry();
         // 查询sku信息
         List<BaseProduct> productList = delOutboundWrapperContext.getProductList();
+
+
+
         // 包裹信息
         List<PackageInfo> packageInfos = new ArrayList<>();
         if (DelOutboundOrderTypeEnum.PACKAGE_TRANSFER.getCode().equals(delOutbound.getOrderType())) {
@@ -555,6 +517,25 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 }
             }
         }
+
+        int recevieWarehouseStatus = 0;
+
+        if(StringUtils.isNotEmpty(delOutbound.getShipmentRule())) {
+
+            List<String> productCodeList = Arrays.asList(delOutbound.getShipmentRule());
+            R<List<BasProductService>> basProductServiceRs = chargeFeignService.selectBasProductService(productCodeList);
+
+            if (basProductServiceRs.getCode() == 200) {
+                List<BasProductService> basProductServices = basProductServiceRs.getData();
+                for (BasProductService basProductService : basProductServices) {
+                    recevieWarehouseStatus = basProductService.getRecevieWarehouseStatus();
+                    if (recevieWarehouseStatus == RecevieWarehouseStatusEnum.WAREHOUSESTATUS.getCode()) {
+                        break;
+                    }
+                }
+            }
+        }
+
         // 计算包裹费用
         CalcShipmentFeeCommand calcShipmentFeeCommand = new CalcShipmentFeeCommand();
         // true代表需要验证，false的话，主要是用于测算
@@ -569,24 +550,36 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         calcShipmentFeeCommand.setShipmentType(delOutbound.getShipmentType());
         calcShipmentFeeCommand.setIoss(delOutbound.getIoss());
         calcShipmentFeeCommand.setPackageInfos(packageInfos);
-        // 收货地址
-        calcShipmentFeeCommand.setToAddress(new Address(address.getStreet1(),
+
+        Address toAddress =  new Address(address.getStreet1(),
                 address.getStreet2(),
                 address.getStreet3(),
                 address.getPostCode(),
                 address.getCity(),
                 address.getStateOrProvince(),
                 new CountryInfo(country.getAddressCode(), null, country.getEnName(), country.getName())
-        ));
-        // 发货地址
-        calcShipmentFeeCommand.setFromAddress(new Address(warehouse.getStreet1(),
+        );
+
+        Address fromAddress = new Address(warehouse.getStreet1(),
                 warehouse.getStreet2(),
                 null,
                 warehouse.getPostcode(),
                 warehouse.getCity(),
                 warehouse.getProvince(),
                 new CountryInfo(warehouse.getCountryCode(), null, warehouse.getCountryName(), warehouse.getCountryChineseName())
-        ));
+        );
+
+        if(recevieWarehouseStatus == RecevieWarehouseStatusEnum.WAREHOUSESTATUS.getCode()){
+            // 收货地址
+            calcShipmentFeeCommand.setToAddress(fromAddress);
+            // 发货地址
+            calcShipmentFeeCommand.setFromAddress(toAddress);
+        }else {
+            // 收货地址
+            calcShipmentFeeCommand.setToAddress(toAddress);
+            // 发货地址
+            calcShipmentFeeCommand.setFromAddress(fromAddress);
+        }
         // 联系信息
         calcShipmentFeeCommand.setToContactInfo(new ContactInfo(address.getConsignee(), address.getPhoneNo(), address.getEmail(), null));
         // calcShipmentFeeCommand.setCalcTimeForDiscount(new Date());
@@ -613,16 +606,35 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         // 创建承运商物流订单
         CreateShipmentOrderCommand createShipmentOrderCommand = new CreateShipmentOrderCommand();
         createShipmentOrderCommand.setWarehouseCode(delOutbound.getWarehouseCode());
+        String referenceNumber = UUID.randomUUID().toString().replaceAll("-", "").toUpperCase();
         // 改成uuid
-        createShipmentOrderCommand.setReferenceNumber(UUID.randomUUID().toString().replaceAll("-", "").toUpperCase());
+        createShipmentOrderCommand.setReferenceNumber(referenceNumber);
         // 订单号传refno
         if (DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())) {
             createShipmentOrderCommand.setOrderNumber(delOutbound.getRefNo());
         } else {
             createShipmentOrderCommand.setOrderNumber(orderNo);
         }
-        createShipmentOrderCommand.setClientNumber(delOutbound.getSellerCode());
-        createShipmentOrderCommand.setReceiverAddress(new AddressCommand(address.getConsignee(),
+
+        Integer recevieWarehouseStatus = 0;
+
+        if(StringUtils.isNotEmpty(delOutbound.getShipmentRule())) {
+
+            List<String> productCodeList = Arrays.asList(delOutbound.getShipmentRule());
+            R<List<BasProductService>> basProductServiceRs = chargeFeignService.selectBasProductService(productCodeList);
+
+            if (basProductServiceRs.getCode() == 200) {
+                List<BasProductService> basProductServices = basProductServiceRs.getData();
+                for (BasProductService basProductService : basProductServices) {
+                    recevieWarehouseStatus = basProductService.getRecevieWarehouseStatus();
+                    if (recevieWarehouseStatus.equals(RecevieWarehouseStatusEnum.WAREHOUSESTATUS.getCode())) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        AddressCommand addressCommand = new AddressCommand(address.getConsignee(),
                 address.getPhoneNo(),
                 address.getEmail(),
                 address.getStreet1(),
@@ -631,8 +643,13 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 address.getCity(),
                 address.getStateOrProvince(),
                 address.getPostCode(),
-                country.getEnName()));
-        createShipmentOrderCommand.setReturnAddress(new AddressCommand(warehouse.getContact(),
+                country.getEnName(),
+                address.getTaxNumber(),
+                address.getIdNumber(),
+                delOutbound.getHouseNo()
+        );
+
+        AddressCommand resultAddressCommand = new AddressCommand(warehouse.getContact(),
                 warehouse.getTelephone(),
                 null,
                 warehouse.getStreet1(),
@@ -641,7 +658,21 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 warehouse.getCity(),
                 warehouse.getProvince(),
                 warehouse.getPostcode(),
-                warehouse.getCountryName()));
+                warehouse.getCountryName(),
+                null,
+                null,
+                null
+        );
+        
+        createShipmentOrderCommand.setClientNumber(delOutbound.getSellerCode());
+
+        if(recevieWarehouseStatus.equals(RecevieWarehouseStatusEnum.WAREHOUSESTATUS.getCode())){
+            createShipmentOrderCommand.setReceiverAddress(resultAddressCommand);
+            createShipmentOrderCommand.setReturnAddress(addressCommand);
+        }else {
+            createShipmentOrderCommand.setReceiverAddress(addressCommand);
+            createShipmentOrderCommand.setReturnAddress(resultAddressCommand);
+        }
         // 税号信息
         String ioss = delOutbound.getIoss();
         if (StringUtils.isNotEmpty(ioss)) {
@@ -707,10 +738,10 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         if (null != delOutbound.getWeight() && delOutbound.getWeight() > 0) {
             weightInGram = Utils.valueOfDouble(delOutbound.getWeight());
         }
-        if (weightInGram <= 0) {
-            throw new CommonException("400", MessageUtil.to("包裹重量为0或者小于0，不能创建承运商物流订单",
-                    "If the package weight is 0 or less than 0, the carrier logistics order cannot be created"));
-        }
+//        if (weightInGram <= 0) {
+//            throw new CommonException("400", MessageUtil.to("包裹重量为0或者小于0，不能创建承运商物流订单",
+//                    "If the package weight is 0 or less than 0, the carrier logistics order cannot be created"));
+//        }
         String packageNumber;
         if (DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())) {
             packageNumber = delOutbound.getRefNo();
@@ -763,6 +794,7 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 }
             }
             this.transferCallback(delOutbound.getOrderNo(), delOutbound.getShopifyOrderNo(), shipmentService, shipmentOrderResult.getMainTrackingNumber(), null);
+            shipmentOrderResult.setReferenceNumber(referenceNumber);
             return shipmentOrderResult;
         } else {
             String exceptionMessage = Utils.defaultValue(ProblemDetails.getErrorMessageOrNull(responseObjectWrapper.getError(), true), "创建承运商物流订单失败，调用承运商系统失败");
@@ -839,7 +871,11 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 address.getCity(),
                 address.getStateOrProvince(),
                 address.getPostCode(),
-                country.getEnName()));
+                country.getEnName(),
+                address.getTaxNumber(),
+                address.getIdNumber(),
+                delOutbound.getHouseNo()
+        ));
         createShipmentOrderCommand.setReturnAddress(new AddressCommand(warehouse.getContact(),
                 warehouse.getTelephone(),
                 null,
@@ -849,7 +885,11 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                 warehouse.getCity(),
                 warehouse.getProvince(),
                 warehouse.getPostcode(),
-                warehouse.getCountryName()));
+                warehouse.getCountryName(),
+                null,
+                null,
+                null
+            ));
         // 税号信息
         String ioss = delOutbound.getIoss();
         if (StringUtils.isNotEmpty(ioss)) {
@@ -913,9 +953,9 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         if (null != delOutbound.getWeight() && delOutbound.getWeight() > 0) {
             weightInGram = Utils.valueOfDouble(delOutbound.getWeight());
         }
-        if (weightInGram <= 0) {
-            throw new CommonException("400", MessageUtil.to("包裹重量为0或者小于0，不能创建承运商物流订单",
-                    "If the package weight is 0 or less than 0, the carrier logistics order cannot be created"));        }
+//        if (weightInGram <= 0) {
+//            throw new CommonException("400", MessageUtil.to("包裹重量为0或者小于0，不能创建承运商物流订单",
+//                    "If the package weight is 0 or less than 0, the carrier logistics order cannot be created"));        }
         String packageNumber;
         if (DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())) {
             packageNumber = delOutbound.getRefNo();

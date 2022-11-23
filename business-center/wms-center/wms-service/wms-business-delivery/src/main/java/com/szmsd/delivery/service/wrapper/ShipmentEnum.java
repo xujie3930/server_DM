@@ -24,6 +24,7 @@ import com.szmsd.delivery.service.IDelOutboundChargeService;
 import com.szmsd.delivery.service.IDelOutboundRetryLabelService;
 import com.szmsd.delivery.service.IDelOutboundService;
 import com.szmsd.delivery.service.impl.DelOutboundServiceImplUtil;
+import com.szmsd.delivery.util.BigDecimalUtil;
 import com.szmsd.delivery.util.Utils;
 import com.szmsd.finance.api.feign.RechargesFeignService;
 import com.szmsd.finance.dto.CusFreezeBalanceDTO;
@@ -33,12 +34,8 @@ import com.szmsd.http.vo.ResponseVO;
 import com.szmsd.inventory.api.service.InventoryFeignClientService;
 import com.szmsd.inventory.domain.dto.InventoryOperateDto;
 import com.szmsd.inventory.domain.dto.InventoryOperateListDto;
-import com.szmsd.pack.api.feign.PackageDeliveryConditionsFeignService;
-import com.szmsd.pack.domain.PackageDeliveryConditions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -298,6 +295,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                 }
             }
 
+            IDelOutboundService iDelOutboundService = SpringUtils.getBean(IDelOutboundService.class);
 
             // 创建承运商物流订单
             IDelOutboundBringVerifyService delOutboundBringVerifyService = SpringUtils.getBean(IDelOutboundBringVerifyService.class);
@@ -307,7 +305,14 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                 delOutbound.setTrackingNo(shipmentOrderResult.getMainTrackingNumber());
                 delOutbound.setShipmentOrderNumber(shipmentOrderResult.getOrderNumber());
                 delOutbound.setShipmentOrderLabelUrl(shipmentOrderResult.getOrderLabelUrl());
+                delOutbound.setReferenceNumber(shipmentOrderResult.getReferenceNumber());
             }
+
+            DelOutbound delOutboundUpd = new DelOutbound();
+            delOutboundUpd.setId(delOutbound.getId());
+            delOutboundUpd.setReferenceNumber(delOutbound.getReferenceNumber());
+            iDelOutboundService.updateById(delOutboundUpd);
+
             logger.info(">>>>>{}-承运商订单创建完成", delOutbound.getOrderNo());
             DelOutboundOperationLogEnum.SMT_SHIPMENT_ORDER.listener(delOutbound);
 
@@ -774,21 +779,24 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             delOutbound.setCurrencyCode(totalCurrencyCode);
             //分组计算货币金额
             Map<String, BigDecimal> currencyMap = new HashMap<String, BigDecimal>();
+
             for (DelOutboundCharge charge: delOutboundCharges){
-                if(currencyMap.containsKey(charge.getCurrencyCode())){
-                    currencyMap.put(charge.getCurrencyCode(), currencyMap.get(charge.getCurrencyCode()).add(charge.getAmount()));
+
+                String currencyCode = charge.getCurrencyCode();
+                BigDecimal amount = BigDecimalUtil.setScale(charge.getAmount(),3);
+
+                if(currencyMap.containsKey(currencyCode)){
+                    BigDecimal chargeamount = currencyMap.get(currencyCode).add(amount);
+                    currencyMap.put(currencyCode, chargeamount);
                 }else{
-                    currencyMap.put(charge.getCurrencyCode(), charge.getAmount());
+                    currencyMap.put(currencyCode, amount);
                 }
             }
-            delOutbound.setCurrencyDescribe(ArrayUtil.join(currencyMap.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getValue))
-                    .map(e -> e.getValue() + e.getKey()).collect(Collectors.toList()).toArray(), "；"));
 
+            String currencyDescribe = ArrayUtil.join(currencyMap.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getValue))
+                    .map(e -> e.getValue() + e.getKey()).collect(Collectors.toList()).toArray(), "；");
 
-
-
-
-
+            delOutbound.setCurrencyDescribe(currencyDescribe);
 
             /**
              * 特殊化日志记录，分币别
@@ -837,14 +845,14 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
 
             logger.info(">>>>>[发货后出库单{}]开始冻结费用, 数据:{}",delOutbound.getOrderNo(), JSONObject.toJSONString(delOutbound));
 
-            RedissonClient redissonClient = SpringUtils.getBean(RedissonClient.class);
-
-            String key = "deloutbound-fss-freeze-balance" + delOutbound.getCustomCode() + ":" + delOutbound.getOrderNo();
-
-            RLock lock = redissonClient.getLock(key);
-
+//            RedissonClient redissonClient = SpringUtils.getBean(RedissonClient.class);
+//
+//            String key = "deloutbound-fss-freeze-balance" + delOutbound.getCustomCode() + ":" + delOutbound.getOrderNo();
+//
+//            RLock lock = redissonClient.getLock(key);
+//
             try {
-                lock.tryLock(time, unit);
+//                lock.tryLock(time, unit);
 
                 /**
                  *  获取要冻结的费用数据，并按货币分组冻结
@@ -886,7 +894,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                     logger.info(">>>>>[发货后出库单{}]冻结费用, 数据:{}",delOutbound.getOrderNo(), JSONObject.toJSONString(cusFreezeBalanceDTO2));
                 }
 
-            } catch (InterruptedException e) {
+            } catch (Exception e) {
 
                 logger.info("冻结费用异常，加锁失败");
                 logger.info("异常信息:" + e.getMessage());
@@ -894,9 +902,6 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
                 throw new RuntimeException(e.getMessage());
 
             }finally {
-                if (lock.isLocked() && lock.isHeldByCurrentThread()) {
-                    lock.unlock();
-                }
             }
         }
 

@@ -1,12 +1,17 @@
 package com.szmsd.finance.handler;
 
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.szmsd.bas.api.feign.BasFeignService;
 import com.szmsd.bas.vo.BasSellerInfoVO;
+import com.szmsd.common.core.utils.BigDecimalUtil;
 import com.szmsd.common.core.utils.DateUtils;
+import com.szmsd.common.core.utils.StringUtils;
 import com.szmsd.finance.domain.AccountSerialBill;
+import com.szmsd.finance.domain.FssConvertUnit;
 import com.szmsd.finance.mapper.AccountBalanceLogMapper;
 import com.szmsd.finance.mapper.AccountSerialBillMapper;
+import com.szmsd.finance.mapper.FssConvertUnitMapper;
 import com.szmsd.finance.util.ExcelUtil;
 import com.szmsd.finance.vo.*;
 import lombok.extern.slf4j.Slf4j;
@@ -16,10 +21,13 @@ import javax.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class BillGeneratorExcelTask implements Callable<AccountBillRecordTaskResultVO> {
@@ -27,6 +35,8 @@ public class BillGeneratorExcelTask implements Callable<AccountBillRecordTaskRes
     private BillGeneratorBO billGeneratorBO;
 
     private AccountSerialBillMapper accountSerialBillMapper;
+
+    private FssConvertUnitMapper fssConvertUnitMapper;
 
     private AccountBalanceLogMapper accountBalanceLogMapper;
 
@@ -54,6 +64,7 @@ public class BillGeneratorExcelTask implements Callable<AccountBillRecordTaskRes
         accountBalanceLogMapper = billGeneratorBO.getAccountBalanceLogMapper();
         basFeignService = billGeneratorBO.getBasFeignService();
         request = billGeneratorBO.getRequest();
+        fssConvertUnitMapper = billGeneratorBO.getFssConvertUnitMapper();
 
         String scheme = request.getScheme();
         int port = request.getServerPort();
@@ -198,21 +209,37 @@ public class BillGeneratorExcelTask implements Callable<AccountBillRecordTaskRes
 
         List<BillDirectDeliveryTotalVO> billDirectDeliveryTotalVOS = accountSerialBillMapper.selectDirectDelivery(queryVO);
 
+        List<FssConvertUnit> fssConvertUnits = fssConvertUnitMapper.selectList(Wrappers.<FssConvertUnit>query().lambda());
+        Map<String,FssConvertUnit> convertUnitMap = fssConvertUnits.stream().collect(Collectors.toMap(FssConvertUnit::getCalcUnit, v->v));
+
         for(BillDirectDeliveryTotalVO billDirectDeliveryTotalVO : billDirectDeliveryTotalVOS){
 
             String resultCalaWeight = "";
             String resultWeight = "";
             String resultforecastWeight = "";
-            if(billDirectDeliveryTotalVO.getCalcWeight() != null && billDirectDeliveryTotalVO.getCalcWeightUnit() != null){
-                resultCalaWeight = billDirectDeliveryTotalVO.getCalcWeight() + billDirectDeliveryTotalVO.getCalcWeightUnit();
+//            if(billDirectDeliveryTotalVO.getCalcWeight() != null && billDirectDeliveryTotalVO.getCalcWeightUnit() != null){
+//                resultCalaWeight = billDirectDeliveryTotalVO.getCalcWeight() + billDirectDeliveryTotalVO.getCalcWeightUnit();
+//            }
+
+            String calcWeightUnit = billDirectDeliveryTotalVO.getCalcWeightUnit();
+            BigDecimal calcWeight = billDirectDeliveryTotalVO.getCalcWeight();
+
+            if(StringUtils.isNotEmpty(calcWeightUnit) && convertUnitMap != null){
+                FssConvertUnit fssConvertUnit = convertUnitMap.get(calcWeightUnit);
+
+                if(fssConvertUnit != null){
+                    BigDecimal convertValue =  fssConvertUnit.getConvertValue();
+                    BigDecimal result = BigDecimalUtil.setScale(calcWeight.multiply(convertValue),3);
+                    resultCalaWeight = result.toString();
+                }
             }
 
             if(billDirectDeliveryTotalVO.getWeight() != null){
-                resultWeight = billDirectDeliveryTotalVO.getWeight() +"g";
+                resultWeight = billDirectDeliveryTotalVO.getWeight();
             }
 
             if(billDirectDeliveryTotalVO.getForecastWeight() != null){
-                resultforecastWeight = billDirectDeliveryTotalVO.getForecastWeight() + "g";
+                resultforecastWeight = billDirectDeliveryTotalVO.getForecastWeight();
             }
 
             billDirectDeliveryTotalVO.setResultCalcWeight(resultCalaWeight);
@@ -273,6 +300,15 @@ public class BillGeneratorExcelTask implements Callable<AccountBillRecordTaskRes
         //补收
         List<BillBusinessTotalVO> supplementaryData  = accountSerialBillMapper.supplementary(queryVO);
 
+        //优惠
+        //List<BillBusinessTotalVO> discountData  = accountSerialBillMapper.discount(queryVO);
+
+        //赔偿
+        //List<BillBusinessTotalVO> compensateData = accountSerialBillMapper.compensate(queryVO);
+
+        //退费
+        //List<BillBusinessTotalVO> refundData = accountSerialBillMapper.refund(queryVO);
+
         //优惠/赔偿/退费
         List<BillBusinessTotalVO> businessAll  = accountSerialBillMapper.businessAll(queryVO);
 
@@ -286,6 +322,8 @@ public class BillGeneratorExcelTask implements Callable<AccountBillRecordTaskRes
         businessTotalVOS.addAll(withdrawalData);
         businessTotalVOS.addAll(supplementaryData);
         businessTotalVOS.addAll(businessAll);
+        //businessTotalVOS.addAll(discountData);
+        //businessTotalVOS.addAll(refundData);
         businessTotalVOS.addAll(balanceData);
 
         return businessTotalVOS;

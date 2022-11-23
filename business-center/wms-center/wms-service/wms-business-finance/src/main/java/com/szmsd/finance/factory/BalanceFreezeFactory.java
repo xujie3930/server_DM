@@ -133,8 +133,10 @@ public class BalanceFreezeFactory extends AbstractPayFactory {
 //                lock.unlock();
 //            }
         } catch (Exception e) {
-            log.error("冻结/解冻操作 异常， BalanceFreezeFactory异常：", e);
-            throw new RuntimeException(e);
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly(); //手动回滚事务
+            e.printStackTrace();
+            log.error("获取余额异常，加锁失败 BalanceFreezeFactory异常：", e);
+            throw new RuntimeException(e.getMessage());
         }
     }
 
@@ -218,7 +220,7 @@ public class BalanceFreezeFactory extends AbstractPayFactory {
                     setHasFreeze(dto);
                     return true;
                 }
-                throw new CommonException("999", "解冻金额不足 单号: " + dto.getNo() + " 金额：" + amountChange);
+                throw new RuntimeException("解冻金额不足 单号: " + dto.getNo() + " 金额：" + amountChange);
             }
         }
 
