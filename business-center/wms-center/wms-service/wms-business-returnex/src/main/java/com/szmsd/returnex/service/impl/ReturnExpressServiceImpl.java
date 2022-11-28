@@ -920,7 +920,7 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
             log.info("【退件导入】:1 解析---");
             StopWatch importWatch = new StopWatch("导入解析");
             importWatch.start("解析");
-            CompletableFuture<List<ReturnExpressClientImportDelOutboundDto>> reassignListFuture = CompletableFuture.supplyAsync(() -> EasyExcel.read(inputStream2, ReturnExpressClientImportDelOutboundDto.class, new SyncReadListener()).headRowNumber(2).sheet(0).doReadSync());
+            CompletableFuture<List<ReturnExpressClientImportDelOutboundDto>> reassignListFuture = CompletableFuture.supplyAsync(() -> EasyExcel.read(inputStream2, ReturnExpressClientImportDelOutboundDto.class, new SyncReadListener()).headRowNumber(1).sheet(0).doReadSync());
             importWatch.stop();
             List<ReturnExpressClientImportDelOutboundDto> reassignList = reassignListFuture.get();
             Map<String, ReturnExpressClientImportDelOutboundDto> reassignListMap = reassignList.stream().collect(Collectors.toMap(ReturnExpressClientImportDelOutboundDto::getExpectedNo, x -> x, (x1, x2) -> x1));
@@ -1113,6 +1113,12 @@ public class ReturnExpressServiceImpl extends ServiceImpl<ReturnExpressMapper, R
         delOutboundDto.setOldOrderNo(fromOrderNo);
         // refno = wms 处理号 = 平台端的退件单号
         delOutboundDto.setRefNo(infoByNo.getReturnNo());
+        if (importReassignDTO.getIoss()!=null){
+            delOutboundDto.setIoss(importReassignDTO.getIoss());
+        }
+        if (importReassignDTO.getHouseNo()!=null){
+            delOutboundDto.setHouseNo(importReassignDTO.getHouseNo());
+        }
         delOutboundDto.setRefOrderNo(expectedNo);
         delOutboundDto.setShipmentRule(getStrOrDefault(importReassignDTO.getShipmentRule(), delOutboundVO.getShipmentRule()));
         delOutboundDto.setRemark(getStrOrDefault(importReassignDTO.getRemark(), delOutboundVO.getRemark()));
