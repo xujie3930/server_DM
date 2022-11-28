@@ -3,7 +3,7 @@ package com.szmsd.finance.controller;
 
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.web.controller.BaseController;
-import com.szmsd.finance.domain.FssBank;
+import com.szmsd.finance.domain.FssBankQueryVO;
 import com.szmsd.finance.service.FssBankService;
 import com.szmsd.finance.vo.FssBankVO;
 import io.swagger.annotations.Api;
@@ -11,10 +11,7 @@ import io.swagger.annotations.ApiModelProperty;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -46,7 +43,14 @@ public class FssBankController extends BaseController {
     @GetMapping("/find-bank-account")
     public R<List<FssBankVO>> findBankAccountList(@RequestParam("bankCode")String bankCode){
 
-        return fssBankService.findBankAccount(bankCode);
+        return fssBankService.findBankAccount(bankCode,null);
+    }
+
+    @ApiModelProperty(value = "查询银行账号")
+    @PostMapping("/find-bank-account")
+    public R<List<FssBankVO>> findBankAccountList(@RequestBody FssBankQueryVO fssBankQueryVO){
+
+        return fssBankService.findBankAccount(fssBankQueryVO);
     }
 
 }
