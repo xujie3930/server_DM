@@ -148,6 +148,16 @@ public class BaseProductServiceImpl extends ServiceImpl<BaseProductMapper, BaseP
                 queryDto.setSellerCodes(cusCode);
             }
         }
+
+
+        if (StringUtils.isNotEmpty(queryDto.getSellerCode())) {
+            queryWrapper.eq("seller_code", queryDto.getSellerCode());
+        }
+
+        log.info("doc查询sku打印token信息：{}",  SecurityUtils.getLoginUser());
+
+        log.info("doc查询sku绑定的客户code：{}", queryDto.getCodes());
+        log.info("doc查询sku绑定的客户codes：{}", queryDto.getSellerCodes());
         if (StringUtils.isNotEmpty(queryDto.getSellerCodes())) {
             String[] sellerCodes = queryDto.getSellerCodes().split(",");
             queryWrapper.in("seller_code", sellerCodes);
@@ -685,8 +695,11 @@ public class BaseProductServiceImpl extends ServiceImpl<BaseProductMapper, BaseP
     }
 
     private List<BaseProduct> queryConditionList(BaseProductConditionQueryDto conditionQueryDto) {
-        if (CollectionUtils.isEmpty(conditionQueryDto.getSkus())) {
-            return Collections.emptyList();
+
+        List<String> skuList = conditionQueryDto.getSkus();
+
+        if (skuList == null || skuList.size() == 0 ) {
+            return new ArrayList<>();
         }
         LambdaQueryWrapper<BaseProduct> queryWrapper = Wrappers.lambdaQuery();
         if (null != conditionQueryDto.getWarehouseCode()) {
