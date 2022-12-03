@@ -266,8 +266,16 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         queryWrapper.eq(DelOutbound::getOrderNo, vo.getOrderNo());
         DelOutbound delOutbound = super.getOne(queryWrapper);
         if(delOutbound == null){
-            throw new CommonException("400", "单据不存在");
+            throw new CommonException("400", "Order does not exist");
         }
+
+        String amazonLogisticsRouteId1 = delOutbound.getAmazonLogisticsRouteId();
+        String amazonReferenceId = delOutbound.getAmazonReferenceId();
+
+        if(StringUtils.isEmpty(amazonLogisticsRouteId1) && StringUtils.isNotEmpty(amazonReferenceId)){
+            throw new CommonException("400","The order number is being obtained");
+        }
+
         DelOutboundThirdPartyVO delOutboundThirdPartyVO =
                 BeanMapperUtil.map(delOutbound, DelOutboundThirdPartyVO.class);
 
@@ -276,10 +284,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 BasSubWrapperVO::getSubName, (key1, key2) -> key2));
         delOutboundThirdPartyVO.setStateName(map.get(delOutboundThirdPartyVO.getState()));
 
-        String amazonLogisticsRouteId = delOutboundThirdPartyVO.getAmazonLogisticsRouteId();
-
-        if(StringUtils.isNotEmpty(amazonLogisticsRouteId)){
-            delOutboundThirdPartyVO.setTrackingNo(amazonLogisticsRouteId);
+        if(StringUtils.isNotEmpty(amazonLogisticsRouteId1)){
+            delOutboundThirdPartyVO.setTrackingNo(amazonLogisticsRouteId1);
         }
 
         return delOutboundThirdPartyVO;
@@ -956,7 +962,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
                 for (DelOutboundDetailDto detailDto : dto.getDetails()) {
                     if (StringUtils.isEmpty(detailDto.getBoxMark())) {
-                        detailDto.setBoxMark(this.serialNumberClientService.generateNumber(SerialNumberConstant.BOX_MARK));
+                        detailDto.setBoxMark(this.serialNumberClientService.generatorNumber(SerialNumberConstant.BOX_MARK));
                     }
                 }
                 stopWatch.stop();
@@ -2265,7 +2271,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         shipmentCancelRequestDto.setOrderNoList(orderNos);
         shipmentCancelRequestDto.setWarehouseCode(warehouseCode);
         shipmentCancelRequestDto.setRemark("");
+        logger.info("通知WMS取消单据参数：{}",JSON.toJSONString(shipmentCancelRequestDto));
         ResponseVO responseVO = this.htpOutboundClientService.shipmentDelete(shipmentCancelRequestDto);
+        logger.info("通知WMS取消单据返回：{}",JSON.toJSONString(responseVO));
         if (null == responseVO || null == responseVO.getSuccess()) {
             throw new CommonException("400", "取消出库单失败");
         }
@@ -2281,7 +2289,6 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             }else{
                 throw new CommonException("400", Utils.defaultValue(responseVO.getMessage(), "取消出库单失败2"));
             }
-
         }
         // 修改单据状态为【仓库取消中】
         LambdaUpdateWrapper<DelOutbound> updateWrapper = Wrappers.lambdaUpdate();
@@ -2645,15 +2652,25 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean serviceChannelNamePushWMS(DelOutbound delOutbound, DelOutbound updateDelOutbound) {
 
+        String shipmentService = delOutbound.getShipmentService();
+
+        if(StringUtils.isEmpty(shipmentService)){
+            return false;
+        }
+
+        logger.info("shipmentService单号:{},{}",delOutbound.getOrderNo(),shipmentService);
 
         BasShipmentRulesDto paramBasShipmentRulesDto = new BasShipmentRulesDto();
         paramBasShipmentRulesDto.setCustomCode(delOutbound.getSellerCode());
-        paramBasShipmentRulesDto.setServiceChannelName(delOutbound.getShipmentService());
+        paramBasShipmentRulesDto.setServiceChannelName(shipmentService);
         paramBasShipmentRulesDto.setDelFlag("1");
+        paramBasShipmentRulesDto.setTypeName("0");
         List<BasShipmentRules> list = basShipmenRulesService.selectBasShipmentRules(paramBasShipmentRulesDto);
         if(list.isEmpty()){
             return false;
         }
+
+        logger.info("shipmentService selectBasShipmentRules 单号:{},{}",delOutbound.getOrderNo(),JSON.toJSONString(list));
 
         //直接变成仓库发货状态
         updateDelOutbound.setState(DelOutboundStateEnum.WHSE_COMPLETED.getCode());
