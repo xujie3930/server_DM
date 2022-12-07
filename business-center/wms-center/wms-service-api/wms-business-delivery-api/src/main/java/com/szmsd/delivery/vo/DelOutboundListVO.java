@@ -187,4 +187,14 @@ public class DelOutboundListVO implements Serializable {
 
     @ApiModelProperty(value = "身份证")
     private String idNumber;
+
+
+    @ApiModelProperty(value = "prc返回的产品代码")
+    private String prcInterfaceProductCode;
+
+    @ApiModelProperty(value = "prc返回的terminalCarrier")
+    private String prcTerminalCarrier;
+
+    @ApiModelProperty(value = "houseNo")
+    private String houseNo;
 }
