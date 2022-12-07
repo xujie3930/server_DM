@@ -107,9 +107,9 @@ public class ThreadPoolExecutorConfiguration {
 
     @Bean(THREADPOOLEXECUTOR_DELOUTBOUND_REVIEWED)
     public ThreadPoolExecutor threadPoolExecutorDelOutboundReviewed() {
-        // 核心线程数量
-        int corePoolSize = threadpoolexecutor;
-        int maximumPoolSize = threadpoolexecutor;
+        // 核心线程数量调大4倍，观察处理能力
+        int corePoolSize = threadpoolexecutor * 4;
+        int maximumPoolSize = threadpoolexecutor * 4;
         // 队列
         LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>(2048);
         // 核心和最大一致
