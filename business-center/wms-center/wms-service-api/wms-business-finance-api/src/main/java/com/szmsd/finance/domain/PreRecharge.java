@@ -42,7 +42,7 @@ public class PreRecharge extends FssBaseEntity {
     @ApiModelProperty(value = "请求参数唯一标识/流水号")
     private String serialNo;
 
-    @ApiModelProperty(value = "汇款方式 0电汇 1转账 2支票")
+    @ApiModelProperty(value = "汇款方式 0电汇 1转账 2支票 3 微信 4 支付宝")
     private String remittanceMethod;
 
 
@@ -92,4 +92,8 @@ public class PreRecharge extends FssBaseEntity {
 
     @ApiModelProperty(value = "驳回意见")
     private String rejectRemark;
+
+    @ApiModelProperty(value = "驳回时间")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private Date rejectDate;
 }
