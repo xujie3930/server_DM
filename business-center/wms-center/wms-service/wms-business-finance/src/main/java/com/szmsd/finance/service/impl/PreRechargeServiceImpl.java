@@ -14,15 +14,14 @@ import com.szmsd.finance.dto.CustPayDTO;
 import com.szmsd.finance.dto.PreRechargeAuditDTO;
 import com.szmsd.finance.dto.PreRechargeAuditVO;
 import com.szmsd.finance.dto.PreRechargeDTO;
+import com.szmsd.finance.enums.BillEnum;
 import com.szmsd.finance.enums.PreRechargeVerifyStatusEnum;
 import com.szmsd.finance.mapper.FssBankMapper;
 import com.szmsd.finance.mapper.PreRechargeMapper;
 import com.szmsd.finance.service.IAccountBalanceService;
 import com.szmsd.finance.service.IPreRechargeService;
-import lombok.val;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -155,6 +154,12 @@ public class PreRechargeServiceImpl implements IPreRechargeService {
             custPayDTO.setCurrencyName(dto.getCurrencyName());
             custPayDTO.setOrderTime(dto.getRemittanceTime());
             custPayDTO.setNo(dto.getSerialNo());
+            custPayDTO.setNature("充值");
+            custPayDTO.setBusinessType("线上充值");
+            custPayDTO.setPayMethod(BillEnum.PayMethod.ONLINE_INCOME);
+            custPayDTO.setPayType(BillEnum.PayType.INCOME);
+            String note = this.generatorNote(domain);
+            custPayDTO.setNote(note);
             R r = accountBalanceService.offlineIncome(custPayDTO);
             if (Constants.SUCCESS != r.getCode()) {
                 return r;
@@ -162,6 +167,27 @@ public class PreRechargeServiceImpl implements IPreRechargeService {
         }
 
         return R.failed("异常");
+    }
+
+    private String generatorNote(PreRecharge domain) {
+
+        StringBuilder stringBuilder = new StringBuilder();
+
+        if(domain.getRemittanceMethod().equals("3")){
+            stringBuilder.append("在线充值:微信通道");
+            stringBuilder.append("支付方式:微信支付-扫码");
+
+        }else if(domain.getRemittanceMethod().equals("4")){
+            stringBuilder.append("在线充值:支付宝通道");
+            stringBuilder.append("支付方式:支付宝支付-扫码");
+        }
+
+        stringBuilder.append("充值金额:"+domain.getAmount());
+        stringBuilder.append("手续费:"+domain.getProcedureAmount());
+        stringBuilder.append("实际到账金额:"+domain.getActurlAmount());
+        stringBuilder.append("交易号:"+domain.getSerialNo());
+
+        return stringBuilder.toString();
     }
 
     @Override
@@ -179,6 +205,12 @@ public class PreRechargeServiceImpl implements IPreRechargeService {
 
         if(preRecharge == null){
             return R.failed("无法获取充值信息");
+        }
+
+        String remittanceMethod = preRecharge.getRemittanceMethod();
+
+        if(remittanceMethod.equals("3") || remittanceMethod.equals("4")){
+            return R.failed("支付宝、微信充值，无法驳回");
         }
 
         try {
@@ -205,6 +237,7 @@ public class PreRechargeServiceImpl implements IPreRechargeService {
             preRechargeUpd.setUpdateBy(SecurityUtils.getLoginUser().getUsername());
             preRechargeUpd.setUpdateByName(SecurityUtils.getLoginUser().getUsername());
             preRechargeUpd.setUpdateTime(new Date());
+            preRechargeUpd.setRejectDate(new Date());
 
             preRechargeMapper.updateById(preRechargeUpd);
 

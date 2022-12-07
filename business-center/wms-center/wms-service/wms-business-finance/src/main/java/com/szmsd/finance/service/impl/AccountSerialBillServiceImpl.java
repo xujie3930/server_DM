@@ -1,15 +1,23 @@
 package com.szmsd.finance.service.impl;
 
+import cn.afterturn.easypoi.excel.ExcelExportUtil;
+import cn.afterturn.easypoi.excel.entity.ExportParams;
+import cn.afterturn.easypoi.excel.entity.enmus.ExcelType;
 import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.github.pagehelper.PageHelper;
+import com.szmsd.bas.api.feign.BasFileFeignService;
+import com.szmsd.bas.domain.BasFile;
 import com.szmsd.common.core.constant.HttpStatus;
+import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.utils.DateUtils;
 import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.common.core.utils.poi.ExcelUtil;
 import com.szmsd.common.core.web.page.TableDataInfo;
+import com.szmsd.common.security.domain.LoginUser;
 import com.szmsd.common.security.utils.SecurityUtils;
 import com.szmsd.delivery.api.feign.DelOutboundFeignService;
 import com.szmsd.delivery.domain.DelOutbound;
@@ -26,6 +34,7 @@ import com.szmsd.finance.mapper.AccountSerialBillMapper;
 import com.szmsd.finance.mapper.ChargeRelationMapper;
 import com.szmsd.finance.service.IAccountSerialBillService;
 import com.szmsd.finance.service.ISysDictDataService;
+import com.szmsd.finance.task.EasyPoiExportTask;
 import com.szmsd.finance.vo.AccountSerialBillExcelVO;
 import com.szmsd.putinstorage.api.feign.InboundReceiptFeignService;
 import com.szmsd.putinstorage.domain.dto.InboundReceiptQueryDTO;
@@ -33,13 +42,20 @@ import com.szmsd.putinstorage.domain.vo.InboundReceiptVO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletResponse;
 import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -55,44 +71,14 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
     @Resource
     private ChargeRelationMapper chargeRelationMapper;
 
+    @Autowired
+    private BasFileFeignService basFileFeignService;
+
+    @Value("${filepath}")
+    private String filePath;
+
     @Override
-//    @DataScope("cus_code")
     public List<AccountSerialBill> listPage(AccountSerialBillDTO dto) {
-//        QueryWrapper<Object> query1 = Wrappers.query();
-//        query1.eq("a.cretea",);
-//        LambdaQueryWrapper<AccountSerialBill> query = Wrappers.lambdaQuery();
-//        query.in(CollectionUtils.isNotEmpty(dto.getNoList()), AccountSerialBill::getNo, dto.getNoList());
-//        query.in(CollectionUtils.isNotEmpty(dto.getCusCodeList()), AccountSerialBill::getCusCode, dto.getCusCodeList());
-//        query.in(CollectionUtils.isNotEmpty(dto.getProductCodeList()), AccountSerialBill::getProductCode, dto.getProductCodeList());
-//
-//
-//        if (StringUtils.isNotBlank(dto.getChargeType())) {
-//            query.eq(AccountSerialBill::getChargeType, dto.getChargeType());
-//        }
-//        if (StringUtils.isNotBlank(dto.getWarehouseCode())) {
-//            query.eq(AccountSerialBill::getWarehouseCode, dto.getWarehouseCode());
-//        }
-//        if (StringUtils.isNotBlank(dto.getCurrencyCode())) {
-//            query.eq(AccountSerialBill::getCurrencyCode, dto.getCurrencyCode());
-//        }
-//        if (StringUtils.isNotBlank(dto.getBusinessCategory())) {
-//            query.eq(AccountSerialBill::getBusinessCategory, dto.getBusinessCategory());
-//        }
-//        if (StringUtils.isNotBlank(dto.getProductCategory())) {
-//            query.eq(AccountSerialBill::getProductCategory, dto.getProductCategory());
-//        }
-//        if (StringUtils.isNotBlank(dto.getChargeCategory())) {
-//            query.eq(AccountSerialBill::getChargeCategory, dto.getChargeCategory());
-//        }
-//        if (StringUtils.isNotBlank(dto.getCreateTimeStart())) {
-//            query.ge(AccountSerialBill::getCreateTime, dto.getCreateTimeStart());
-//        }
-//        if (StringUtils.isNotBlank(dto.getCreateTimeEnd())) {
-//            query.le(AccountSerialBill::getCreateTime, dto.getCreateTimeEnd());
-//        }
-//        if (StringUtils.isNotBlank(dto.getIds())) {
-//            query.in(AccountSerialBill::getId, (Object[]) dto.getIds().split(","));
-//        }
         if (Objects.nonNull(SecurityUtils.getLoginUser())) {
             String cusCode = StringUtils.isNotEmpty(SecurityUtils.getLoginUser().getSellerCode()) ? SecurityUtils.getLoginUser().getSellerCode() : "";
             if (com.szmsd.common.core.utils.StringUtils.isEmpty(dto.getCusCode())) {
@@ -100,24 +86,7 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
             }
         }
 
-        if(StringUtils.isNotBlank(dto.getCreateTimeStart())) {
-            String billStartTime = dto.getCreateTimeStart() + " 00:00:00";
-            dto.setCreateTimeStart(billStartTime);
-        }
-
-        if(StringUtils.isNotBlank(dto.getCreateTimeEnd())) {
-            String billEndTime = dto.getCreateTimeEnd() + " 23:59:59";
-            dto.setCreateTimeEnd(billEndTime);
-        }
-
-        if(StringUtils.isNotBlank(dto.getPaymentTimeStart())) {
-            String billStartTime = dto.getPaymentTimeStart() + " 00:00:00";
-            dto.setPaymentTimeStart(billStartTime);
-        }
-        if(StringUtils.isNotBlank(dto.getPaymentTimeEnd())) {
-            String billEndTime = dto.getPaymentTimeEnd() + " 23:59:59";
-            dto.setPaymentTimeEnd(billEndTime);
-        }
+        this.generatorTime(dto);
 
         List<AccountSerialBill> accountSerialBills = accountSerialBillMapper.selectPageList(dto);
         // 修改下单时间等信息
@@ -396,24 +365,7 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
             }
         }
 
-        if(StringUtils.isNotBlank(dto.getCreateTimeStart())) {
-            String billStartTime = dto.getCreateTimeStart() + " 00:00:00";
-            dto.setCreateTimeStart(billStartTime);
-        }
-
-        if(StringUtils.isNotBlank(dto.getCreateTimeEnd())) {
-            String billEndTime = dto.getCreateTimeEnd() + " 23:59:59";
-            dto.setCreateTimeEnd(billEndTime);
-        }
-
-        if(StringUtils.isNotBlank(dto.getPaymentTimeStart())) {
-            String billStartTime = dto.getPaymentTimeStart() + " 00:00:00";
-            dto.setPaymentTimeStart(billStartTime);
-        }
-        if(StringUtils.isNotBlank(dto.getPaymentTimeEnd())) {
-            String billEndTime = dto.getPaymentTimeEnd() + " 23:59:59";
-            dto.setPaymentTimeEnd(billEndTime);
-        }
+        this.generatorTime(dto);
 
         return accountSerialBillMapper.findBillCurrencyData(dto);
     }
@@ -421,24 +373,7 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
     @Override
     public void exportBillTotal(HttpServletResponse response, AccountSerialBillDTO dto) {
 
-        if(StringUtils.isNotBlank(dto.getCreateTimeStart())) {
-            String billStartTime = dto.getCreateTimeStart() + " 00:00:00";
-            dto.setCreateTimeStart(billStartTime);
-        }
-
-        if(StringUtils.isNotBlank(dto.getCreateTimeEnd())) {
-            String billEndTime = dto.getCreateTimeEnd() + " 23:59:59";
-            dto.setCreateTimeEnd(billEndTime);
-        }
-
-        if(StringUtils.isNotBlank(dto.getPaymentTimeStart())) {
-            String billStartTime = dto.getPaymentTimeStart() + " 00:00:00";
-            dto.setPaymentTimeStart(billStartTime);
-        }
-        if(StringUtils.isNotBlank(dto.getPaymentTimeEnd())) {
-            String billEndTime = dto.getPaymentTimeEnd() + " 23:59:59";
-            dto.setPaymentTimeEnd(billEndTime);
-        }
+        this.generatorTime(dto);
 
         List<AccountSerialBillTotalVO> accountSerialBillTotalVOS = accountSerialBillMapper.selectBillTotal(dto);
 
@@ -450,6 +385,181 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
     @Override
     public List<AccountSerialBillExcelVO> exportData(AccountSerialBillDTO dto) {
 
+        this.generatorTime(dto);
+
+        List<AccountSerialBillExcelVO> accountSerialBillTotalVOS = accountSerialBillMapper.exportData(dto);
+
+        return accountSerialBillTotalVOS;
+    }
+
+    @Override
+    public void asyncExport(HttpServletResponse response, AccountSerialBillDTO dto) {
+
+        this.generatorTime(dto);
+
+        LoginUser loginUser = SecurityUtils.getLoginUser();
+
+        if(loginUser == null){
+            throw new RuntimeException("无法获取登录人信息");
+        }
+
+        Integer pageSize = 100000;
+
+        //查询条数
+        int totalCount = accountSerialBillMapper.selectSerialBillCount(dto);
+
+        if(totalCount == 0){
+            throw new RuntimeException("无数据生成");
+        }
+
+        if(totalCount > 20000) {
+
+            int pageTotal = totalCount % pageSize == 0 ? totalCount / pageSize : totalCount / pageSize + 1;
+
+            CountDownLatch countDownLatch = new CountDownLatch(pageTotal);
+
+            long start = System.currentTimeMillis();
+
+            for (int i = 1; i <= pageTotal; i++) {
+
+                Date date = new Date();
+                SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyyMMddHHmmss");
+
+                //查询数据
+                PageHelper.startPage(i, pageSize);
+                List<AccountSerialBillExcelVO> accountSerialBillExcelVOS = accountSerialBillMapper.exportData(dto);
+                //List<AccountSerialBillExcelVO> accountSerialBillExcelVOS = AccountSerialBillConvert.INSTANCE.toSerialBillExcelListVO(accountSerialBills);
+
+                String fileName = "业务明细-"+loginUser.getUsername()+"-" + simpleDateFormat.format(date);
+
+                BasFile basFile = new BasFile();
+                basFile.setState("0");
+                basFile.setFileRoute(filePath);
+                basFile.setCreateBy(SecurityUtils.getUsername());
+                basFile.setFileName(fileName + ".xlsx");
+                basFile.setModularType(0);
+                basFile.setModularNameZh("业务明细导出");
+                basFile.setModularNameEn("accountSerialBill");
+                R<BasFile> r = basFileFeignService.addbasFile(basFile);
+                BasFile basFile1 = r.getData();
+
+                //分批异步写入excel
+
+                EasyPoiExportTask<AccountSerialBillExcelVO> delOutboundExportExTask = new EasyPoiExportTask<AccountSerialBillExcelVO>()
+                        .setExportParams(new ExportParams(fileName, "业务明细(" + ((i - 1) * pageSize) + "-" + (Math.min(i * pageSize, totalCount)) + ")", ExcelType.XSSF))
+                        .setData(accountSerialBillExcelVOS)
+                        .setClazz(AccountSerialBillExcelVO.class)
+                        .setFilepath(filePath)
+                        .setCountDownLatch(countDownLatch)
+                        .setFileId(basFile1.getId());
+
+                basFile1.setState("1");
+                basFileFeignService.updatebasFile(basFile1);
+
+                new Thread(delOutboundExportExTask, "export-" + i).start();
+
+            }
+
+            try {
+                countDownLatch.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            log.info("所有导出任务完成，总计耗时：{}ms", System.currentTimeMillis() - start);
+
+
+        }else{
+
+            PageHelper.startPage(1, pageSize);
+            List<AccountSerialBillExcelVO> accountSerialBillExcelVOS = accountSerialBillMapper.exportData(dto);
+
+            ExportParams params = new ExportParams();
+            // 设置sheet得名称
+            params.setSheetName("业务账单");
+            ExportParams exportParams2 = new ExportParams();
+            exportParams2.setSheetName("业务账单明细");
+            // 创建sheet1使用得map
+            Map<String, Object>  DelOutboundExportMap = new HashMap<>(4);
+            // title的参数为ExportParams类型
+            DelOutboundExportMap.put("title", params);
+            // 模版导出对应得实体类型
+            DelOutboundExportMap.put("entity", AccountSerialBillExcelVO.class);
+            // sheet中要填充得数据
+            DelOutboundExportMap.put("data", accountSerialBillExcelVOS);
+            // 将sheet1和sheet2使用得map进行包装
+            List<Map<String, Object>> sheetsList = new ArrayList<>();
+            sheetsList.add(DelOutboundExportMap);
+
+            Workbook workbook = ExcelExportUtil.exportExcel(sheetsList, ExcelType.HSSF);
+            Sheet sheet= workbook.getSheet("业务账单");
+
+            //获取第一行数据
+            Row row2 =sheet.getRow(0);
+
+            for (int i=0;i<25;i++){
+                Cell deliveryTimeCell = row2.getCell(i);
+
+                CellStyle styleMain = workbook.createCellStyle();
+
+                styleMain.setFillForegroundColor(IndexedColors.ROYAL_BLUE.getIndex());
+
+
+                Font font = workbook.createFont();
+                //true为加粗，默认为不加粗
+                font.setBold(true);
+                //设置字体颜色，颜色和上述的颜色对照表是一样的
+                font.setColor(IndexedColors.WHITE.getIndex());
+                //将字体样式设置到单元格样式中
+                styleMain.setFont(font);
+
+                styleMain.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+                styleMain.setAlignment(HorizontalAlignment.CENTER);
+                styleMain.setVerticalAlignment(VerticalAlignment.CENTER);
+
+                deliveryTimeCell.setCellStyle(styleMain);
+            }
+
+            try {
+                String fileName="业务账单"+System.currentTimeMillis();
+                URLEncoder.encode(fileName, "UTF-8");
+                //response.setHeader("Content-Disposition", "attachment;filename=" + new String(fileName.getBytes(), "ISO8859-1"));
+                response.setContentType("application/vnd.ms-excel");
+                response.setHeader("Content-Disposition", "attachment;filename=" + URLEncoder.encode(fileName, "UTF-8") + ".xls");
+
+                response.addHeader("Pargam", "no-cache");
+                response.addHeader("Cache-Control", "no-cache");
+
+                ServletOutputStream outStream = null;
+                try {
+                    outStream = response.getOutputStream();
+                    workbook.write(outStream);
+                    outStream.flush();
+                } finally {
+                    outStream.close();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+
+        }
+
+    }
+
+    @Override
+    public R<Integer> exportCount(AccountSerialBillDTO dto) {
+
+        this.generatorTime(dto);
+
+        int totalCount = accountSerialBillMapper.selectSerialBillCount(dto);
+
+        return R.ok(totalCount);
+    }
+
+
+    private void generatorTime(AccountSerialBillDTO dto){
+
         if(StringUtils.isNotBlank(dto.getCreateTimeStart())) {
             String billStartTime = dto.getCreateTimeStart() + " 00:00:00";
             dto.setCreateTimeStart(billStartTime);
@@ -468,10 +578,6 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
             String billEndTime = dto.getPaymentTimeEnd() + " 23:59:59";
             dto.setPaymentTimeEnd(billEndTime);
         }
-
-        List<AccountSerialBillExcelVO> accountSerialBillTotalVOS = accountSerialBillMapper.exportData(dto);
-
-        return accountSerialBillTotalVOS;
     }
 
 

@@ -50,8 +50,6 @@ public class AccountSerialBillController extends BaseController {
     @GetMapping("/listPage")
     public TableDataInfo<AccountSerialBill> listPage(AccountSerialBillDTO dto) {
         startPage();
-
-
         return getDataTable(accountSerialBillService.listPage(dto));
     }
 
@@ -80,6 +78,22 @@ public class AccountSerialBillController extends BaseController {
     public void exportTotal(HttpServletResponse response, @RequestBody AccountSerialBillDTO dto){
 
         accountSerialBillService.exportBillTotal(response,dto);
+    }
+
+    @PreAuthorize("@ss.hasPermi('AccountSerialBill:export')")
+    @ApiOperation(value = "流水账单 - 异步导出条数")
+    @PostMapping ("/export-count")
+    public R<Integer> exportCount(@RequestBody AccountSerialBillDTO dto){
+
+        return accountSerialBillService.exportCount(dto);
+    }
+
+    @PreAuthorize("@ss.hasPermi('AccountSerialBill:export')")
+    @ApiOperation(value = "流水账单 - 异步导出")
+    @PostMapping ("/async-export")
+    public void asyncExport(HttpServletResponse response, @RequestBody AccountSerialBillDTO dto){
+
+        accountSerialBillService.asyncExport(response,dto);
     }
 
 

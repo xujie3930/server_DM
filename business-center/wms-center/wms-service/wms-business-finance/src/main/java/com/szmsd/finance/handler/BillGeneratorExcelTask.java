@@ -168,6 +168,15 @@ public class BillGeneratorExcelTask implements Callable<AccountBillRecordTaskRes
         List<AccountSerialBill> discountDetails = this.selectBillDetails(discountDetailQueryVO);
         sheetAndDataMap.put(6,discountDetails);
 
+        //sheet 7 增值消费
+        EleBillQueryVO discountDetailQueryVO7 = new EleBillQueryVO();
+        discountDetailQueryVO7.setCusCode(billRequestVO.getCusCode());
+        discountDetailQueryVO7.setBillStartTime(billRequestVO.getBillStartTime());
+        discountDetailQueryVO7.setBillEndTime(billRequestVO.getBillEndTime());
+        discountDetailQueryVO7.setSheetNo(7);
+        List<AccountSerialBill> discountDetailszz = this.selectBillDetails(discountDetailQueryVO7);
+        sheetAndDataMap.put(7,discountDetailszz);
+
         try{
 
             AccountBillRecordTaskResultVO taskResultVO = new AccountBillRecordTaskResultVO();
@@ -240,6 +249,20 @@ public class BillGeneratorExcelTask implements Callable<AccountBillRecordTaskRes
 
             if(billDirectDeliveryTotalVO.getForecastWeight() != null){
                 resultforecastWeight = billDirectDeliveryTotalVO.getForecastWeight();
+            }
+
+            String businessCategory = billDirectDeliveryTotalVO.getBusinessCategory();
+
+            if(businessCategory.equals("物流消费")){
+
+                billDirectDeliveryTotalVO.setTotalAmount(billDirectDeliveryTotalVO.getTotalAmount().negate());
+                billDirectDeliveryTotalVO.setFreightFee(billDirectDeliveryTotalVO.getFreightFee().negate());
+                billDirectDeliveryTotalVO.setExWarehourseFee(billDirectDeliveryTotalVO.getExWarehourseFee().negate());
+                billDirectDeliveryTotalVO.setPackageFee(billDirectDeliveryTotalVO.getPackageFee().negate());
+                billDirectDeliveryTotalVO.setHanderFee(billDirectDeliveryTotalVO.getHanderFee().negate());
+                billDirectDeliveryTotalVO.setFuelFee(billDirectDeliveryTotalVO.getFuelFee().negate());
+                billDirectDeliveryTotalVO.setRemoteFee(billDirectDeliveryTotalVO.getRemoteFee().negate());
+                billDirectDeliveryTotalVO.setOtherFee(billDirectDeliveryTotalVO.getOtherFee().negate());
             }
 
             billDirectDeliveryTotalVO.setResultCalcWeight(resultCalaWeight);

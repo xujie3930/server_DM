@@ -70,7 +70,9 @@
         a.warehouse_code,a.warehouse_name,a.pay_method,a.business_category,a.product_code,a.product_category,
         a.charge_category,a.charge_type,a.create_by_name,a.create_time,a.update_by_name,a.update_time,
         a.create_by,a.update_by,a.remark,a.order_time,a.payment_time,a.ref_no,a.shipment_service,a.weight,
-        a.calc_weight,a.specifications,a.nature,a.amazon_logistics_route_id,a.country,a.country_code
+        a.calc_weight,a.specifications,a.nature,a.amazon_logistics_route_id,a.country,a.country_code,
+        a.serial_number,
+        a.charge_type,a.shipment_rule_name,a.shipment_rule
 
         FROM `fss_account_serial_bill` a
         <include refid="SelectSerialBillWhere"/>
@@ -244,16 +246,16 @@
             DOB.create_time,
             DOB.specifications,DOB.amazon_logistics_route_id,
             DOA.country,DOA.country_code,
-            sum(FASB.amount) as total_amount,
-            sum(case when FASB.charge_category = '物流基础费' then abs(FASB.amount) else 0 end ) as freight_fee,
-            sum(case when FASB.charge_category in ('操作费','业务操作') then abs(FASB.amount) else 0 end) as ex_warehourse_fee,
-            sum(case when FASB.charge_category = '物料费' then abs(FASB.amount) else 0 end) as package_fee,
-            sum(case when FASB.charge_category = '处理费' then abs(FASB.amount) else 0 end) as hander_fee,
-            sum(case when FASB.charge_category = '燃油附加费' then abs(FASB.amount) else 0 end) as fuel_fee,
-            sum(case when FASB.charge_category = '偏远地区费' then abs(FASB.amount) else 0 end) as remote_fee,
-            sum(case when
+            round(ceil(sum(FASB.amount)*100)/100,2) as total_amount,
+            round(ceil(sum(case when FASB.charge_category = '物流基础费' then abs(FASB.amount) else 0 end )*100)/100,2) as freight_fee,
+            round(ceil(sum(case when FASB.charge_category in ('操作费','业务操作') then abs(FASB.amount) else 0 end)*100)/100,2) as ex_warehourse_fee,
+            round(ceil(sum(case when FASB.charge_category = '物料费' then abs(FASB.amount) else 0 end)*100)/100,2) as package_fee,
+            round(ceil(sum(case when FASB.charge_category = '处理费' then abs(FASB.amount) else 0 end)*100)/100,2) as hander_fee,
+            round(ceil(sum(case when FASB.charge_category = '燃油附加费' then abs(FASB.amount) else 0 end)*100)/100,2) as fuel_fee,
+            round(ceil(sum(case when FASB.charge_category = '偏远地区费' then abs(FASB.amount) else 0 end)*100)/100,2) as remote_fee,
+            round(ceil(sum(case when
                 FASB.charge_category in ('偏远地区费','住宅派送费','增值税','挂号费','超大附加费','超重处理费','退费')
-                then FASB.amount else 0 end) as other_fee
+                then FASB.amount else 0 end)*100)/100,2) as other_fee
         from fss_account_serial_bill as FASB
         inner join del_outbound as DOB on FASB.`no` = DOB.order_no
         left join del_outbound_address as DOA on DOB.order_no = DOA.order_no
@@ -276,6 +278,11 @@
             <if test="billEndTime != null  and billEndTime != ''">
                 and FASB.payment_time <![CDATA[ <= ]]> #{billEndTime}
             </if>
+
+            <if test="sheetNo == 1 or sheetNo == 2">
+                and FASB.business_category not in('赔偿','优惠')
+            </if>
+
         </where>
 
         group by FASB.nature,FASB.no,FASB.currency_code,FASB.payment_time
@@ -284,7 +291,7 @@
 
     <select id="selectBillDetails" resultType="com.szmsd.finance.domain.AccountSerialBill" parameterType="com.szmsd.finance.vo.EleBillQueryVO">
         SELECT
-            a.id,a.no,a.tracking_no,a.cus_code,a.cus_name,a.currency_code,a.currency_name,a.amount,
+            a.id,a.no,a.tracking_no,a.cus_code,a.cus_name,a.currency_code,a.currency_name,round(ceil(a.amount*100)/100,2) as amount,
             a.warehouse_code,a.warehouse_name,a.pay_method,a.business_category,a.product_code,a.product_category,
             a.charge_category,a.charge_type,a.create_by_name,a.create_time,a.update_by_name,a.update_time,
             a.create_by,a.update_by,a.remark,a.order_time,a.payment_time,a.ref_no,a.shipment_service,a.weight,
@@ -301,6 +308,10 @@
 
             <if test="sheetNo != null and sheetNo == 6">
                 and a.business_category in ('优惠','赔偿')
+            </if>
+
+            <if test="sheetNo != null and sheetNo == 7">
+                and a.business_category = '增值消费'
             </if>
 
             <if test="billStartTime != null  and billStartTime !='' ">
@@ -329,7 +340,7 @@
                     '大货服务' as businessType,
                 </if>
             </if>
-            sum(FASB.amount) as amount,FASB.remark
+            round(ceil(sum(0-FASB.amount)*100)/100,2) as amount,FASB.remark
         from fss_account_serial_bill as FASB
         inner join del_outbound as DOB on FASB.`no` = DOB.order_no
         <where>
@@ -362,7 +373,7 @@
         select
             FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,
             '充值' as nature,
-            sum(FASB.amount) as amount,FASB.remark
+            round(ceil(sum(FASB.amount)*100)/100,2) as amount,FASB.remark
         from fss_account_serial_bill as FASB
         <where>
 
@@ -390,7 +401,7 @@
         select
         FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,
         '提现' as nature,
-        sum(FASB.amount) as amount,FASB.remark
+        round(ceil(sum(FASB.amount)*100)/100,2) as amount,FASB.remark
         from fss_account_serial_bill as FASB
         <where>
 
@@ -418,7 +429,7 @@
         select
         FASB.charge_category as chargeCategory,FASB.warehouse_code as warehouse,FASB.currency_code as currencyCode,
         '优惠/退费/赔偿' as nature,
-        sum(FASB.amount) as amount,FASB.remark
+        round(ceil(sum(FASB.amount)*100)/100,2) as amount,FASB.remark
         from fss_account_serial_bill as FASB
         <where>
 
@@ -446,7 +457,7 @@
         select
         FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,
         '补收' as nature,
-        sum(FASB.amount) as amount,FASB.remark
+        round(ceil(sum(FASB.amount)*100)/100,2) as amount,FASB.remark
         from fss_account_serial_bill as FASB
         <where>
 
@@ -474,7 +485,7 @@
         select
         FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,
         '优惠' as nature,
-        sum(FASB.amount) as amount,FASB.remark
+        round(ceil(sum(FASB.amount)*100)/100,2) as amount,FASB.remark
         from fss_account_serial_bill as FASB
         <where>
 
@@ -502,7 +513,7 @@
         select
         FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,
         '赔偿' as nature,
-        sum(FASB.amount) as amount,FASB.remark
+        round(ceil(sum(FASB.amount)*100)/100,2) as amount,FASB.remark
         from fss_account_serial_bill as FASB
         <where>
 
@@ -530,7 +541,7 @@
         select
         FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,
         '退费' as nature,
-        sum(FASB.amount) as amount,FASB.remark
+        round(ceil(sum(FASB.amount)*100)/100,2) as amount,FASB.remark
         from fss_account_serial_bill as FASB
         <where>
 
@@ -558,7 +569,7 @@
         select
         FASB.charge_category as chargeCategory,FASB.currency_code as currencyCode,
         '余额转换' as nature,'余额转换' as businessType,
-        sum(FASB.amount) as amount,FASB.remark
+        round(ceil(sum(FASB.amount)*100)/100,2) as amount,FASB.remark
         from fss_account_serial_bill as FASB
         <where>
 
@@ -603,7 +614,7 @@
         sum(
             CASE
             WHEN
-            a.business_category in ('线下充值','退费','优惠','赔偿') and a.charge_type not in ('汇率转换充值')
+                a.pay_method in ('EXCHANGE_INCOME')
             THEN
             abs(a.amount) ELSE 0-abs(a.amount)
             END
@@ -626,7 +637,7 @@
             sum(
                 CASE
                 WHEN
-                a.business_category in ('线下充值','退费','优惠','赔偿') and a.charge_type not in ('汇率转换充值')
+                    a.pay_method in ('EXCHANGE_INCOME')
                 THEN
                 abs(a.amount) ELSE 0-abs(a.amount)
                 END
@@ -650,22 +661,33 @@
     <select id="exportData" resultMap="AccountSerialBillExcelVOMap" parameterType="com.szmsd.finance.dto.AccountSerialBillDTO">
 
         SELECT
-            a.id,a.no,a.tracking_no,a.cus_code,a.cus_name,a.currency_code,a.currency_name,
-            (CASE
-                WHEN
-                a.business_category in ('线下充值','退费','优惠','赔偿') and a.charge_type not in ('汇率转换充值')
-                THEN
-                abs(a.amount) ELSE 0-abs(a.amount)
-                END) as amount,
-            a.warehouse_code,a.warehouse_name,a.pay_method,a.business_category,a.product_code,a.product_category,
-            a.charge_category,a.charge_type,a.create_by_name,a.create_time,a.update_by_name,a.update_time,
-            a.create_by,a.update_by,a.remark,a.order_time,a.payment_time,a.ref_no,a.shipment_service,a.weight,
-            a.calc_weight,a.specifications,a.nature,a.serial_number,a.amazon_logistics_route_id,a.country_code,a.country,
-            a.charge_type,a.shipment_rule_name,a.shipment_rule
+        a.id,a.no,a.tracking_no,a.cus_code,a.cus_name,a.currency_code,a.currency_name,
+        (CASE
+        WHEN
+            a.pay_method in ('EXCHANGE_INCOME')
+        THEN
+        abs(a.amount) ELSE 0-abs(a.amount)
+        END) as amount,
+        a.warehouse_code,a.warehouse_name,a.pay_method,a.business_category,a.product_code,a.product_category,
+        a.charge_category,a.charge_type,a.create_by_name,a.create_time,a.update_by_name,a.update_time,
+        a.create_by,a.update_by,a.remark,a.order_time,a.payment_time,a.ref_no,a.shipment_service,a.weight,
+        a.calc_weight,a.specifications,a.nature,a.serial_number,a.amazon_logistics_route_id,a.country_code,a.country,
+        a.charge_type,a.shipment_rule_name,a.shipment_rule
         FROM `fss_account_serial_bill` a
         <include refid="SelectSerialBillWhere"/>
         ORDER BY a.id DESC
 
     </select>
+
+    <select id="selectSerialBillCount" resultType="java.lang.Integer" parameterType="com.szmsd.finance.dto.AccountSerialBillDTO">
+
+        SELECT
+            count(1)
+        FROM `fss_account_serial_bill` a
+        <include refid="SelectSerialBillWhere"/>
+
+    </select>
+
+
 
 </mapper>
