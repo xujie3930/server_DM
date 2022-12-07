@@ -83,4 +83,5 @@ public class BasMessage extends BaseEntity {
     private String fileSize;
 
 
+
 }
