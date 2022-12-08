@@ -42,6 +42,10 @@
     m.create_time,
     m.title,
     m.type,
+    m.file_route,
+    m.file_name,
+    m.file_size,
+    m.take_effect_date,
     s.bullet,
     s.readable
     from bas_seller_message s
