@@ -95,7 +95,6 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
         return this.insertBatchRefundRequest(refundRequestList);
     }
 
-
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int insertBatchRefundRequest(List<RefundRequestDTO> addList) {
@@ -185,8 +184,7 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
                     String errorMsg = "";
                     try {
                             handleInsertData(refundRequestDTOS, true);
-                            //导入先用添加的这个，到时候要上在切换成自动审核的
-                        this.insertBatchRefundRequest(refundRequestDTOS);
+                        this.insertBatchRefundRequestimport(refundRequestDTOS);
                     } catch (Exception e) {
                         e.printStackTrace();
                         errorMsg = e.getMessage();
@@ -516,7 +514,6 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
         accountSerialBillList.add(accountSerialBillDTO);
         custPayDTO.setSerialBillInfoList(accountSerialBillList);
         custPayDTO.setRemark(x.getRemark());
-        custPayDTO.setSerialNumber(x.getProcessNo());
         return custPayDTO;
     }
 
