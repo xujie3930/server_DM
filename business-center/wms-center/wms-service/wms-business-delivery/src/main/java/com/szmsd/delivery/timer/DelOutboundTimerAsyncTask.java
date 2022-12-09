@@ -58,9 +58,10 @@ public class DelOutboundTimerAsyncTask {
     private void handle(Consumer<String> consumer, Long id) {
         try {
             MDC.put("TID", String.valueOf(Thread.currentThread().getId()));
-            consumer.accept(null);
+            //consumer.accept(null);
             // 处理成功
-            this.delOutboundCompletedService.success(id);
+            //this.delOutboundCompletedService.success(id);
+            consumer.andThen(s -> delOutboundCompletedService.success(id)).accept(null);
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
             // 处理失败
