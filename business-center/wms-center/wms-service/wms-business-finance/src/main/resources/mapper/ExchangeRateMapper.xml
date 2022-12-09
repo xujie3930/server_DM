@@ -12,14 +12,18 @@
     <select id="checkExchangeRateIsExists" resultType="com.szmsd.finance.domain.ExchangeRate"
         parameterType="com.szmsd.finance.dto.ExchangeRateDTO">
         select * from fss_exchange_rate
-        where (exchange_from_code=#{dto.exchangeFromCode} and exchange_to_code=#{dto.exchangeToCode})
-        or (exchange_from_code=#{dto.exchangeToCode} and exchange_to_code=#{dto.exchangeFromCode})
+        where ((exchange_from_code=#{dto.exchangeFromCode} and exchange_to_code=#{dto.exchangeToCode})
+        or (exchange_from_code=#{dto.exchangeToCode} and exchange_to_code=#{dto.exchangeFromCode}))
         <if test="dto.id != null">
             and id <![CDATA[ <> ]]> #{dto.id}
         </if>
     </select>
     <select id="selectRates" resultType="com.szmsd.finance.dto.ExchangeRateDTO">
         select * from fss_exchange_rate where exchange_from=#{map.exchangeFrom} and exchange_to=#{map.exchangeTo}
+    </select>
+    <select id="checkExchangeRateIsExistsadd" resultType="com.szmsd.finance.domain.ExchangeRate">
+        select * from fss_exchange_rate
+        where exchange_from_code=#{exchangeFromCode} and exchange_to_code=#{exchangeToCode}
     </select>
     <delete id="deleteExchangeRate">
          delete from fss_exchange_rate where exchange_from=#{map.exchangeFrom} and exchange_to=#{map.exchangeTo}
