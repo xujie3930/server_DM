@@ -77,7 +77,6 @@ public class DelOutboundOperationLogListener {
                 operationLog.setType(operationLogEnum.getType());
             }
             operationLog.setContent(operationLogEnum.getLog(source, operationLogEnum.getFormat()));
-            //测试能否有权限提交
         }
 
 

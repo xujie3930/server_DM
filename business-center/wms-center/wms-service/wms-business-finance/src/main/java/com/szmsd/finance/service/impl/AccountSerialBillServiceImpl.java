@@ -26,10 +26,7 @@ import com.szmsd.delivery.vo.DelOutboundListVO;
 import com.szmsd.finance.domain.AccountSerialBill;
 import com.szmsd.finance.domain.AccountSerialBillTotalVO;
 import com.szmsd.finance.domain.ChargeRelation;
-import com.szmsd.finance.dto.AccountBalanceBillCurrencyVO;
-import com.szmsd.finance.dto.AccountSerialBillDTO;
-import com.szmsd.finance.dto.AccountSerialBillNatureDTO;
-import com.szmsd.finance.dto.CustPayDTO;
+import com.szmsd.finance.dto.*;
 import com.szmsd.finance.mapper.AccountSerialBillMapper;
 import com.szmsd.finance.mapper.ChargeRelationMapper;
 import com.szmsd.finance.service.IAccountSerialBillService;
@@ -39,6 +36,7 @@ import com.szmsd.finance.vo.AccountSerialBillExcelVO;
 import com.szmsd.putinstorage.api.feign.InboundReceiptFeignService;
 import com.szmsd.putinstorage.domain.dto.InboundReceiptQueryDTO;
 import com.szmsd.putinstorage.domain.vo.InboundReceiptVO;
+import io.swagger.annotations.ApiModelProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -205,6 +203,13 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
 
     @Override
     public int add(AccountSerialBillDTO dto) {
+
+        List<String> isPrcStateList = new ArrayList();
+        isPrcStateList.add("操作费");
+        isPrcStateList.add("仓租");
+        isPrcStateList.add("增值消费");
+        isPrcStateList.add("物料费");
+        
         AccountSerialBill accountSerialBill = BeanMapperUtil.map(dto, AccountSerialBill.class);
         if (StringUtils.isBlank(accountSerialBill.getWarehouseName())) {
             accountSerialBill.setWarehouseName(sysDictDataService.getWarehouseNameByCode(accountSerialBill.getWarehouseCode()));
@@ -230,6 +235,15 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
         String serialNumber = this.createSerialNumber();
         accountSerialBill.setSerialNumber(serialNumber);
 
+        String bcategory = accountSerialBill.getBusinessCategory();
+        if(bcategory != null){
+
+            boolean prcState = isPrcStateList.contains(bcategory);
+            if(!prcState){
+                accountSerialBill.setPrcState(1);
+            }
+        }
+
         return accountSerialBillMapper.insert(accountSerialBill);
     }
 
@@ -243,6 +257,13 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
 
     @Override
     public boolean saveBatch(List<AccountSerialBillDTO> dto) {
+
+        List<String> isPrcStateList = new ArrayList();
+        isPrcStateList.add("操作费");
+        isPrcStateList.add("仓租");
+        isPrcStateList.add("增值消费");
+        isPrcStateList.add("物料费");
+
         List<AccountSerialBill> accountSerialBill = BeanMapperUtil.mapList(dto, AccountSerialBill.class);
         List<AccountSerialBill> collect = accountSerialBill.stream().map(value -> {
             if (StringUtils.isBlank(value.getWarehouseName())) {
@@ -272,6 +293,15 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
 
             String serialNumber = this.createSerialNumber();
             value.setSerialNumber(serialNumber);
+
+            String bcategory = value.getBusinessCategory();
+            if(bcategory != null){
+
+                boolean prcState =  isPrcStateList.contains(bcategory);
+                if(!prcState){
+                    value.setPrcState(1);
+                }
+            }
 
             return value;
         }).collect(Collectors.toList());
@@ -497,7 +527,7 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
             //获取第一行数据
             Row row2 =sheet.getRow(0);
 
-            for (int i=0;i<25;i++){
+            for (int i=0;i<26;i++){
                 Cell deliveryTimeCell = row2.getCell(i);
 
                 CellStyle styleMain = workbook.createCellStyle();
@@ -555,6 +585,17 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
         int totalCount = accountSerialBillMapper.selectSerialBillCount(dto);
 
         return R.ok(totalCount);
+    }
+
+    @Override
+    public List<AccountSerialBill> selectAccountPrcSerialBill(AccountOrderQueryDTO dto) {
+
+        List<AccountSerialBill> accountSerialBills = accountSerialBillMapper.selectList(Wrappers.<AccountSerialBill>query().lambda()
+                .in(AccountSerialBill::getNo,dto.getOrderNoList())
+                .eq(AccountSerialBill::getPrcState,dto.getPrcState())
+        );
+
+        return accountSerialBills;
     }
 
 

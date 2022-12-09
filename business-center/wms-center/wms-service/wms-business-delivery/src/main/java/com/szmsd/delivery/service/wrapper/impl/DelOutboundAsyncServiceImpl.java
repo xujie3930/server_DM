@@ -30,7 +30,9 @@ import com.szmsd.delivery.service.wrapper.*;
 import com.szmsd.delivery.util.Utils;
 import com.szmsd.delivery.vo.DelOutboundOperationVO;
 import com.szmsd.exception.api.feign.ExceptionInfoFeignService;
+import com.szmsd.exception.dto.ExceptionInfoStateDto;
 import com.szmsd.exception.dto.ProcessExceptionOrderRequest;
+import com.szmsd.exception.enums.StateSubEnum;
 import com.szmsd.finance.api.feign.RechargesFeignService;
 import com.szmsd.finance.dto.AccountSerialBillDTO;
 import com.szmsd.finance.dto.CusFreezeBalanceDTO;
@@ -320,6 +322,7 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                 if (StringUtils.isEmpty(completedState)) {
                     // 重派订单不扣库存
                     if (!DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())) {
+                        logger.info("订单开始扣减库存:{}",delOutbound.getOrderNo());
                         // 执行扣减库存
                         try {
                             this.deduction(delOutbound);
@@ -327,6 +330,7 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                             logger.error(e.getMessage(), e);
                             throw new CommonException("500", "执行扣减库存失败，" + e.getMessage());
                         }
+                        logger.info("订单结束扣减库存:{}",delOutbound.getOrderNo());
                     }
                     completedState = "FEE_DE";
                 }
@@ -388,6 +392,7 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                                     serialBill.setAmazonLogisticsRouteId(delOutbound.getAmazonLogisticsRouteId());
                                     serialBill.setCountry(address.getCountry());
                                     serialBill.setCountryCode(address.getCountryCode());
+                                    serialBill.setGrade(delOutbound.getGrade());
 
                                     serialBillInfoList.add(serialBill);
                                 }
@@ -466,6 +471,7 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                             dto.setAmazonLogisticsRouteId(delOutbound.getAmazonLogisticsRouteId());
                             dto.setCountryCode(address.getCountryCode());
                             dto.setCountry(address.getCountry());
+                            dto.setGrade(delOutbound.getGrade());
 
                             list.add(dto);
                             custPayDTO.setSerialBillInfoList(list);
@@ -720,6 +726,7 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
     private void deduction(InventoryOperateListDto inventoryOperateListDto) {
         // 扣减库存
         Integer deduction = this.inventoryFeignClientService.deduction(inventoryOperateListDto);
+        logger.info("扣减库存：deduction  结果{}",deduction);
         if (null == deduction || deduction < 1) {
             throw new CommonException("400", "扣减库存失败");
         }
@@ -746,6 +753,7 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
             inventoryOperateListDto.setWarehouseCode(warehouseCode);
             inventoryOperateListDto.setOperateList(operateList);
             inventoryOperateListDto.setCusCode(cusCode);
+            logger.info("扣减库存：{},{}",delOutbound.getOrderNo(),JSON.toJSONString(inventoryOperateListDto));
             this.deduction(inventoryOperateListDto);
         } else {
             this.deduction(orderNo, warehouseCode, orderType, cusCode);
@@ -863,6 +871,16 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
                     if (DelOutboundExceptionStateEnum.ABNORMAL.getCode().equals(delOutbound.getExceptionState())) {
                         this.delOutboundService.exceptionFix(delOutbound.getId());
                     }
+
+                    logger.info("更新状态为已取消,更新异常通知为已完成-开始：{}",delOutbound.getOrderNo());
+
+                    ExceptionInfoStateDto exceptionInfoStateDto = new ExceptionInfoStateDto();
+                    exceptionInfoStateDto.setState(StateSubEnum.YIWANCHENG.getCode());
+                    exceptionInfoStateDto.setOrderNos(Arrays.asList(delOutbound.getOrderNo()));
+                    exceptionInfoFeignService.updExceptionInfoState(exceptionInfoStateDto);
+
+                    logger.info("更新状态为已取消,更新异常通知为已完成-结束：{}",delOutbound.getOrderNo());
+
                     cancelledState = "END";
                 }
                 // 重派订单不推CK1

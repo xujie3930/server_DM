@@ -174,13 +174,20 @@ public class AccountSerialBillDTO implements Serializable {
     @ApiModelProperty(value = "费用类别转换后")
     private String chargeCategoryChange;
 
-
+    @ApiModelProperty(value = "平台类型 0 管理端 1 客户端")
+    private int platformType;
 
     @ApiModelProperty(value = "备注")
     private String remark;
 
     @ApiModelProperty(value = "选择导出的id")
     private String ids;
+
+    @ApiModelProperty(value = "计费等级")
+    private String grade;
+
+    @ApiModelProperty(value = "prc类型")
+    private Integer prcState;
 
     public AccountSerialBillDTO(CustPayDTO dto, AccountSerialBillDTO details) {
         this.no = dto.getNo();
@@ -206,5 +213,6 @@ public class AccountSerialBillDTO implements Serializable {
         this.amazonLogisticsRouteId = details.getAmazonLogisticsRouteId();
         this.country = details.getCountry();
         this.countryCode = details.getCountryCode();
+        this.grade = details.getGrade();
     }
 }

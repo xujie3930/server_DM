@@ -217,9 +217,7 @@ public class FssRefundRequest extends BaseEntity {
     private String gradeName;
 
     @ApiModelProperty(value = "跟踪号")
-    @TableField(exist = false)
     private String trackingNo;
-
 
     @ApiModelProperty(value = "产品代码")
     private String shipmentRule;
@@ -254,6 +252,9 @@ public class FssRefundRequest extends BaseEntity {
     @ApiModelProperty(value = "国家代码")
     @TableField(exist = false)
     private String countryCode;
+
+    @ApiModelProperty(value = "prc类型")
+    private Integer prcState;
 
 
 

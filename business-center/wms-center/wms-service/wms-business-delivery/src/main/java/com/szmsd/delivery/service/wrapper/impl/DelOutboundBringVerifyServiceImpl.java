@@ -1,6 +1,7 @@
 package com.szmsd.delivery.service.wrapper.impl;
 
 import cn.hutool.crypto.digest.MD5;
+import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.szmsd.bas.api.domain.BasAttachment;
 import com.szmsd.bas.api.domain.dto.BasAttachmentQueryDTO;
@@ -131,8 +132,6 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
     @Autowired
     private Environment env;
 
-//    @Autowired
-//    private KafkaProducer kafkaProducer;
 
 
     @Override
@@ -441,6 +440,26 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                         new Packing(Utils.valueOf(delOutbound.getLength()), Utils.valueOf(delOutbound.getWidth()), Utils.valueOf(delOutbound.getHeight()), "cm")
                         , Math.toIntExact(1), delOutbound.getOrderNo(), declareValue, ""));
             }
+        }else if(DelOutboundOrderTypeEnum.MULTIPLE_PIECES.getCode().equals(delOutbound.getOrderType())){
+
+            BigDecimal declareValue = BigDecimal.ZERO;
+            Long totalQuantity = 0L;
+            for (DelOutboundDetail detail : detailList) {
+                if (null != detail.getDeclaredValue()) {
+
+                    BigDecimal dvalue = BigDecimal.valueOf(detail.getDeclaredValue());
+                    declareValue = declareValue.add(dvalue);
+                }
+                //一票多件以sku数量计算
+                totalQuantity += 1;
+            }
+
+            BigDecimal resultDeclareValue = BigDecimalUtil.setScale(declareValue.multiply(new BigDecimal(totalQuantity)));
+
+            packageInfos.add(new PackageInfo(new Weight(Utils.valueOf(delOutbound.getWeight()), "g"),
+                    new Packing(Utils.valueOf(delOutbound.getLength()), Utils.valueOf(delOutbound.getWidth()), Utils.valueOf(delOutbound.getHeight()), "cm")
+                    , Math.toIntExact(totalQuantity), delOutbound.getOrderNo(), resultDeclareValue, ""));
+
         } else {
             if (PricingEnum.SKU.equals(pricingEnum)) {
                 // 查询包材的信息
@@ -597,6 +616,7 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         calcShipmentFeeCommand.setShipmentType(delOutbound.getShipmentType());
         calcShipmentFeeCommand.setIoss(delOutbound.getIoss());
         calcShipmentFeeCommand.setPackageInfos(packageInfos);
+        calcShipmentFeeCommand.setSheetCode(delOutbound.getSheetCode());
 
         Address toAddress =  new Address(address.getStreet1(),
                 address.getStreet2(),
@@ -812,13 +832,7 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         createShipmentOrderCommand.setPackages(packages);
         createShipmentOrderCommand.setCarrier(new Carrier(shipmentService));
         Long s = System.currentTimeMillis();
-        //这里改用kafka异步调用，返回前进行阻塞(并没有加快单笔单的处理时间，而追求相同时间内处理更多的单)
-//        createShipmentOrderCommand.setCurrentThread(Thread.currentThread());
-//        kafkaProducer.send(createShipmentOrderCommand);
-//        LockSupport.park();
         ResponseObject<ShipmentOrderResult, ProblemDetails> responseObjectWrapper = this.htpCarrierClientService.shipmentOrder(createShipmentOrderCommand);
-//        ResponseObject<ShipmentOrderResult, ProblemDetails> responseObjectWrapper = (ResponseObject<ShipmentOrderResult, ProblemDetails>) redisTemplate.opsForValue().get(createShipmentOrderCommand.getCurrentThread().getId());
-//        redisTemplate.delete(createShipmentOrderCommand.getCurrentThread().getId());
         Long e = System.currentTimeMillis();
         logger.info(">>>>>[创建出库单{}]创建承运商 htpCarrierClientService.shipmentOrder 耗时{}", e-s);
         if (null == responseObjectWrapper) {
@@ -1377,6 +1391,7 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
             if("Y".equals(delOutbound.getUploadBoxLabel())){
                 uploadBoxLabel = getBoxLabel(delOutbound);
             }
+            logger.info("更新出库单{}标签,文件{},自提标签{},箱标{}",delOutbound.getOrderNo(), pathname, selfPickLabelFilePath, uploadBoxLabel);
             pathname = this.mergeFile(delOutbound, pathname, boxFilePath, selfPickLabelFilePath, uploadBoxLabel);
 
         }
@@ -1563,6 +1578,7 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         createShipmentRequestDto.setOrderType(delOutbound.getOrderType());
         createShipmentRequestDto.setSellerCode(delOutbound.getSellerCode());
         createShipmentRequestDto.setTrackingNo(trackingNo);
+        createShipmentRequestDto.setRefCode(delOutbound.getRefNo());
         // 获取从prc返回的发货规则
         String shipmentRule;
         if (StringUtils.isNotEmpty(delOutbound.getProductShipmentRule())) {

@@ -1,6 +1,7 @@
 package com.szmsd.finance.factory;
 
 import cn.hutool.core.util.RandomUtil;
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.szmsd.common.core.utils.DateUtils;
@@ -23,6 +24,7 @@ import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import javax.annotation.Resource;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -114,6 +116,13 @@ public class RefundPayFactory extends AbstractPayFactory {
 
     @Override
     public void setSerialBillLog(CustPayDTO dto) {
+
+        List<String> isPrcStateList = new ArrayList();
+        isPrcStateList.add("操作费");
+        isPrcStateList.add("仓租");
+        isPrcStateList.add("增值消费");
+        isPrcStateList.add("物料费");
+
         financeThreadTaskPool.execute(() -> {
             log.info("setSerialBillLog {}", JSONObject.toJSONString(dto));
             List<AccountSerialBillDTO> serialBillInfoList = dto.getSerialBillInfoList();
@@ -126,15 +135,22 @@ public class RefundPayFactory extends AbstractPayFactory {
             AccountSerialBill accountSerialBill = new AccountSerialBill();
             BeanUtils.copyProperties(serialBill, accountSerialBill);
             if (StringUtils.isNotBlank(dto.getNo())) {
+                log.info("setSerialBillLog selectDelOutbound :{}",dto.getNo());
                 DelOutbound delOutbound = accountSerialBillMapper.selectDelOutbound(dto.getNo());
+                log.info("setSerialBillLog selectDelOutbound 返回:{}",JSON.toJSONString(delOutbound));
                 if (delOutbound!=null) {
-                    if (delOutbound.getId() != null) {
-                        accountSerialBill.setRefNo(delOutbound.getRefNo());
-                        accountSerialBill.setShipmentService(delOutbound.getShipmentService());
-                        accountSerialBill.setWeight(delOutbound.getWeight());
-                        accountSerialBill.setCalcWeight(delOutbound.getCalcWeight());
-                        accountSerialBill.setSpecifications(delOutbound.getSpecifications());
-                    }
+                    accountSerialBill.setRefNo(delOutbound.getRefNo());
+                    accountSerialBill.setShipmentService(delOutbound.getShipmentService());
+                    accountSerialBill.setWeight(delOutbound.getWeight());
+                    accountSerialBill.setCalcWeight(delOutbound.getCalcWeight());
+                    accountSerialBill.setSpecifications(delOutbound.getSpecifications());
+                    accountSerialBill.setTrackingNo(delOutbound.getTrackingNo());
+                    accountSerialBill.setWarehouseCode(delOutbound.getWarehouseCode());
+                    accountSerialBill.setWarehouseName(delOutbound.getWarehouseCode());
+                    accountSerialBill.setShipmentService(delOutbound.getShipmentService());
+                    accountSerialBill.setShipmentRule(delOutbound.getShipmentRule());
+                    accountSerialBill.setProductCode(delOutbound.getPrcProductCode());
+                        //accountSerialBill.setCurrencyCode(delOutbound.getCurrencyCode());
                 }
             }
 
@@ -145,6 +161,18 @@ public class RefundPayFactory extends AbstractPayFactory {
                 accountSerialBill.setSerialNumber(dto.getSerialNumber());
             }
 
+            String bcategory = accountSerialBill.getBusinessCategory();
+            Integer prcstate = accountSerialBill.getPrcState();
+
+            if(prcstate == null) {
+                if (bcategory != null) {
+                    boolean prcState = isPrcStateList.contains(bcategory);
+                    if (!prcState) {
+                        accountSerialBill.setPrcState(1);
+                    }
+                }
+            }
+            log.info("save accountSerialBill :{}", JSON.toJSONString(accountSerialBill));
             accountSerialBillService.save(accountSerialBill);
         });
     }

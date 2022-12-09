@@ -82,7 +82,6 @@ public class PayServiceImpl implements IPayService {
         log.info("业务冻结操作费：{}-{}-查询条件：{}", JSONObject.toJSONString(dto), JSONObject.toJSONString(chargeLog), JSONObject.toJSONString(chargeLogDto));
         ChargeLog chargeLog2 = chargeLogService.selectLog(chargeLogDto);
         if (chargeLog2 != null) {
-            log.info("{提前返回，没有插入cha_log：{}， 订单号:{}}", JSONObject.toJSONString(chargeLogDto), chargeLogDto.getOrderNo());
             return R.ok();
         }
         chargeLog.setCustomCode(dto.getCusCode());

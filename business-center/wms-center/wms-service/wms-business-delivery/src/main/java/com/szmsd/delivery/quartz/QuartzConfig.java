@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class QuartzConfig {
 
+
     @Bean
     public JobDetail DelOutboundJob() {
         return JobBuilder.newJob(DelOutboundJob.class).withIdentity("DelOutboundJob").storeDurably().build();
@@ -62,7 +63,6 @@ public class QuartzConfig {
                 .withSchedule(CronScheduleBuilder.cronSchedule("0 0 1 * * ?"))
                 .build();
     }
-
 
 
 

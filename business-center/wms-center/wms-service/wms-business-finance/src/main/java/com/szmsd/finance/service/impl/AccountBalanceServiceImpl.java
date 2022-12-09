@@ -613,12 +613,7 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
         // 冻结 解冻 需要把费用扣减加到 操作费用表
         {
             log.info(LogUtil.format(cfbDTO, "费用冻结", "操作费用表"));
-            //TODO：这里通过异步线程去插入chargerules模块的cha_log表，并不能保证插入成功
-            try {
-                this.addOptLogAsync(dto);
-            } catch (Exception e) {
-                log.error("创建cha_log表失败:{}", e.toString());
-            }
+            this.addOptLogAsync(dto);
         }
         return flag ? R.ok() : R.failed(Strings.nullToEmpty(dto.getCurrencyName()) + "The available balance of the account is insufficient for freezing");
     }
@@ -912,7 +907,9 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
         }
         setCurrencyName(dto);
         dto.setPayType(BillEnum.PayType.INCOME);
-        dto.setPayMethod(BillEnum.PayMethod.OFFLINE_INCOME);
+        if(dto.getPayMethod() == null) {
+            dto.setPayMethod(BillEnum.PayMethod.OFFLINE_INCOME);
+        }
         AbstractPayFactory abstractPayFactory = payFactoryBuilder.build(dto.getPayType());
         Boolean flag = abstractPayFactory.updateBalance(dto);
         if (Objects.isNull(flag)) return R.ok();

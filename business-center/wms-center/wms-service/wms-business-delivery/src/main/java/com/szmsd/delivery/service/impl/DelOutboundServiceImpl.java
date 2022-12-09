@@ -267,7 +267,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     }
 
     @Override
-    public DelOutboundThirdPartyVO getInfoForThirdParty(DelOutboundVO vo) {
+    public R<DelOutboundThirdPartyVO> getInfoForThirdParty(DelOutboundVO vo) {
         LambdaQueryWrapper<DelOutbound> queryWrapper = Wrappers.lambdaQuery();
         queryWrapper.eq(DelOutbound::getSellerCode, vo.getSellerCode());
         queryWrapper.eq(DelOutbound::getOrderNo, vo.getOrderNo());
@@ -280,7 +280,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         String amazonReferenceId = delOutbound.getAmazonReferenceId();
 
         if(StringUtils.isEmpty(amazonLogisticsRouteId1) && StringUtils.isNotEmpty(amazonReferenceId)){
-            throw new CommonException("200","The order number is being obtained");
+            return R.failed(200,"The order number is being obtained");
         }
 
         DelOutboundThirdPartyVO delOutboundThirdPartyVO =
@@ -297,7 +297,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             delOutboundThirdPartyVO.setTrackingNo(amazonLogisticsRouteId1);
         }
 
-        return delOutboundThirdPartyVO;
+        return R.ok(delOutboundThirdPartyVO);
     }
 
 
@@ -2881,7 +2881,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
                 for(List<Long> ids : partionOrderNoList){
 
-                    List<DelOutbound> delOutboundList = baseMapper.selectList(Wrappers.<DelOutbound>query().lambda().in(DelOutbound::getOrderNo,ids).eq(DelOutbound::getState,DelOutboundStateEnum.DELIVERED.getCode()));
+                    List<DelOutbound> delOutboundList = baseMapper.selectList(Wrappers.<DelOutbound>query().lambda().in(DelOutbound::getId,ids).eq(DelOutbound::getState,DelOutboundStateEnum.DELIVERED.getCode()));
 
                     for(DelOutbound delOutbound : delOutboundList){
                         Long s = System.currentTimeMillis();
@@ -3738,7 +3738,10 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 if ("OK".equals(jsonObject.getString("status"))) {
                     // 判断结果明细是不是成功的
                     JSONObject data = jsonObject.getJSONObject("data");
-                    if (1 != data.getIntValue("successNumber")) {
+
+                    int successNumber = data.getIntValue("successNumber");
+
+                    if (successNumber != 1) {
                         // 返回的成功数量不是1，判定为异常
                         success = false;
                         // 获取异常信息
@@ -3753,6 +3756,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                         }
                     }
                 }
+
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);
                 if (e instanceof CommonException) {

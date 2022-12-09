@@ -115,15 +115,8 @@ public enum ThridPartyEnum implements ApplicationState, ApplicationRegister{
             DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
             logger.info(">>>>>[ThridPartyEnum创建出库单{}]-开始执行Pricing", delOutbound.getOrderNo());
 
-            PricingEnum pricingEnum;
-            if (DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())) {
-                // 核重逻辑处理
-                pricingEnum = PricingEnum.PACKAGE;
-            } else {
-                pricingEnum = PricingEnum.SKU;
-            }
             stopWatch.start();
-            ResponseObject<ChargeWrapper, ProblemDetails> responseObject = delOutboundBringVerifyService.pricing(delOutboundWrapperContext, pricingEnum);
+            ResponseObject<ChargeWrapper, ProblemDetails> responseObject = delOutboundBringVerifyService.pricing(delOutboundWrapperContext, PricingEnum.PACKAGE);
             stopWatch.stop();
             logger.info(">>>>>[ThridPartyEnum创建出库单{}]-Pricing计算返回结果：耗时{}, 内容:{}", delOutbound.getOrderNo(), stopWatch.getLastTaskTimeMillis(),
                     JSONObject.toJSONString(responseObject));
@@ -219,6 +212,7 @@ public enum ThridPartyEnum implements ApplicationState, ApplicationRegister{
             updateDelOutbound.setId(delOutbound.getId());
             updateDelOutbound.setProductShipmentRule(data.getShipmentRule());
             updateDelOutbound.setPackingRule(delOutbound.getPackingRule());
+            updateDelOutbound.setGrade(data.getGrade());
             delOutboundService.updateByIdTransactional(updateDelOutbound);
 
             DelOutboundOperationLogEnum.BRV_PRC_PRICING.listener(delOutbound);
@@ -231,20 +225,8 @@ public enum ThridPartyEnum implements ApplicationState, ApplicationRegister{
             IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
             DelOutbound updateDelOutbound = new DelOutbound();
             updateDelOutbound.setId(delOutbound.getId());
-            updateDelOutbound.setBringVerifyState(BEGIN.name());
-            // PRC计费
-            updateDelOutbound.setCalcWeight(BigDecimal.ZERO);
-            updateDelOutbound.setCalcWeightUnit("");
-            updateDelOutbound.setAmount(BigDecimal.ZERO);
-            updateDelOutbound.setCurrencyCode("");
-            updateDelOutbound.setCurrencyDescribe("");
+            updateDelOutbound.setThridPardState(BEGIN.name());
 
-            updateDelOutbound.setSupplierCalcType("");
-            updateDelOutbound.setSupplierCalcId("");
-
-
-            // 提审失败
-            updateDelOutbound.setState(DelOutboundStateEnum.AUDIT_FAILED.getCode());
             delOutboundService.updateById(updateDelOutbound);
             super.rollback(context);
         }
@@ -434,11 +416,7 @@ public enum ThridPartyEnum implements ApplicationState, ApplicationRegister{
             if (null == orderTypeEnum) {
                 throw new CommonException("400", MessageUtil.to("不存在的类型[" + delOutbound.getOrderType() + "]", "Non-existent type ["+delOutbound. getOrderType()+"]"));
             }
-            boolean condition = ApplicationRuleConfig.bringVerifyCondition(orderTypeEnum, currentState.name());
-            if (condition) {
-                return otherCondition(context, currentState);
-            }
-            return false;
+            return otherCondition(context, currentState);
         }
 
         /**
@@ -476,28 +454,6 @@ public enum ThridPartyEnum implements ApplicationState, ApplicationRegister{
         @Override
         public void errorHandler(ApplicationContext context, Throwable throwable, ApplicationState currentState) {
 
-
-            DelOutboundWrapperContext delOutboundWrapperContext = (DelOutboundWrapperContext) context;
-            DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
-            IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
-            DelOutbound updateDelOutbound = new DelOutbound();
-            updateDelOutbound.setId(delOutbound.getId());
-
-            // PRC计费
-            updateDelOutbound.setLength(delOutbound.getLength());
-            updateDelOutbound.setWidth(delOutbound.getWidth());
-            updateDelOutbound.setHeight(delOutbound.getHeight());
-            updateDelOutbound.setSupplierCalcType(delOutbound.getSupplierCalcType());
-            updateDelOutbound.setSupplierCalcId(delOutbound.getSupplierCalcId());
-            // 规格，长*宽*高
-            updateDelOutbound.setSpecifications(delOutbound.getLength() + "*" + delOutbound.getWidth() + "*" + delOutbound.getHeight());
-            updateDelOutbound.setCalcWeight(delOutbound.getCalcWeight());
-            updateDelOutbound.setCalcWeightUnit(delOutbound.getCalcWeightUnit());
-            updateDelOutbound.setAmount(delOutbound.getAmount());
-            updateDelOutbound.setCurrencyCode(delOutbound.getCurrencyCode());
-
-
-            delOutboundService.bringVerifyFail(updateDelOutbound);
         }
     }
 }

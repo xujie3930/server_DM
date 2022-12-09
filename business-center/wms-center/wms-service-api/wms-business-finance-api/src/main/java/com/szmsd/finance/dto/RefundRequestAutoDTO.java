@@ -23,7 +23,7 @@ import java.math.BigDecimal;
 public class RefundRequestAutoDTO implements Serializable {
 
     @ApiModelProperty(value = "id")
-    private Integer id;
+    private Long id;
 
     @ApiModelProperty(value = "客户id")
     private Integer cusId;
@@ -134,6 +134,12 @@ public class RefundRequestAutoDTO implements Serializable {
     @ApiModelProperty(value = "处理编号")
     private String processNo;
 
+    @ApiModelProperty(value = "跟踪号")
+    private String trackingNo;
+
+    @ApiModelProperty(value = "服务")
+    private String shipmentRule;
+
     @ApiModelProperty(value = "数量")
     private String num;
 
@@ -183,7 +189,7 @@ public class RefundRequestAutoDTO implements Serializable {
     @ApiModelProperty(value = "处理号类型")
     private String orderType;
 
-    @ExcelProperty(  index = 19)
+    @ExcelProperty(index = 19)
     @ApiModelProperty(value = "备注")
     @Excel(name = "备注")
     private String remark;
@@ -192,4 +198,10 @@ public class RefundRequestAutoDTO implements Serializable {
     @ApiModelProperty(value = "附注")
     @Excel(name = "附注")
     private String noteAppended;
+
+    @ApiModelProperty(value = "prc类型")
+    private Integer prcState;
+
+    @ApiModelProperty(value = "业务明细ID")
+    private Long accountSerialBillId;
 }

@@ -12,7 +12,10 @@ import com.szmsd.common.core.utils.StringUtils;
 import com.szmsd.delivery.domain.DelOutbound;
 import com.szmsd.delivery.domain.DelOutboundCharge;
 import com.szmsd.delivery.domain.DelOutboundThirdParty;
-import com.szmsd.delivery.enums.*;
+import com.szmsd.delivery.enums.DelOutboundCompletedStateEnum;
+import com.szmsd.delivery.enums.DelOutboundConstant;
+import com.szmsd.delivery.enums.DelOutboundOrderTypeEnum;
+import com.szmsd.delivery.enums.DelOutboundTrackingAcquireTypeEnum;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
 import com.szmsd.delivery.service.IDelOutboundChargeService;
 import com.szmsd.delivery.service.IDelOutboundService;
@@ -285,6 +288,7 @@ public enum NuclearWeightEnum implements ApplicationState, ApplicationRegister{
             //更新PRC发货服务
             IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
             delOutbound.setAmazonReferenceId(data.getAmazonLogisticsRouteId());
+            delOutbound.setGrade(data.getGrade());
 
             delOutboundService.updateById(delOutbound);
 
@@ -301,7 +305,6 @@ public enum NuclearWeightEnum implements ApplicationState, ApplicationRegister{
             updateDelOutbound.setNuclearWeightState(BEGIN.name());
 
             // 提审失败
-            updateDelOutbound.setState(DelOutboundStateEnum.AUDIT_FAILED.getCode());
             delOutboundService.updateById(updateDelOutbound);
             super.rollback(context);
         }

@@ -94,4 +94,20 @@
        ${ew.customSqlSegment}
     </select>
 
+    <update id="updExceptionInfoState">
+        update exception_info set state = #{state}
+        where order_no in
+        <foreach collection="orderNos" close=")" open="(" separator="," item="item">
+            #{item}
+        </foreach>
+
+    </update>
+    <update id="updateDelOutboundHouseNo" parameterType="com.szmsd.exception.dto.ExceptionInfoExportDto">
+        UPDATE del_outbound
+        set
+            house_no=#{houseNo}
+        where
+            order_no=#{orderNo}
+    </update>
+
 </mapper>
