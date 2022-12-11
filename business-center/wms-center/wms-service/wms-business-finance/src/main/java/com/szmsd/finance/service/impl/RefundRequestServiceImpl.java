@@ -185,7 +185,8 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
                     String errorMsg = "";
                     try {
                             handleInsertData(refundRequestDTOS, true);
-                        this.insertBatchRefundRequestimport(refundRequestDTOS);
+                            //导入先用添加的这个，到时候要上在切换成自动审核的
+                        this.insertBatchRefundRequest(refundRequestDTOS);
                     } catch (Exception e) {
                         e.printStackTrace();
                         errorMsg = e.getMessage();
