@@ -516,6 +516,7 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
         accountSerialBillList.add(accountSerialBillDTO);
         custPayDTO.setSerialBillInfoList(accountSerialBillList);
         custPayDTO.setRemark(x.getRemark());
+        custPayDTO.setSerialNumber(x.getProcessNo());
         return custPayDTO;
     }
 
