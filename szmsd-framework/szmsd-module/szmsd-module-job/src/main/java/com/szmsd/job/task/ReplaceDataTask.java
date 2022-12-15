@@ -16,8 +16,8 @@ import java.util.List;
 /**
  * 定时任务 - 更新第三方接口国家和城市信息
  */
-@Slf4j
 @Component("replaceDataTask")
+@Slf4j
 public class ReplaceDataTask {
 
     private static boolean isRunning = false;
@@ -28,8 +28,7 @@ public class ReplaceDataTask {
 //    }
 
     //每分钟更新一次
-    @Scheduled(cron = "0 */1 * * * ?")
-    public void ReplaceDataTaskScheduler() {
+    public void replaceDataTaskScheduler() {
         if (!isRunning) {
             try {
                 log.info("定时同步数据开始");
