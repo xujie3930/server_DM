@@ -100,31 +100,39 @@
             <version>1.0.0</version>
         </dependency>
 
-        <dependency>
+       <!-- <dependency>
             <groupId>com.alibaba.datax</groupId>
             <artifactId>datax-core</artifactId>
             <version>0.0.1-SNAPSHOT</version>
-            <scope>system</scope> <!--system，类似provided，需要显式提供依赖的jar以后，Maven就不会在Repository中查找它-->
-            <systemPath>${basedir}/src/main/resources/lib/datax/datax/lib/datax-core-0.0.1-SNAPSHOT.jar</systemPath> <!--项目根目录下的lib文件夹下-->
+            <scope>system</scope> &lt;!&ndash;system，类似provided，需要显式提供依赖的jar以后，Maven就不会在Repository中查找它&ndash;&gt;
+            <systemPath>${basedir}/src/main/resources/lib/datax/datax/lib/datax-core-0.0.1-SNAPSHOT.jar</systemPath> &lt;!&ndash;项目根目录下的lib文件夹下&ndash;&gt;
         </dependency>
         <dependency>
             <groupId>com.alibaba.datax</groupId>
             <artifactId>mysqlreader</artifactId>
             <version>0.0.1-SNAPSHOT</version>
-            <scope>system</scope> <!--system，类似provided，需要显式提供依赖的jar以后，Maven就不会在Repository中查找它-->
-            <systemPath>${basedir}/src/main/resources/lib/datax/datax/lib/mysqlreader-0.0.1-SNAPSHOT.jar</systemPath> <!--项目根目录下的lib文件夹下-->
+            <scope>system</scope> &lt;!&ndash;system，类似provided，需要显式提供依赖的jar以后，Maven就不会在Repository中查找它&ndash;&gt;
+            <systemPath>${basedir}/src/main/resources/lib/datax/datax/lib/mysqlreader-0.0.1-SNAPSHOT.jar</systemPath> &lt;!&ndash;项目根目录下的lib文件夹下&ndash;&gt;
         </dependency>
         <dependency>
             <groupId>com.alibaba.datax</groupId>
             <artifactId>mysqlwriter</artifactId>
             <version>0.0.1-SNAPSHOT</version>
-            <scope>system</scope> <!--system，类似provided，需要显式提供依赖的jar以后，Maven就不会在Repository中查找它-->
-            <systemPath>${basedir}/src/main/resources/lib/datax/datax/lib/mysqlwriter-0.0.1-SNAPSHOT.jar</systemPath> <!--项目根目录下的lib文件夹下-->
-        </dependency>
+            <scope>system</scope> &lt;!&ndash;system，类似provided，需要显式提供依赖的jar以后，Maven就不会在Repository中查找它&ndash;&gt;
+            <systemPath>${basedir}/src/main/resources/lib/datax/datax/lib/mysqlwriter-0.0.1-SNAPSHOT.jar</systemPath> &lt;!&ndash;项目根目录下的lib文件夹下&ndash;&gt;
+        </dependency>-->
 
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>${basedir}/src/main/resources/lib/datax/datax/lib</directory>
+                <includes>
+                    <include>*.jar</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
