@@ -1,13 +1,18 @@
 package com.szmsd.job.task;
 
+import com.alibaba.datax.core.Engine;
 import com.alibaba.fastjson.JSON;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.utils.StringUtils;
 import com.szmsd.delivery.api.feign.DelOutboundFeignService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
+import org.springframework.util.ResourceUtils;
 
 import javax.annotation.Resource;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @Author lc
@@ -21,6 +26,7 @@ import javax.annotation.Resource;
 @Slf4j
 public class DeliveryBringVerifyTask {
 
+    private static boolean isRunning = false;
     @Resource
     private DelOutboundFeignService feignService;
 
@@ -68,5 +74,47 @@ public class DeliveryBringVerifyTask {
     public void delOutboundCarrierTimer()
     {
         feignService.delOutboundCarrierTimer();
+    }
+
+    //每分钟更新一次
+    public void replaceDataTaskScheduler() {
+        if (!isRunning) {
+            try {
+                log.info("定时同步数据开始");
+                // 开始时间
+                isRunning = true;
+                String path =  this.getClass().getClassLoader().getResource("").getPath();
+                System.setProperty("datax.home", path+ "lib/datax/datax");
+                for (String name : getNameList()) {
+                    operation(path + "json/" + name);
+                }
+            } catch (Throwable e) {
+                e.printStackTrace();
+                log.info("定时同步数据异常：{}",  e.toString());
+            }finally {
+                isRunning = false;
+            }
+        }
+    }
+
+    private void operation(String absPath) throws Throwable {
+        String[] datxArgs1 = {"-job", absPath, "-mode", "standalone", "-jobid", "-1"};
+        Engine.entry(datxArgs1);   //从这里启动
+    }
+
+    public List<String> getNameList(){
+        List<String> nameList = new ArrayList<>();
+        try{
+            org.springframework.core.io.Resource[] resources = new PathMatchingResourcePatternResolver().getResources(ResourceUtils.CLASSPATH_URL_PREFIX+"/json/*.json");
+            for(org.springframework.core.io.Resource resource : resources){
+                String fileName = resource.getFilename();
+                nameList.add(fileName);
+            }
+
+        }catch(Exception e){
+            return nameList;
+        }
+        return nameList;
+
     }
 }
