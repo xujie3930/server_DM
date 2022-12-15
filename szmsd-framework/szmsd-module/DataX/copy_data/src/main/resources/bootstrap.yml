@@ -1,0 +1,11 @@
+# Tomcat
+server:
+  port: 8080
+# Spring
+spring:
+  application:
+    # 应用名称
+    name: copy_data
+  profiles:
+    # 环境配置
+    active: defalut

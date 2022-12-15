@@ -1,0 +1,14 @@
+#eureka:
+#  instance:
+#    hostname: ${spring.cloud.client.ipAddress}
+#    instance-id: ${spring.cloud.client.ipAddress}:${server.port}:VIFRAME-1.0.0.RELEASE
+server:
+  tomcat:
+    accesslog:
+      enabled: false
+      pattern: '%t %a "%r" %s (%D ms)'
+
+spring:
+  cloud:
+    refresh:
+      refreshable: none
