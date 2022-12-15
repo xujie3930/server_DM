@@ -32,6 +32,7 @@ public class ReplaceDataTask {
     public void ReplaceDataTaskScheduler() {
         if (!isRunning) {
             try {
+                log.info("定时同步数据开始");
                 // 开始时间
                 isRunning = true;
                 String path =  this.getClass().getClassLoader().getResource("").getPath();
@@ -42,7 +43,7 @@ public class ReplaceDataTask {
 //                Thread.sleep(2 * 60 * 1000L);
             } catch (Throwable e) {
                 e.printStackTrace();
-                log.error(e.toString());
+                log.info("定时同步数据异常：{}",  e.toString());
             }finally {
                 isRunning = false;
             }
