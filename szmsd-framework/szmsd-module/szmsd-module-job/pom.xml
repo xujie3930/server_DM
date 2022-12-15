@@ -144,6 +144,7 @@
         <resources>
             <resource>
                 <directory>${basedir}/src/main/resources/lib/datax/datax/lib</directory>
+                <targetPath>/BOOT-INF/lib/</targetPath>
                 <includes>
                     <include>*.jar</include>
                 </includes>
