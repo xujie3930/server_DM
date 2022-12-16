@@ -351,6 +351,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             ChargeWrapper chargeWrapper = responseObject.getObject();
             ShipmentChargeInfo data = chargeWrapper.getData();
             PricingPackageInfo packageInfo = data.getPackageInfo();
+            //汪经理说周永来少了两行代码 不是我加的
             delOutbound.setPrcInterfaceProductCode(data.getProductCode());
             delOutbound.setPrcTerminalCarrier(data.getTerminalCarrier());
             // 挂号服务
@@ -438,6 +439,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setId(delOutbound.getId());
             updateDelOutbound.setProductShipmentRule(data.getShipmentRule());
             updateDelOutbound.setPackingRule(delOutbound.getPackingRule());
+            //汪经理说周永来少了两行代码 不是我加的
             updateDelOutbound.setPrcInterfaceProductCode(delOutbound.getPrcInterfaceProductCode());
             updateDelOutbound.setPrcTerminalCarrier(delOutbound.getPrcTerminalCarrier());
             delOutboundService.updateByIdTransactional(updateDelOutbound);
