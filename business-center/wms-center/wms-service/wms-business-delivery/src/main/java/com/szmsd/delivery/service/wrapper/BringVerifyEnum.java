@@ -340,6 +340,11 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             ChargeWrapper chargeWrapper = responseObject.getObject();
             ShipmentChargeInfo data = chargeWrapper.getData();
             PricingPackageInfo packageInfo = data.getPackageInfo();
+
+
+            delOutbound.setPrcInterfaceProductCode(data.getProductCode());
+            delOutbound.setPrcTerminalCarrier(data.getTerminalCarrier());
+
             // 挂号服务
             delOutbound.setShipmentService(data.getLogisticsRouteId());
             // 物流商code
