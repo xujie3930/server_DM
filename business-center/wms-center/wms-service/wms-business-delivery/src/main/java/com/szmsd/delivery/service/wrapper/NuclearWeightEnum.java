@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.szmsd.common.core.constant.Constants;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.exception.com.CommonException;
+import com.szmsd.common.core.utils.BigDecimalUtil;
 import com.szmsd.common.core.utils.MessageUtil;
 import com.szmsd.common.core.utils.SpringUtils;
 import com.szmsd.common.core.utils.StringUtils;
@@ -16,7 +17,6 @@ import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
 import com.szmsd.delivery.service.IDelOutboundChargeService;
 import com.szmsd.delivery.service.IDelOutboundService;
 import com.szmsd.delivery.service.IDelOutboundThirdPartyService;
-import com.szmsd.delivery.util.BigDecimalUtil;
 import com.szmsd.delivery.util.Utils;
 import com.szmsd.finance.api.feign.RechargesFeignService;
 import com.szmsd.finance.dto.CusFreezeBalanceDTO;
@@ -177,15 +177,8 @@ public enum NuclearWeightEnum implements ApplicationState, ApplicationRegister{
             DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
             logger.info(">>>>>[创建出库单{}]-开始执行Pricing", delOutbound.getOrderNo());
 
-            PricingEnum pricingEnum;
-            if (DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())) {
-                // 核重逻辑处理
-                pricingEnum = PricingEnum.PACKAGE;
-            } else {
-                pricingEnum = PricingEnum.SKU;
-            }
             stopWatch.start();
-            ResponseObject<ChargeWrapper, ProblemDetails> responseObject = delOutboundBringVerifyService.pricing(delOutboundWrapperContext, pricingEnum);
+            ResponseObject<ChargeWrapper, ProblemDetails> responseObject = delOutboundBringVerifyService.pricing(delOutboundWrapperContext, PricingEnum.PACKAGE);
             stopWatch.stop();
             logger.info(">>>>>[创建出库单{}]-Pricing计算返回结果：耗时{}, 内容:{}", delOutbound.getOrderNo(), stopWatch.getLastTaskTimeMillis(),
                     JSONObject.toJSONString(responseObject));
@@ -305,28 +298,7 @@ public enum NuclearWeightEnum implements ApplicationState, ApplicationRegister{
             IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
             DelOutbound updateDelOutbound = new DelOutbound();
             updateDelOutbound.setId(delOutbound.getId());
-            updateDelOutbound.setBringVerifyState(BEGIN.name());
-            // PRC计费
-            updateDelOutbound.setCalcWeight(BigDecimal.ZERO);
-            updateDelOutbound.setCalcWeightUnit("");
-            updateDelOutbound.setAmount(BigDecimal.ZERO);
-            updateDelOutbound.setCurrencyCode("");
-            updateDelOutbound.setCurrencyDescribe("");
-
-            updateDelOutbound.setSupplierCalcType("");
-            updateDelOutbound.setSupplierCalcId("");
-            // 产品信息
-            updateDelOutbound.setTrackingAcquireType("");
-            updateDelOutbound.setShipmentService("");
-            updateDelOutbound.setLogisticsProviderCode("");
-            updateDelOutbound.setProductShipmentRule("");
-            updateDelOutbound.setPackingRule("");
-            // 创建承运商物流订单
-            updateDelOutbound.setTrackingNo("");
-            updateDelOutbound.setShipmentOrderNumber("");
-            updateDelOutbound.setShipmentOrderLabelUrl("");
-            // 推单WMS
-            updateDelOutbound.setRefOrderNo("");
+            updateDelOutbound.setNuclearWeightState(BEGIN.name());
 
             // 提审失败
             updateDelOutbound.setState(DelOutboundStateEnum.AUDIT_FAILED.getCode());
@@ -596,13 +568,15 @@ public enum NuclearWeightEnum implements ApplicationState, ApplicationRegister{
                     delOutbound.setShipmentOrderNumber(shipmentOrderResult.getOrderNumber());
                     delOutbound.setShipmentOrderLabelUrl(shipmentOrderResult.getOrderLabelUrl());
                     delOutbound.setReferenceNumber(shipmentOrderResult.getReferenceNumber());
-                }
 
-                DelOutbound delOutboundUpd = new DelOutbound();
-                delOutboundUpd.setId(delOutbound.getId());
-                delOutboundUpd.setReferenceNumber(delOutbound.getReferenceNumber());
-                delOutboundUpd.setTrackingNo(delOutbound.getTrackingNo());
-                iDelOutboundService.updateById(delOutboundUpd);
+                    DelOutbound delOutboundUpd = new DelOutbound();
+                    delOutboundUpd.setId(delOutbound.getId());
+                    delOutboundUpd.setReferenceNumber(shipmentOrderResult.getReferenceNumber());
+                    delOutboundUpd.setTrackingNo(shipmentOrderResult.getMainTrackingNumber());
+                    delOutboundUpd.setShipmentOrderLabelUrl(shipmentOrderResult.getOrderLabelUrl());
+                    delOutboundUpd.setShipmentOrderNumber(shipmentOrderResult.getOrderNumber());
+                    iDelOutboundService.updateById(delOutboundUpd);
+                }
 
                 logger.info(">>>>>[创建出库单{}]创建承运商 耗时{}", delOutbound.getOrderNo(), stopWatch.getLastTaskInfo().getTimeMillis());
 

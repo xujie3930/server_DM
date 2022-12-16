@@ -47,12 +47,13 @@ import com.szmsd.common.core.utils.StringUtils;
 import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.common.core.utils.bean.BeanUtils;
 import com.szmsd.common.security.utils.SecurityUtils;
-import com.szmsd.delivery.command.OutboundUpdWeightCmd;
 import com.szmsd.delivery.config.AsyncThreadObject;
 import com.szmsd.delivery.domain.*;
 import com.szmsd.delivery.dto.*;
 import com.szmsd.delivery.enums.*;
+import com.szmsd.delivery.event.DelOutUpdWeightEvent;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
+import com.szmsd.delivery.event.EventUtil;
 import com.szmsd.delivery.mapper.*;
 import com.szmsd.delivery.service.*;
 import com.szmsd.delivery.service.wrapper.*;
@@ -2905,12 +2906,54 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public boolean updateWeightDelOutbound(UpdateWeightDelOutboundDto dto) {
 
-        boolean upd = new OutboundUpdWeightCmd(dto).execute();
+        //boolean upd = new OutboundUpdWeightCmd(dto).execute();
 
-        return upd;
+        String orderNo = dto.getOrderNo();
+
+        LambdaQueryWrapper<DelOutbound> queryWrapper = new LambdaQueryWrapper<DelOutbound>();
+        queryWrapper.eq(DelOutbound::getSellerCode, dto.getCustomCode());
+        queryWrapper.eq(DelOutbound::getOrderNo, orderNo);
+        DelOutbound data = baseMapper.selectOne(queryWrapper);
+        if(data == null){
+            throw new CommonException("400", "该客户下订单不存在");
+        }
+
+        logger.info("updateWeightDelOutbound:{}单据状态，{}",data.getOrderNo(),data.getState());
+
+        boolean checkState = DelOutboundStateEnum.REVIEWED.getCode().equals(data.getState())
+                || DelOutboundStateEnum.DELIVERED.getCode().equals(data.getState())
+                || DelOutboundStateEnum.AUDIT_FAILED.getCode().equals(data.getState());
+
+        logger.info("updateWeightDelOutbound:{}单据状态，{}",data.getOrderNo(),checkState);
+
+        if (!checkState) {
+            throw new CommonException("400", "单据不能修改");
+        }
+
+        //org.springframework.beans.BeanUtils.copyProperties(dto, data);
+        //int upd = baseMapper.updateById(data);
+
+        LambdaUpdateWrapper<DelOutbound> updateWrapper = Wrappers.lambdaUpdate();
+        updateWrapper.set(DelOutbound::getWeight, dto.getWeight());
+        updateWrapper.set(DelOutbound::getLength,dto.getLength());
+        updateWrapper.set(DelOutbound::getWidth,dto.getWidth());
+        updateWrapper.set(DelOutbound::getHeight,dto.getHeight());
+        updateWrapper.set(DelOutbound::getCustomCode,dto.getCustomCode());
+        updateWrapper.set(DelOutbound::getPackageWeightDeviation,dto.getPackageWeightDeviation());
+        updateWrapper.set(DelOutbound::getPackageConfirm,dto.getPackageConfirm());
+        updateWrapper.eq(DelOutbound::getOrderNo, dto.getOrderNo());
+        int upd = this.baseMapper.update(null, updateWrapper);
+
+        if(upd > 0){
+
+            log.info("开始DelOutUpdWeightEvent：{}",orderNo);
+            DelOutUpdWeightEvent delOutUpdWeightEvent = new DelOutUpdWeightEvent(orderNo);
+            EventUtil.publishEvent(delOutUpdWeightEvent);
+        }
+
+        return upd > 0;
     }
 
     @Override
