@@ -313,6 +313,18 @@
                 </executions>
             </plugin>
         </plugins>
+        <resources>
+            <resource>
+                <!-- 打包时将jsp文件拷贝到META-INF目录下-->
+                <!-- 指定resources插件处理哪一个目录下的资源文件 -->
+                <directory>src/main/resources</directory>
+                <!--注意这次必需要放在此目录下才能被访问到-->
+                <targetPath>${project.build.directory}/conf</targetPath>
+                <includes>
+                    <include>**/**</include>
+                </includes>
+            </resource>
+        </resources>
     </build>
 
 </project>
