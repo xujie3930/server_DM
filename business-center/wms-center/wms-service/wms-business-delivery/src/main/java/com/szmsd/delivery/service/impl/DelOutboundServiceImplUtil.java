@@ -34,9 +34,15 @@ import com.szmsd.inventory.domain.dto.InventoryOperateDto;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.time.DateFormatUtils;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.springframework.util.ResourceUtils;
 
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -476,6 +482,10 @@ public final class DelOutboundServiceImplUtil {
     }
 
     public static ByteArrayOutputStream renderPackageTransfer(DelOutbound delOutbound, DelOutboundAddress delOutboundAddress, String skuLabel) throws Exception {
+
+        String modelPath = "classpath:fonts/logo.png";
+        URL logoImageUrl = ResourceUtils.getURL(modelPath);
+
         Document document = new Document();
         document.top(0f);
         document.left(0f);
@@ -506,8 +516,30 @@ public final class DelOutboundServiceImplUtil {
         document.add(weight);
         //3. 添加段落,并设置字体
         // 文本块(Chunk)、短语(Phrase)和段落(paragraph)处理文本
-        font.setSize(18f);
-        Paragraph paragraph = new Paragraph(delOutbound.getShipmentRule(), font);
+        font.setSize(15f);
+        StringBuffer stringBuffer = new StringBuffer();
+
+        String shipmentType = delOutbound.getShipmentType();
+
+        if(shipmentType.equals("GeneralCargo")){
+            stringBuffer.append("普货  ");
+        }else{
+            stringBuffer.append("特货  ");
+        }
+
+        String texts = delOutboundAddress.getCountryCode();
+        if (StringUtils.isEmpty(texts)) {
+            // 二字码是空的就取国家名称
+            texts = delOutboundAddress.getCountry();
+        }
+
+        stringBuffer.append(texts+"  ");
+
+        String shipmentRule = delOutbound.getShipmentRule();
+
+        stringBuffer.append(shipmentRule);
+
+        Paragraph paragraph = new Paragraph(stringBuffer.toString(), font);
         paragraph.setAlignment(Element.ALIGN_RIGHT);
         paragraph.setSpacingBefore(-26f);
         paragraph.setSpacingAfter(0f);
@@ -528,27 +560,29 @@ public final class DelOutboundServiceImplUtil {
             pdfPCell.setBorder(15);
             pdfPCell.setBorderWidth(1.5f);
             if (i == 0) {
-                pdfPCell.setFixedHeight(135f);
-                Phrase element = new Phrase("To:");
+                font.setSize(10f);
+                pdfPCell.setFixedHeight(100f);
+                Phrase element = new Phrase("To:"+delOutboundAddress.getConsignee(),font);
                 pdfPCell.addElement(element);
-                pdfPCell.addElement(new Phrase(delOutboundAddress.getConsignee()));
-                pdfPCell.addElement(new Phrase(delOutboundAddress.getStreet1()));
-                pdfPCell.addElement(new Phrase(delOutboundAddress.getStreet2()));
-                pdfPCell.addElement(new Phrase(delOutboundAddress.getCity() + " " + delOutboundAddress.getStateOrProvince() + " " + delOutboundAddress.getPostCode()));
+                pdfPCell.addElement(new Phrase(delOutboundAddress.getStreet1()+" "+delOutboundAddress.getStreet2()+" "+ delOutbound.getHouseNo(),font));
+                pdfPCell.addElement(new Phrase(delOutboundAddress.getCity() + " " + delOutboundAddress.getStateOrProvince(),font));
+                pdfPCell.addElement(new Phrase(delOutboundAddress.getPostCode(),font));
                 // 国家二字码
-                String text = delOutboundAddress.getCountryCode();
-                if (StringUtils.isEmpty(text)) {
-                    // 二字码是空的就取国家名称
-                    text = delOutboundAddress.getCountry();
-                }
-                Paragraph country = new Paragraph(text, font);
-                country.setAlignment(Element.ALIGN_RIGHT);
-                country.setSpacingBefore(-5f);
-                country.setSpacingAfter(0f);
-                pdfPCell.addElement(country);
-                pdfPCell.addElement(new Phrase("TEL:" + delOutboundAddress.getPhoneNo()));
+//                String text = delOutboundAddress.getCountryCode();
+//                if (StringUtils.isEmpty(text)) {
+//                    // 二字码是空的就取国家名称
+//                    text = delOutboundAddress.getCountry();
+//                }
+//                pdfPCell.addElement(new Phrase(text));
+//                Paragraph country = new Paragraph(text, font);
+//                country.setAlignment(Element.ALIGN_RIGHT);
+//                country.setSpacingBefore(-5f);
+//                country.setSpacingAfter(0f);
+//                pdfPCell.addElement(country);
+                pdfPCell.addElement(new Phrase("TEL:" + delOutboundAddress.getPhoneNo(),font));
+                pdfPCell.addElement(new Phrase("EMAIL:" + delOutboundAddress.getEmail(),font));
             } else {
-                pdfPCell.setFixedHeight(38f);
+                pdfPCell.setFixedHeight(15f);
                 font.setSize(12f);
                 Phrase element = new Phrase("Custom:" + delOutbound.getRemark(), font);
                 element.setMultipliedLeading(1f);
@@ -564,9 +598,18 @@ public final class DelOutboundServiceImplUtil {
         Image image1 = Image.getInstance(image, null);
         // 计算缩放比例
         // 渲染在画布上的宽度只有200，以200作为基础比例
-        image1.scalePercent(55f);
+        image1.scalePercent(50f);
+
+        String trackingNo = delOutbound.getTrackingNo();
+        BufferedImage bufferedtrackingNoImage = ITextPdfUtil.getBarCode(trackingNo);
+        BufferedImage imagetrackingNo = ITextPdfUtil.insertWords(bufferedtrackingNoImage, trackingNo);
+        Image imagetracking = Image.getInstance(imagetrackingNo, null);
+        // 计算缩放比例
+        // 渲染在画布上的宽度只有200，以200作为基础比例
+        imagetracking.scalePercent(55f);
         // image1.setSpacingBefore(-10f);
         // image1.setAbsolutePosition(10f, 25f);
+        document.add(imagetracking);
         document.add(image1);
         if (StringUtils.isNotEmpty(skuLabel)) {
             font.setSize(10f);
