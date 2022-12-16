@@ -345,9 +345,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             delOutbound.setPrcInterfaceProductCode(data.getProductCode());
             delOutbound.setPrcTerminalCarrier(data.getTerminalCarrier());
 
-            //汪经理说周永来少了两行代码 不是我加的
-            delOutbound.setPrcInterfaceProductCode(data.getProductCode());
-            delOutbound.setPrcTerminalCarrier(data.getTerminalCarrier());
+
             // 挂号服务
             delOutbound.setShipmentService(data.getLogisticsRouteId());
             // 物流商code
