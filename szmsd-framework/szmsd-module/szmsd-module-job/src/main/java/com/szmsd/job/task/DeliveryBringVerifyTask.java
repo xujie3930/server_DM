@@ -83,8 +83,10 @@ public class DeliveryBringVerifyTask {
                 // 开始时间
                 isRunning = true;
                 String path =  this.getClass().getClassLoader().getResource("").getPath();
+                System.out.println(path+ "lib/datax/datax");
                 System.setProperty("datax.home", path+ "lib/datax/datax");
                 for (String name : getNameList()) {
+                    System.out.println(path + "json/" + name);
                     operation(path + "json/" + name);
                 }
             } catch (Throwable e) {
@@ -115,5 +117,26 @@ public class DeliveryBringVerifyTask {
         }
         return nameList;
 
+    }
+
+    public static void main(String[] args) {
+        try {
+            // 开始时间
+            isRunning = true;
+//            String path =  this.getClass().getClassLoader().getResource("").getPath();
+//            System.out.println("路径:" +path);
+            System.setProperty("datax.home", "D:\\project\\server\\szmsd-framework\\szmsd-module\\szmsd-module-job\\src\\main\\resources\\lib\\datax\\datax");
+//            String[] datxArgs = {"-job", "D:\\project\\DataX\\copydata\\src\\main\\resources\\daas2daas.json", "-mode", "standalone", "-jobid", "-1"};
+//            Engine.entry(datxArgs);   //从这里启动
+            String[] datxArgs1 = {"-job", "D:\\project\\server\\szmsd-framework\\szmsd-module\\szmsd-module-job\\src\\main\\resources\\json\\daas2company_tag.json", "-mode", "standalone", "-jobid", "-1"};
+            Engine.entry(datxArgs1);   //从这里启动
+//            Thread.sleep(2 * 60 * 1000L);
+//                Thread.sleep(30 * 60 * 1000);
+        } catch (Throwable e) {
+            e.printStackTrace();
+            System.out.println(e.toString());
+        }finally {
+            isRunning = false;
+        }
     }
 }
