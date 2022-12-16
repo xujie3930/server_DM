@@ -27,6 +27,7 @@ import java.util.List;
 public class DeliveryBringVerifyTask {
 
     private static boolean isRunning = false;
+    private static String  path = "/k8s/java/jar/szmsd-module-job-1.0.0.jar/BOOT-INF/classes/";
     @Resource
     private DelOutboundFeignService feignService;
 
@@ -82,7 +83,6 @@ public class DeliveryBringVerifyTask {
                 log.info("定时同步数据开始");
                 // 开始时间
                 isRunning = true;
-                String path =  this.getClass().getClassLoader().getResource("").getPath();
                 log.info("dataxHome:{}", path+ "lib/datax/datax");
                 System.setProperty("datax.home", path+ "lib/datax/datax");
                 for (String name : getNameList()) {
@@ -109,6 +109,7 @@ public class DeliveryBringVerifyTask {
             org.springframework.core.io.Resource[] resources = new PathMatchingResourcePatternResolver().getResources(ResourceUtils.CLASSPATH_URL_PREFIX+"/json/*.json");
             for(org.springframework.core.io.Resource resource : resources){
                 String fileName = resource.getFilename();
+                String path = resource.getURL().getPath();
                 nameList.add(fileName);
             }
 
