@@ -76,7 +76,6 @@ public class DeliveryBringVerifyTask {
         feignService.delOutboundCarrierTimer();
     }
 
-    //每分钟更新一次
     public void replaceDataTaskScheduler() {
         if (!isRunning) {
             try {
