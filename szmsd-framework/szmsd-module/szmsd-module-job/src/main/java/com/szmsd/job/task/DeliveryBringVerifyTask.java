@@ -83,10 +83,10 @@ public class DeliveryBringVerifyTask {
                 // 开始时间
                 isRunning = true;
                 String path =  this.getClass().getClassLoader().getResource("").getPath();
-                System.out.println(path+ "lib/datax/datax");
+                log.info("dataxHome:{}", path+ "lib/datax/datax");
                 System.setProperty("datax.home", path+ "lib/datax/datax");
                 for (String name : getNameList()) {
-                    System.out.println(path + "json/" + name);
+                    log.info("jsonHome:{}",path + "json/" + name);
                     operation(path + "json/" + name);
                 }
             } catch (Throwable e) {
