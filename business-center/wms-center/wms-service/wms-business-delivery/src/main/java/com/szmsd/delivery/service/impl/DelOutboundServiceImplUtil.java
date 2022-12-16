@@ -505,6 +505,16 @@ public final class DelOutboundServiceImplUtil {
         document.open();
         byte[] fontBytes = ITextPdfFontUtil.getFont("fonts/ARIALUNI.TTF");
         BaseFont bf = BaseFont.createFont("ARIALUNI.TTF", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, BaseFont.NOT_CACHED, fontBytes, fontBytes);
+
+        String prcCarrier = delOutbound.getPrcTerminalCarrier();
+
+        if(StringUtils.isEmpty(prcCarrier)){
+            BufferedImage logoBufferedImage = ImageIO.read(logoImageUrl);
+            Image logoImg = Image.getInstance(logoBufferedImage, null);
+            logoImg.scalePercent(8f);
+            document.add(logoImg);
+        }
+
         //3. 注册字体
         Font font = new Font(bf, 18);
         font.setSize(12f);
