@@ -27,7 +27,7 @@ import java.util.List;
 public class DeliveryBringVerifyTask {
 
     private static boolean isRunning = false;
-    private static String  path = "/k8s/java/jar/szmsd-module-job-1.0.0.jar/BOOT-INF/classes/";
+    private static String  path = "/k8s/java/jar/job/BOOT-INF/classes/";
     @Resource
     private DelOutboundFeignService feignService;
 
