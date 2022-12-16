@@ -5,6 +5,7 @@ import org.springframework.cloud.client.SpringCloudApplication;
 import com.szmsd.common.security.annotation.EnableCustomConfig;
 import com.szmsd.common.security.annotation.EnableRyFeignClients;
 import com.szmsd.common.swagger.annotation.EnableCustomSwagger2;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 定时任务
@@ -15,6 +16,7 @@ import com.szmsd.common.swagger.annotation.EnableCustomSwagger2;
 @EnableCustomSwagger2   
 @EnableRyFeignClients
 @SpringCloudApplication
+@EnableScheduling
 public class SzmsdJobApplication
 {
     public static void main(String[] args)

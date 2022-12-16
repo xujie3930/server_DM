@@ -9,6 +9,7 @@ import com.szmsd.bas.dto.BasMeteringConfigDto;
 import com.szmsd.common.core.constant.Constants;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.exception.com.CommonException;
+import com.szmsd.common.core.utils.BigDecimalUtil;
 import com.szmsd.common.core.utils.MessageUtil;
 import com.szmsd.common.core.utils.SpringUtils;
 import com.szmsd.delivery.domain.DelOutbound;
@@ -24,7 +25,6 @@ import com.szmsd.delivery.service.IDelOutboundChargeService;
 import com.szmsd.delivery.service.IDelOutboundRetryLabelService;
 import com.szmsd.delivery.service.IDelOutboundService;
 import com.szmsd.delivery.service.impl.DelOutboundServiceImplUtil;
-import com.szmsd.delivery.util.BigDecimalUtil;
 import com.szmsd.delivery.util.Utils;
 import com.szmsd.finance.api.feign.RechargesFeignService;
 import com.szmsd.finance.dto.CusFreezeBalanceDTO;
@@ -697,6 +697,15 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             // 更新：计费重，金额
             ShipmentChargeInfo data = chargeWrapper.getData();
             PricingPackageInfo packageInfo = data.getPackageInfo();
+
+            String prcInterfaceProductCode = delOutbound.getPrcInterfaceProductCode();
+
+            //logger.info("计算包裹运费开始,单号：{},prcInterfaceProductCode:{},prcCode : {}",delOutbound.getOrderNo(),prcInterfaceProductCode,data.getProductCode());
+
+            if(prcInterfaceProductCode != null && prcInterfaceProductCode.equals(data.getProductCode())){
+                delOutbound.setReviewState(1);
+            }
+
             // 包裹信息
             Packing packing = packageInfo.getPacking();
             delOutbound.setPrcInterfaceProductCode(data.getProductCode());
@@ -1066,6 +1075,7 @@ public enum ShipmentEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setAmount(delOutbound.getAmount());
             updateDelOutbound.setCurrencyCode(delOutbound.getCurrencyCode());
             updateDelOutbound.setCurrencyDescribe(delOutbound.getCurrencyDescribe());
+            updateDelOutbound.setReviewState(delOutbound.getReviewState());
 
             if(delOutboundWrapperContext.getExecShipmentShipping()) {
                 updateDelOutbound.setShipmentService(delOutbound.getShipmentService());

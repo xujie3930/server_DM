@@ -15,17 +15,20 @@ import com.szmsd.chargerules.api.feign.OperationFeignService;
 import com.szmsd.common.core.constant.Constants;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.exception.com.CommonException;
+import com.szmsd.common.core.utils.BigDecimalUtil;
 import com.szmsd.common.core.utils.MessageUtil;
 import com.szmsd.common.core.utils.SpringUtils;
 import com.szmsd.common.core.utils.StringUtils;
-import com.szmsd.delivery.domain.*;
+import com.szmsd.delivery.domain.DelOutbound;
+import com.szmsd.delivery.domain.DelOutboundCharge;
+import com.szmsd.delivery.domain.DelOutboundDetail;
+import com.szmsd.delivery.domain.DelOutboundThirdParty;
 import com.szmsd.delivery.dto.BasShipmentRulesDto;
 import com.szmsd.delivery.dto.DelOutboundLabelDto;
 import com.szmsd.delivery.enums.*;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
 import com.szmsd.delivery.service.*;
 import com.szmsd.delivery.service.impl.DelOutboundServiceImplUtil;
-import com.szmsd.delivery.util.BigDecimalUtil;
 import com.szmsd.delivery.util.PdfUtil;
 import com.szmsd.delivery.util.Utils;
 import com.szmsd.delivery.vo.DelOutboundOperationDetailVO;
@@ -34,19 +37,7 @@ import com.szmsd.finance.api.feign.RechargesFeignService;
 import com.szmsd.finance.dto.CusFreezeBalanceDTO;
 import com.szmsd.http.api.service.IHtpOutboundClientService;
 import com.szmsd.http.api.service.IHtpPricedProductClientService;
-import com.szmsd.http.dto.ChargeCategory;
-import com.szmsd.http.dto.ChargeItem;
-import com.szmsd.http.dto.ChargeWrapper;
-import com.szmsd.http.dto.Money;
-import com.szmsd.http.dto.Packing;
-import com.szmsd.http.dto.PricingPackageInfo;
-import com.szmsd.http.dto.ProblemDetails;
-import com.szmsd.http.dto.ResponseObject;
-import com.szmsd.http.dto.ShipmentChargeInfo;
-import com.szmsd.http.dto.ShipmentLabelChangeRequestDto;
-import com.szmsd.http.dto.ShipmentOrderResult;
-import com.szmsd.http.dto.TaskConfigInfo;
-import com.szmsd.http.dto.Weight;
+import com.szmsd.http.dto.*;
 import com.szmsd.http.vo.PricedProductInfo;
 import com.szmsd.http.vo.ResponseVO;
 import com.szmsd.inventory.api.service.InventoryFeignClientService;
@@ -56,8 +47,6 @@ import com.szmsd.pack.api.feign.PackageDeliveryConditionsFeignService;
 import com.szmsd.pack.domain.PackageDeliveryConditions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
 import org.springframework.util.StopWatch;
 
 import java.io.File;
@@ -351,6 +340,11 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             ChargeWrapper chargeWrapper = responseObject.getObject();
             ShipmentChargeInfo data = chargeWrapper.getData();
             PricingPackageInfo packageInfo = data.getPackageInfo();
+
+
+            delOutbound.setPrcInterfaceProductCode(data.getProductCode());
+            delOutbound.setPrcTerminalCarrier(data.getTerminalCarrier());
+
             //汪经理说周永来少了两行代码 不是我加的
             delOutbound.setPrcInterfaceProductCode(data.getProductCode());
             delOutbound.setPrcTerminalCarrier(data.getTerminalCarrier());
@@ -1413,6 +1407,16 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
 
                 if(labelFile == null){
                     return;
+                }
+
+                //13040 【调整】出库业务-标签给WMS的逻辑调整
+                TaskConfigInfo taskConfigInfo = delOutboundWrapperContext.getTaskConfigInfo();
+                if (null != taskConfigInfo) {
+                    boolean flag = "AfterMeasured".equals(taskConfigInfo.getReceiveShippingType()) && DelOutboundTrackingAcquireTypeEnum.ORDER_SUPPLIER.getCode().equals(delOutbound.getTrackingAcquireType());
+                    logger.info("{},更新出库单{}标签,taskConfigInfo:{},trackingAcquireType:{}",delOutbound.getOrderNo(),flag,taskConfigInfo.getReceiveShippingType(),delOutbound.getTrackingAcquireType());
+                    if (flag) {
+                        return;
+                    }
                 }
 
                 try {
