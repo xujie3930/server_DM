@@ -345,6 +345,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             delOutbound.setPrcInterfaceProductCode(data.getProductCode());
             delOutbound.setPrcTerminalCarrier(data.getTerminalCarrier());
 
+
             // 挂号服务
             delOutbound.setShipmentService(data.getLogisticsRouteId());
             // 物流商code
@@ -430,6 +431,9 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setId(delOutbound.getId());
             updateDelOutbound.setProductShipmentRule(data.getShipmentRule());
             updateDelOutbound.setPackingRule(delOutbound.getPackingRule());
+            //汪经理说周永来少了两行代码 不是我加的
+            updateDelOutbound.setPrcInterfaceProductCode(delOutbound.getPrcInterfaceProductCode());
+            updateDelOutbound.setPrcTerminalCarrier(delOutbound.getPrcTerminalCarrier());
             delOutboundService.updateByIdTransactional(updateDelOutbound);
 
             DelOutboundOperationLogEnum.BRV_PRC_PRICING.listener(delOutbound);
