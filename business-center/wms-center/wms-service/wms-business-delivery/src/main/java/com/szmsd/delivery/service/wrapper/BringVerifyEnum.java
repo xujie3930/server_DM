@@ -434,6 +434,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             //汪经理说周永来少了两行代码 不是我加的
             updateDelOutbound.setPrcInterfaceProductCode(delOutbound.getPrcInterfaceProductCode());
             updateDelOutbound.setPrcTerminalCarrier(delOutbound.getPrcTerminalCarrier());
+            updateDelOutbound.setAmazonReferenceId(data.getAmazonLogisticsRouteId());
             delOutboundService.updateByIdTransactional(updateDelOutbound);
 
             DelOutboundOperationLogEnum.BRV_PRC_PRICING.listener(delOutbound);
