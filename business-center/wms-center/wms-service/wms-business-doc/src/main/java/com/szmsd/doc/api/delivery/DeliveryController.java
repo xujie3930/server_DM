@@ -686,7 +686,7 @@ public class DeliveryController {
         String sellerCode = AuthenticationUtil.getSellerCode();
         vo.setSellerCode(sellerCode);
         vo.setOrderNo(orderNo);
-        return R.ok(delOutboundClientService.getInfoForThirdParty(vo));
+        return delOutboundClientService.getInfoForThirdParty(vo);
     }
 
 
