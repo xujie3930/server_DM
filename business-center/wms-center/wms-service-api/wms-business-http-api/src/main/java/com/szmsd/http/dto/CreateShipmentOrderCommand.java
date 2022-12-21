@@ -53,6 +53,4 @@ public class CreateShipmentOrderCommand implements Serializable {
 /*
     @ApiModelProperty(value = "亚马逊挂号服务")
     private String amazonLogisticsRouteId;*/
-
-    private Thread currentThread;
 }
