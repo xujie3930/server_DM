@@ -791,8 +791,8 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
 
         @Override
         public ApplicationState nextState() {
-            return SHIPMENT_ORDER;//预发布先跳过wms流程
-//            return SHIPMENT_RULE;
+//            return SHIPMENT_ORDER;//预发布先跳过wms流程
+            return SHIPMENT_RULE;
         }
     }
 
