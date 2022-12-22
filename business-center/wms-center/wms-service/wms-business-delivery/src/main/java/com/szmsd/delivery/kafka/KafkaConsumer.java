@@ -49,10 +49,13 @@ public class KafkaConsumer {
         CreateShipmentOrderCommand createShipmentOrderCommand = JSON.parseObject(String.valueOf(msg), CreateShipmentOrderCommand.class);
         try {
             ResponseObject<ShipmentOrderResult, ProblemDetails> responseObjectWrapper = htpCarrierClientService.shipmentOrder(createShipmentOrderCommand);
+            log.info("调用成功");
             redisTemplate.opsForValue().set(createShipmentOrderCommand.getCurrentThread().getId(), responseObjectWrapper);
+            log.info("redis设置值成功:{}", responseObjectWrapper);
         } catch (Exception e) {
             log.error("消费异常:{},Topic:{},Message:{}", e, topic, record.value());
         } finally {
+            log.info("唤醒线程:{}", createShipmentOrderCommand.getCurrentThread());
             LockSupport.unpark(createShipmentOrderCommand.getCurrentThread());
             ack.acknowledge();
         }
