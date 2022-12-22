@@ -35,6 +35,7 @@ import com.szmsd.delivery.dto.DelOutboundFurtherHandlerDto;
 import com.szmsd.delivery.dto.DelOutboundLabelDto;
 import com.szmsd.delivery.enums.*;
 import com.szmsd.delivery.event.DelOutboundOperationLogEnum;
+import com.szmsd.delivery.kafka.KafkaProducer;
 import com.szmsd.delivery.service.*;
 import com.szmsd.delivery.service.impl.DelOutboundServiceImplUtil;
 import com.szmsd.delivery.service.wrapper.*;
@@ -76,6 +77,7 @@ import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -132,6 +134,8 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
     @Autowired
     private Environment env;
 
+    @Autowired
+    private KafkaProducer kafkaProducer;
 
 
     @Override
@@ -811,7 +815,13 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         createShipmentOrderCommand.setPackages(packages);
         createShipmentOrderCommand.setCarrier(new Carrier(shipmentService));
         Long s = System.currentTimeMillis();
-        ResponseObject<ShipmentOrderResult, ProblemDetails> responseObjectWrapper = this.htpCarrierClientService.shipmentOrder(createShipmentOrderCommand);
+        //这里改用kafka异步调用，返回前进行阻塞(并没有加快单笔单的处理时间，而追求相同时间内处理更多的单)
+        createShipmentOrderCommand.setCurrentThread(Thread.currentThread());
+        kafkaProducer.send(createShipmentOrderCommand);
+        LockSupport.park();
+//        ResponseObject<ShipmentOrderResult, ProblemDetails> responseObjectWrapper = this.htpCarrierClientService.shipmentOrder(createShipmentOrderCommand);
+        ResponseObject<ShipmentOrderResult, ProblemDetails> responseObjectWrapper = (ResponseObject<ShipmentOrderResult, ProblemDetails>) redisTemplate.opsForValue().get(createShipmentOrderCommand.getCurrentThread().getId());
+        redisTemplate.delete(createShipmentOrderCommand.getCurrentThread().getId());
         Long e = System.currentTimeMillis();
         logger.info(">>>>>[创建出库单{}]创建承运商 htpCarrierClientService.shipmentOrder 耗时{}", e-s);
         if (null == responseObjectWrapper) {
