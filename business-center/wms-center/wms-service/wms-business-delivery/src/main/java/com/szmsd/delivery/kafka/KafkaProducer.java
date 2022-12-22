@@ -27,11 +27,11 @@ public class KafkaProducer {
     @Value("${kafkaProducer.topic}")
     private String topic;
 
-    @PostConstruct
-    private void init() {
-        kafkaTemplate.send(topic, "fuck myself");
-        System.out.println("kafka消费成功");
-    }
+//    @PostConstruct
+//    private void init() {
+//        kafkaTemplate.send(topic, "fuck myself");
+//        System.out.println("kafka消费成功");
+//    }
 
     @Async
     public void send(Object obj) {

@@ -43,7 +43,7 @@ public class KafkaConsumer {
     @KafkaListener(groupId = "test", topics = "#{'${kafkaConsumer.topic}'}")
     public void topic_test(ConsumerRecord<?, ?> record, Acknowledgment ack, @Header(KafkaHeaders.RECEIVED_TOPIC) String topic) {
         Optional message = Optional.ofNullable(record.value());
-        System.out.println("获取Topic:" + topic +"的消息:"+ message +"进行消费");
+//        System.out.println("获取Topic:" + topic +"的消息:"+ message +"进行消费");
         log.info("获取Topic:{}的消息:{}进行消费", topic, message);
         Object msg = message.get();
         CreateShipmentOrderCommand createShipmentOrderCommand = JSON.parseObject(String.valueOf(msg), CreateShipmentOrderCommand.class);
