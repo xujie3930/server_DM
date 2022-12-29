@@ -57,5 +57,5 @@ public class CreateShipmentOrderCommand implements Serializable {
     /**
      * 记录线程对象，用于异步唤醒
      */
-    private Thread currentThread;
+//    private Thread currentThread;
 }
