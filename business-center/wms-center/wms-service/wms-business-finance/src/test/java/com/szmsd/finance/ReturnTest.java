@@ -111,7 +111,7 @@ public class ReturnTest {
 //                }
 
 
-                refundRequestService.afterApprove(RefundStatusEnum.COMPLETE, idList);
+//                refundRequestService.afterApprove(RefundStatusEnum.COMPLETE, idList);
                 countDownLatch.countDown();
                 log.info("执1111行：---------" + countDownLatch.getCount());
             }).start();
