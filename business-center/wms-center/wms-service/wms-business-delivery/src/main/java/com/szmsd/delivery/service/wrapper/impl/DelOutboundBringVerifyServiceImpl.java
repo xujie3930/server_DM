@@ -440,6 +440,26 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                         new Packing(Utils.valueOf(delOutbound.getLength()), Utils.valueOf(delOutbound.getWidth()), Utils.valueOf(delOutbound.getHeight()), "cm")
                         , Math.toIntExact(1), delOutbound.getOrderNo(), declareValue, ""));
             }
+        }else if(DelOutboundOrderTypeEnum.MULTIPLE_PIECES.getCode().equals(delOutbound.getOrderType())){
+
+            BigDecimal declareValue = BigDecimal.ZERO;
+            Long totalQuantity = 0L;
+            for (DelOutboundDetail detail : detailList) {
+                if (null != detail.getDeclaredValue()) {
+
+                    BigDecimal dvalue = BigDecimal.valueOf(detail.getDeclaredValue());
+                    declareValue = declareValue.add(dvalue);
+                }
+                //一票多件以sku数量计算
+                totalQuantity += 1;
+            }
+
+            BigDecimal resultDeclareValue = BigDecimalUtil.setScale(declareValue.multiply(new BigDecimal(totalQuantity)));
+
+            packageInfos.add(new PackageInfo(new Weight(Utils.valueOf(delOutbound.getWeight()), "g"),
+                    new Packing(Utils.valueOf(delOutbound.getLength()), Utils.valueOf(delOutbound.getWidth()), Utils.valueOf(delOutbound.getHeight()), "cm")
+                    , Math.toIntExact(totalQuantity), delOutbound.getOrderNo(), resultDeclareValue, ""));
+
         } else {
             if (PricingEnum.SKU.equals(pricingEnum)) {
                 // 查询包材的信息
@@ -596,6 +616,7 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         calcShipmentFeeCommand.setShipmentType(delOutbound.getShipmentType());
         calcShipmentFeeCommand.setIoss(delOutbound.getIoss());
         calcShipmentFeeCommand.setPackageInfos(packageInfos);
+        calcShipmentFeeCommand.setSheetCode(delOutbound.getSheetCode());
 
         Address toAddress =  new Address(address.getStreet1(),
                 address.getStreet2(),
@@ -1345,6 +1366,20 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
                         boxFilePath = attachment.getAttachmentPath() + "/" + attachment.getAttachmentName() + attachment.getAttachmentFormat();
                     }
                 }
+            }else{
+                //暴力写死
+                BasAttachmentQueryDTO basAttachmentQueryDTO = new BasAttachmentQueryDTO();
+                basAttachmentQueryDTO.setBusinessCode(AttachmentTypeEnum.DEL_OUTBOUND_DOCUMENT.getBusinessCode());
+                basAttachmentQueryDTO.setBusinessNo(delOutbound.getOrderNo());
+                R<List<BasAttachment>> listR = remoteAttachmentService.list(basAttachmentQueryDTO);
+                if (null != listR && null != listR.getData()) {
+                    List<BasAttachment> attachmentList = listR.getData();
+                    if (CollectionUtils.isNotEmpty(attachmentList)) {
+                        BasAttachment attachment = attachmentList.get(0);
+                        // 箱标文件 - 上传的
+                        boxFilePath = attachment.getAttachmentPath() + "/" + attachment.getAttachmentName() + attachment.getAttachmentFormat();
+                    }
+                }
             }
 
             // 判断从承运商获取的标签文件是否存在
@@ -1356,6 +1391,7 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
             if("Y".equals(delOutbound.getUploadBoxLabel())){
                 uploadBoxLabel = getBoxLabel(delOutbound);
             }
+            logger.info("更新出库单{}标签,文件{},自提标签{},箱标{}",delOutbound.getOrderNo(), pathname, selfPickLabelFilePath, uploadBoxLabel);
             pathname = this.mergeFile(delOutbound, pathname, boxFilePath, selfPickLabelFilePath, uploadBoxLabel);
 
         }
@@ -1542,6 +1578,7 @@ public class DelOutboundBringVerifyServiceImpl implements IDelOutboundBringVerif
         createShipmentRequestDto.setOrderType(delOutbound.getOrderType());
         createShipmentRequestDto.setSellerCode(delOutbound.getSellerCode());
         createShipmentRequestDto.setTrackingNo(trackingNo);
+        createShipmentRequestDto.setRefCode(delOutbound.getRefNo());
         // 获取从prc返回的发货规则
         String shipmentRule;
         if (StringUtils.isNotEmpty(delOutbound.getProductShipmentRule())) {

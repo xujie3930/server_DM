@@ -59,7 +59,7 @@ public class OauthController {
     @ApiOperation("获取验证码")
     @PostMapping("getCheckCode")
     public R getCheckCode(HttpServletRequest request) {
-        String ip = IpUtils.getIpAddr(request);
+         String ip = IpUtils.getIpAddr(request);
         String userAccountKey = ip + "-login";
         String checkCode = String.valueOf((int) ((Math.random() * 9 + 1) * 1000));
         BufferedImage image = producer.createImage(checkCode);
@@ -78,7 +78,7 @@ public class OauthController {
         r.setCode(com.szmsd.common.core.constant.HttpStatus.SUCCESS);
         r.setMsg("success");
         r.setData(Base64.encode(os.toByteArray()));
-        return  r;
+      return  r;
     }
 
     /**

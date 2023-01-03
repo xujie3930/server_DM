@@ -267,7 +267,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
     }
 
     @Override
-    public DelOutboundThirdPartyVO getInfoForThirdParty(DelOutboundVO vo) {
+    public R<DelOutboundThirdPartyVO> getInfoForThirdParty(DelOutboundVO vo) {
         LambdaQueryWrapper<DelOutbound> queryWrapper = Wrappers.lambdaQuery();
         queryWrapper.eq(DelOutbound::getSellerCode, vo.getSellerCode());
         queryWrapper.eq(DelOutbound::getOrderNo, vo.getOrderNo());
@@ -280,7 +280,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         String amazonReferenceId = delOutbound.getAmazonReferenceId();
 
         if(StringUtils.isEmpty(amazonLogisticsRouteId1) && StringUtils.isNotEmpty(amazonReferenceId)){
-            throw new CommonException("200","The order number is being obtained");
+            return R.failed(200,"The order number is being obtained");
         }
 
         DelOutboundThirdPartyVO delOutboundThirdPartyVO =
@@ -297,7 +297,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             delOutboundThirdPartyVO.setTrackingNo(amazonLogisticsRouteId1);
         }
 
-        return delOutboundThirdPartyVO;
+        return R.ok(delOutboundThirdPartyVO);
     }
 
 
@@ -827,11 +827,13 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
         String refNo = dto.getRefNo();
 
-        if (StringUtils.isNotEmpty(dto.getRefNo())) {
+        if (StringUtils.isNotEmpty(refNo)) {
 
-            boolean refNoState = redisTemplate.hasKey(refNo);
+            Object refNoState = redisTemplate.opsForValue().get(refNo);
 
-            if(refNoState){
+            logger.info("refNo:{},{}",refNo,refNoState);
+
+            if(refNoState != null){
                 throw new RuntimeException("refNo:"+refNo+"已经存在,不允许重复提交");
             }
 
@@ -857,6 +859,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             queryWrapper.eq(DelOutbound::getDelFlag, "0");
             Integer size = baseMapper.selectCount(queryWrapper);
             if (size > 0) {
+
+                redisTemplate.opsForValue().set(refNo,1,120L,TimeUnit.SECONDS);
+
                 throw new CommonException("400", "Refno 必须唯一值" + dto.getRefNo());
             }
         }
@@ -868,18 +873,16 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         TimeInterval timer = DateUtil.timer();
         DelOutboundAddResponse response = new DelOutboundAddResponse();
         String orderNo;
-        if (StringUtils.equals(dto.getSourceType(), DelOutboundConstant.SOURCE_TYPE_ADD)) {
-            //单数据处理直接抛异常
-            logger.info(">>>>>[创建出库单]1.1 校验Refno");
-            try {
-                this.checkRefNo(dto, null);
-                logger.info(">>>>>[创建出库单]1.2 校验Refno完成，{}", timer.intervalRestart());
-            }catch (CommonException e){
-                logger.info(">>>>>[创建出库单]1.2 校验Refno失败，{}", timer.intervalRestart());
-                response.setStatus(false);
-                response.setMessage(e.getMessage());
-                return response;
-            }
+        //单数据处理直接抛异常
+        logger.info(">>>>>[创建出库单]1.1 校验Refno");
+        try {
+            this.checkRefNo(dto, null);
+            logger.info(">>>>>[创建出库单]1.2 校验Refno完成，{}", timer.intervalRestart());
+        }catch (CommonException e){
+            logger.info(">>>>>[创建出库单]1.2 校验Refno失败，{}", timer.intervalRestart());
+            response.setStatus(false);
+            response.setMessage(e.getMessage());
+            return response;
         }
         // 创建出库单
         try {
@@ -887,19 +890,14 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             logger.info(">>>>>[创建出库单]2.0 doc校验");
             this.docValid(dto);
 
-
-
-
-
-
             logger.info(">>>>>[创建出库单]2.1 doc校验完成，{}", timer.intervalRestart());
 
-            if (!StringUtils.equals(dto.getSourceType(), DelOutboundConstant.SOURCE_TYPE_ADD)) {
-                //批量数据处理记录异常
-                logger.info(">>>>>[创建出库单]2.2 校验Refno");
-                this.checkRefNo(dto, null);
-                logger.info(">>>>>[创建出库单]2.3 校验Refno完成，{}", timer.intervalRestart());
-            }
+//            if (!StringUtils.equals(dto.getSourceType(), DelOutboundConstant.SOURCE_TYPE_ADD)) {
+//                //批量数据处理记录异常
+//                logger.info(">>>>>[创建出库单]2.2 校验Refno");
+//                this.checkRefNo(dto, null);
+//                logger.info(">>>>>[创建出库单]2.3 校验Refno完成，{}", timer.intervalRestart());
+//            }
             logger.info(">>>>>[创建出库单]3.0 开始初始化出库单属性");
             DelOutbound delOutbound = BeanMapperUtil.map(dto, DelOutbound.class);
             if (null == delOutbound.getCodAmount()) {
@@ -2883,7 +2881,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
                 for(List<Long> ids : partionOrderNoList){
 
-                    List<DelOutbound> delOutboundList = baseMapper.selectList(Wrappers.<DelOutbound>query().lambda().in(DelOutbound::getOrderNo,ids).eq(DelOutbound::getState,DelOutboundStateEnum.DELIVERED.getCode()));
+                    List<DelOutbound> delOutboundList = baseMapper.selectList(Wrappers.<DelOutbound>query().lambda().in(DelOutbound::getId,ids).eq(DelOutbound::getState,DelOutboundStateEnum.DELIVERED.getCode()));
 
                     for(DelOutbound delOutbound : delOutboundList){
                         Long s = System.currentTimeMillis();
@@ -3740,7 +3738,10 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 if ("OK".equals(jsonObject.getString("status"))) {
                     // 判断结果明细是不是成功的
                     JSONObject data = jsonObject.getJSONObject("data");
-                    if (1 != data.getIntValue("successNumber")) {
+
+                    int successNumber = data.getIntValue("successNumber");
+
+                    if (successNumber != 1) {
                         // 返回的成功数量不是1，判定为异常
                         success = false;
                         // 获取异常信息
@@ -3755,6 +3756,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                         }
                     }
                 }
+
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);
                 if (e instanceof CommonException) {

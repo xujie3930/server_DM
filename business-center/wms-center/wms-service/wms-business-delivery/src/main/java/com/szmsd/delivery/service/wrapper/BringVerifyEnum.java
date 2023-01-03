@@ -11,7 +11,10 @@ import com.szmsd.bas.api.feign.RemoteAttachmentService;
 import com.szmsd.bas.api.service.BaseProductClientService;
 import com.szmsd.bas.domain.BaseProduct;
 import com.szmsd.bas.dto.BaseProductConditionQueryDto;
+import com.szmsd.chargerules.api.feign.ChargeFeignService;
 import com.szmsd.chargerules.api.feign.OperationFeignService;
+import com.szmsd.chargerules.domain.BasProductService;
+import com.szmsd.chargerules.dto.BasProductServiceDao;
 import com.szmsd.common.core.constant.Constants;
 import com.szmsd.common.core.domain.R;
 import com.szmsd.common.core.exception.com.CommonException;
@@ -19,10 +22,7 @@ import com.szmsd.common.core.utils.BigDecimalUtil;
 import com.szmsd.common.core.utils.MessageUtil;
 import com.szmsd.common.core.utils.SpringUtils;
 import com.szmsd.common.core.utils.StringUtils;
-import com.szmsd.delivery.domain.DelOutbound;
-import com.szmsd.delivery.domain.DelOutboundCharge;
-import com.szmsd.delivery.domain.DelOutboundDetail;
-import com.szmsd.delivery.domain.DelOutboundThirdParty;
+import com.szmsd.delivery.domain.*;
 import com.szmsd.delivery.dto.BasShipmentRulesDto;
 import com.szmsd.delivery.dto.DelOutboundLabelDto;
 import com.szmsd.delivery.enums.*;
@@ -37,7 +37,19 @@ import com.szmsd.finance.api.feign.RechargesFeignService;
 import com.szmsd.finance.dto.CusFreezeBalanceDTO;
 import com.szmsd.http.api.service.IHtpOutboundClientService;
 import com.szmsd.http.api.service.IHtpPricedProductClientService;
-import com.szmsd.http.dto.*;
+import com.szmsd.http.dto.ChargeCategory;
+import com.szmsd.http.dto.ChargeItem;
+import com.szmsd.http.dto.ChargeWrapper;
+import com.szmsd.http.dto.Money;
+import com.szmsd.http.dto.Packing;
+import com.szmsd.http.dto.PricingPackageInfo;
+import com.szmsd.http.dto.ProblemDetails;
+import com.szmsd.http.dto.ResponseObject;
+import com.szmsd.http.dto.ShipmentChargeInfo;
+import com.szmsd.http.dto.ShipmentLabelChangeRequestDto;
+import com.szmsd.http.dto.ShipmentOrderResult;
+import com.szmsd.http.dto.TaskConfigInfo;
+import com.szmsd.http.dto.Weight;
 import com.szmsd.http.vo.PricedProductInfo;
 import com.szmsd.http.vo.ResponseVO;
 import com.szmsd.inventory.api.service.InventoryFeignClientService;
@@ -363,6 +375,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             delOutbound.setHeight(Utils.valueOf(packing.getHeight()));
             delOutbound.setSupplierCalcType(data.getSupplierCalcType());
             delOutbound.setSupplierCalcId(data.getSupplierCalcId());
+            delOutbound.setGrade(data.getGrade());
 
             if(StringUtils.isNotBlank(data.getAmazonLogisticsRouteId())){
                 delOutbound.setAmazonLogisticsRouteId(data.getAmazonLogisticsRouteId());
@@ -423,6 +436,14 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
 
             delOutbound.setCurrencyDescribe(currencyDescribe);
 
+            ChargeFeignService chargeFeignService = SpringUtils.getBean(ChargeFeignService.class);
+
+            BasProductServiceDao basProductServiceDao = new BasProductServiceDao();
+            basProductServiceDao.setProductCode(delOutbound.getPrcInterfaceProductCode());
+            basProductServiceDao.setCustomCode(delOutbound.getSellerCode());
+            logger.info("selectBasProductServiceeOne 参数:{}",JSON.toJSONString(basProductServiceDao));
+            R<BasProductService> basProductServiceR = chargeFeignService.selectBasProductServiceeOne(basProductServiceDao);
+            logger.info("selectBasProductServiceeOne 返回:{}",JSON.toJSONString(basProductServiceR));
 
             //更新PRC发货服务
             IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
@@ -430,7 +451,19 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setId(delOutbound.getId());
             updateDelOutbound.setProductShipmentRule(data.getShipmentRule());
             updateDelOutbound.setPackingRule(delOutbound.getPackingRule());
+            updateDelOutbound.setPrcInterfaceProductCode(delOutbound.getPrcInterfaceProductCode());
+            updateDelOutbound.setPrcTerminalCarrier(delOutbound.getPrcTerminalCarrier());
             updateDelOutbound.setAmazonReferenceId(data.getAmazonLogisticsRouteId());
+            updateDelOutbound.setGrade(data.getGrade());
+
+            if(basProductServiceR != null && basProductServiceR.getCode() == 200){
+
+                BasProductService basProductService = basProductServiceR.getData();
+                if(basProductService != null){
+                    updateDelOutbound.setEndTagState(DelOutboundEndTagStateEnum.REVIEWED.getCode());
+                }
+            }
+
             delOutboundService.updateByIdTransactional(updateDelOutbound);
 
             DelOutboundOperationLogEnum.BRV_PRC_PRICING.listener(delOutbound);
