@@ -8,8 +8,6 @@ import com.szmsd.common.core.utils.SpringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
-import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.ApplicationEvent;
@@ -41,6 +39,7 @@ import java.util.stream.Collectors;
 
 public final class Context implements ApplicationContextAware {
 
+    /** Spring应用上下文环境 */
     public static ApplicationContext applicationContext;
     private final static ObjectMapper OBJECT_MAPPER;
 
@@ -55,18 +54,21 @@ public final class Context implements ApplicationContextAware {
         Context.applicationContext = applicationContext;
     }
 
-
     /**
      * 获取spring上下文中的bean对象
      */
-    public static <T> T getBean(Class<T> beanClass, Class... genericTypes) {
-        if (genericTypes == null) {
-            return Context.applicationContext.getBean(beanClass);
-        } else {
-            ResolvableType resolvableType = ResolvableType.forClassWithGenerics(beanClass, genericTypes);
-            ObjectProvider<?> beanProvider = Context.applicationContext.getBeanProvider(resolvableType);
-            return (T) beanProvider.getIfAvailable();
-        }
+    public static <T> T getBean(Class<T> beanClass) {
+
+        //SpringUtils.getBean(beanClass);
+
+        return SpringUtils.getBean(beanClass);
+//        if (genericTypes == null) {
+//
+//        } else {
+//            ResolvableType resolvableType = ResolvableType.forClassWithGenerics(beanClass, genericTypes);
+//            ObjectProvider<?> beanProvider = Context.applicationContext.getBeanProvider(resolvableType);
+//            return (T) beanProvider.getIfAvailable();
+//        }
     }
 
     /**
@@ -484,6 +486,7 @@ public final class Context implements ApplicationContextAware {
                 .stream()
                 .collect(Collectors.toMap(keyMapper, valueMapper));
     }
+
 
 
 }

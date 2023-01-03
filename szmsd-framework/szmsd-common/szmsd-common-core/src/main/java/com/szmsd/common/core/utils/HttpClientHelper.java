@@ -37,7 +37,6 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.net.ssl.*;
@@ -522,9 +521,6 @@ public class HttpClientHelper {
         for (Map.Entry<String, String> entry : headerMap.entrySet()) {
             httpMessage.addHeader(entry.getKey(), String.valueOf(entry.getValue()));
         }
-
-        String traceId = MDC.get("traceId");
-        httpMessage.addHeader("traceId", traceId);
     }
 
     public static void setRaw(HttpEntityEnclosingRequestBase httpEntity, String requestBody) {

@@ -19,6 +19,11 @@ import java.util.Arrays;
 public abstract class BasicCommand<R> implements Command<R>, ApplicationBeanAware {
 
     private boolean executed = false;
+
+    private boolean rollbacked = false;
+
+    private String errorMsg;
+
     private Long executeTimeMillis;
 
     protected final Logger logger = LoggerFactory.getLogger(getClass().getSimpleName());
@@ -59,6 +64,7 @@ public abstract class BasicCommand<R> implements Command<R>, ApplicationBeanAwar
         if (executed) {
             throw new RuntimeException("command: " + this.getClass().getName() + " 已经执行过,不允许重复执行!");
         }
+
         long startTime = System.currentTimeMillis();
         R r;
         try {
@@ -67,6 +73,8 @@ public abstract class BasicCommand<R> implements Command<R>, ApplicationBeanAwar
             executed = true;
             afterExecuted(r);
         } catch (Exception ex) {
+            rollbacked = true;
+            errorMsg = ex.getMessage();
             throw new RuntimeException(ex.getMessage(), ex);
         } finally {
             executeTimeMillis = System.currentTimeMillis() - startTime;
@@ -74,6 +82,10 @@ public abstract class BasicCommand<R> implements Command<R>, ApplicationBeanAwar
                 logger.warn(ColorOutput.BRIGHT_RED("警告：{} 耗时: {} (ms)"), this.getClass().getSimpleName(), executeTimeMillis);
             } else {
                 logger.debug("{} 耗时: {} (ms)", this.getClass().getSimpleName(), executeTimeMillis);
+            }
+
+            if(rollbacked){
+                rollback(errorMsg);
             }
         }
         return r;
@@ -91,6 +103,14 @@ public abstract class BasicCommand<R> implements Command<R>, ApplicationBeanAwar
      */
     protected void afterExecuted(R result) throws Exception {
         /** no op */
+    }
+
+    /**
+     * 异常执行
+     * @throws Exception
+     */
+    protected void rollback(String errorMsg) {
+
     }
 
     /**
