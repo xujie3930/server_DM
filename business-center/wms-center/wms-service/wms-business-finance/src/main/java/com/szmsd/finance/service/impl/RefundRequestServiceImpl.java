@@ -4,9 +4,7 @@ import cn.hutool.core.date.StopWatch;
 import cn.hutool.core.thread.NamedThreadFactory;
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.event.SyncReadListener;
-import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.szmsd.bas.api.domain.BasSub;
@@ -21,15 +19,12 @@ import com.szmsd.delivery.api.feign.DelOutboundFeignService;
 import com.szmsd.finance.compont.ConfigData;
 import com.szmsd.finance.compont.IRemoteApi;
 import com.szmsd.finance.config.FileVerifyUtil;
-import com.szmsd.finance.domain.AccountSerialBill;
 import com.szmsd.finance.domain.BasRefundRequest;
 import com.szmsd.finance.domain.FssRefundRequest;
 import com.szmsd.finance.dto.*;
 import com.szmsd.finance.enums.BillEnum;
-import com.szmsd.finance.enums.PrcStateEnum;
 import com.szmsd.finance.enums.RefundProcessEnum;
 import com.szmsd.finance.enums.RefundStatusEnum;
-import com.szmsd.finance.mapper.AccountSerialBillMapper;
 import com.szmsd.finance.mapper.BasRefundRequestMapper;
 import com.szmsd.finance.mapper.RefundRequestMapper;
 import com.szmsd.finance.service.IAccountBalanceService;
@@ -84,9 +79,6 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
     @Autowired
     private BasRefundRequestMapper basRefundRequestMapper;
 
-    @Autowired
-    private AccountSerialBillMapper accountSerialBillMapper;
-
     @Override
     @DataScope(value = "cus_code")
     public List<RefundRequestListVO> selectRequestList(RefundRequestQueryDTO queryDTO) {
@@ -108,7 +100,6 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
         List<RefundRequestDTO> refundRequestList = addDTO.getRefundRequestList();
         return this.insertBatchRefundRequest(refundRequestList);
     }
-
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -502,16 +493,15 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
         }
         log.info("审核通过-进行相应的越扣减 {}");
 
+
         fssRefundRequests.forEach(x->{
           List<Map> list =baseMapper.selectOutbounds(x.getOrderNo());
-          log.info("afterApprove:{}", JSON.toJSONString(list));
           if (list.size()>0){
-              Map map = list.get(0);
-              if (map.get("trackingNo") != null){
-                  x.setTrackingNo(map.get("trackingNo").toString());
+              if (String.valueOf(list.get(0).get("trackingNo"))!=null&&!String.valueOf(list.get(0).get("trackingNo")).equals("")){
+                  x.setTrackingNo(String.valueOf(list.get(0).get("trackingNo")));
               }
-              if (map.get("shipmentRule") != null){
-                  x.setShipmentRule(map.get("shipmentRule").toString());
+              if (String.valueOf(list.get(0).get("shipmentRule"))!=null&&!String.valueOf(list.get(0).get("shipmentRule")).equals("")){
+                  x.setShipmentRule(String.valueOf(list.get(0).get("shipmentRule")));
               }
               if (String.valueOf(list.get(0).get("calcWeight"))!=null&&!String.valueOf(list.get(0).get("calcWeight")).equals("")){
                   x.setCalcWeight((BigDecimal) list.get(0).get("calcWeight"));
@@ -631,13 +621,9 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
         accountSerialBillDTO.setShipmentRule(x.getShipmentRule());
         accountSerialBillDTO.setNote(x.getNoteAppended());
         accountSerialBillDTO.setChargeType(x.getFeeCategoryName());
-        accountSerialBillDTO.setPrcState(x.getPrcState());
-        accountSerialBillDTO.setGrade(x.getGradeName());
         accountSerialBillList.add(accountSerialBillDTO);
         custPayDTO.setSerialBillInfoList(accountSerialBillList);
         custPayDTO.setRemark(x.getRemark());
-        custPayDTO.setSerialNumber(x.getProcessNo());
-
         return custPayDTO;
     }
 
@@ -672,14 +658,6 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
 
         if(CollectionUtils.isEmpty(refundRequestDTOS)){
             return R.failed("参数异常");
-        }
-
-        List<Long> accountSerialBillIds = refundRequestDTOS.stream().map(RefundRequestDTO::getAccountSerialBillId).collect(Collectors.toList());
-
-        if(CollectionUtils.isNotEmpty(accountSerialBillIds)){
-            LambdaUpdateWrapper<AccountSerialBill> update = Wrappers.lambdaUpdate();
-            update.set(AccountSerialBill::getPrcState, PrcStateEnum.SECOND.getCode()).in(AccountSerialBill::getId, accountSerialBillIds);
-            accountSerialBillMapper.update(null,update);
         }
 
         int add = this.insertBatchRefundRequest(refundRequestDTOS);
