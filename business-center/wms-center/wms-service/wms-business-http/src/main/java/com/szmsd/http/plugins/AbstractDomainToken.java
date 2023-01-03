@@ -38,6 +38,7 @@ public abstract class AbstractDomainToken implements DomainToken {
         }
         // 上锁，进行阻塞
         String lockKey = applicationName + ":DomainToken:getTokenValue:" + this.domainTokenValue.getDomainToken();
+        logger.info("lockKey:{}", lockKey);
         RLock lock = this.redissonClient.getLock(lockKey);
         try {
             // 锁超时60秒
