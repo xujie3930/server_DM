@@ -19,11 +19,13 @@ import com.szmsd.delivery.api.feign.DelOutboundFeignService;
 import com.szmsd.finance.compont.ConfigData;
 import com.szmsd.finance.compont.IRemoteApi;
 import com.szmsd.finance.config.FileVerifyUtil;
+import com.szmsd.finance.domain.BasRefundRequest;
 import com.szmsd.finance.domain.FssRefundRequest;
 import com.szmsd.finance.dto.*;
 import com.szmsd.finance.enums.BillEnum;
 import com.szmsd.finance.enums.RefundProcessEnum;
 import com.szmsd.finance.enums.RefundStatusEnum;
+import com.szmsd.finance.mapper.BasRefundRequestMapper;
 import com.szmsd.finance.mapper.RefundRequestMapper;
 import com.szmsd.finance.service.IAccountBalanceService;
 import com.szmsd.finance.service.IRefundRequestService;
@@ -38,6 +40,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -73,6 +76,9 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
     @Resource
     private IAccountBalanceService accountBalanceService;
 
+    @Autowired
+    private BasRefundRequestMapper basRefundRequestMapper;
+
     @Override
     @DataScope(value = "cus_code")
     public List<RefundRequestListVO> selectRequestList(RefundRequestQueryDTO queryDTO) {
@@ -94,7 +100,6 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
         List<RefundRequestDTO> refundRequestList = addDTO.getRefundRequestList();
         return this.insertBatchRefundRequest(refundRequestList);
     }
-
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -131,10 +136,15 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
         }).collect(Collectors.toList());
         int a=this.saveBatch(collect) ? addList.size() : 0;
         List<String> ids=collect.stream().map(x->String.valueOf(x.getId())).collect(Collectors.toList());
-        RefundReviewDTO refundReviewDTO=new RefundReviewDTO();
-        refundReviewDTO.setIdList(ids);
-        refundReviewDTO.setStatus(RefundStatusEnum.valueOf("COMPLETE"));
-        approve(refundReviewDTO);
+        BasRefundRequest basRefundRequest=new BasRefundRequest();
+        ids.forEach(x->{
+            basRefundRequest.setFssRefundId(Integer.parseInt(x));
+            basRefundRequestMapper.insertSelective(basRefundRequest);
+        });
+//        RefundReviewDTO refundReviewDTO=new RefundReviewDTO();
+//        refundReviewDTO.setIdList(ids);
+//        refundReviewDTO.setStatus(RefundStatusEnum.valueOf("COMPLETE"));
+//        approve(refundReviewDTO);
         return a;
     }
 
@@ -158,6 +168,7 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
                 .in(FssRefundRequest::getAuditStatus, RefundStatusEnum.BRING_INTO_COURT.getStatus(), RefundStatusEnum.INITIAL.getStatus()));
     }
 
+    //导入自动审核
     @Override
 //    @Transactional(rollbackFor = Exception.class)
     public int importByTemplate(MultipartFile file) {
@@ -185,8 +196,7 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
                     String errorMsg = "";
                     try {
                             handleInsertData(refundRequestDTOS, true);
-                            //导入先用添加的这个，到时候要上在切换成自动审核的
-                        this.insertBatchRefundRequest(refundRequestDTOS);
+                        this.insertBatchRefundRequestimport(refundRequestDTOS);
                     } catch (Exception e) {
                         e.printStackTrace();
                         errorMsg = e.getMessage();
@@ -226,6 +236,75 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
         }
         return 1;
 
+    }
+
+
+    //导入
+    @Override
+    public int importByTemplateus(MultipartFile file) {
+        ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(8, 16, 60, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1000), new NamedThreadFactory("【RefundImport】==", false), new ThreadPoolExecutor.CallerRunsPolicy());
+        try (InputStream inputStream = file.getInputStream()) {
+            List<RefundRequestDTO> basPackingAddList = EasyExcel.read(inputStream, RefundRequestDTO.class, new SyncReadListener()).sheet().doReadSync();
+            int count = 500;
+            int size = basPackingAddList.size();
+            int segments = size / count;
+            segments = size % count == 0 ? segments : segments + 1;
+            CountDownLatch countDownLatch = new CountDownLatch(segments);
+            List<Future<String>> futures = new ArrayList<>();
+
+            for (int i = 0; i < segments; i++) {
+                List<RefundRequestDTO> refundRequestDTOS;
+                if (i == segments - 1) {
+                    refundRequestDTOS = basPackingAddList.subList(count * i, size);
+                } else {
+                    refundRequestDTOS = basPackingAddList.subList(count * i, count * (i + 1));
+                }
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                Future<String> submit = threadPoolExecutor.submit(() -> {
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    LoginUser loginUser = SecurityUtils.getLoginUser();
+                    String errorMsg = "";
+                    try {
+                        handleInsertData(refundRequestDTOS, true);
+                        this.insertBatchRefundRequest(refundRequestDTOS);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        errorMsg = e.getMessage();
+                        log.error("=================导入失败=================：\n{} \n", JSONObject.toJSONString(refundRequestDTOS), e);
+                    } finally {
+                        countDownLatch.countDown();
+                    }
+                    return errorMsg;
+                });
+                futures.add(submit);
+            }
+
+
+            countDownLatch.await();
+            StringBuilder stringBuilder = new StringBuilder();
+            futures.forEach(errorMsg -> {
+                String s = "";
+                try {
+                    s = errorMsg.get();
+                } catch (InterruptedException | ExecutionException e) {
+                    e.printStackTrace();
+                    log.error("执行等待异常：", e);
+                    s = e.getMessage();
+                }
+                stringBuilder.append(s);
+            });
+            AssertUtil.isTrue(StringUtils.isBlank(stringBuilder.toString()), stringBuilder.toString());
+            return 1;
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            log.error("执行等待异常22：", e);
+        } finally {
+            threadPoolExecutor.shutdown();
+        }
+        return 1;
     }
 
     @Resource
@@ -336,7 +415,13 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
                 List<String> ids = refundReviewDTO.getIdList();
                 RefundStatusEnum status = refundReviewDTO.getStatus();
                 String reviewRemark = refundReviewDTO.getReviewRemark();
-                LoginUser loginUser = SecurityUtils.getLoginUser();
+                if (!refundReviewDTO.getReviewRemark().equals("系统自动审核")){
+
+
+                    LoginUser loginUser = SecurityUtils.getLoginUser();
+                //因为自动审核的原因，这个需要放在前面
+                List<FssRefundRequest> fssRefundRequests = baseMapper.selectList(Wrappers.<FssRefundRequest>lambdaQuery().in(FssRefundRequest::getId, ids).eq(FssRefundRequest::getAuditStatus,1));
+
                 int update = baseMapper.update(null, Wrappers.<FssRefundRequest>lambdaUpdate()
                         .in(FssRefundRequest::getId, ids)
                         .eq(FssRefundRequest::getAuditStatus, RefundStatusEnum.BRING_INTO_COURT.getStatus())
@@ -348,10 +433,31 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
                         .set(FssRefundRequest::getReviewerCode, loginUser.getSellerCode())
                         .set(FssRefundRequest::getReviewerName, loginUser.getUsername())
                 );
-                AssertUtil.isTrue(update == ids.size(), "审核异常!");
-                //审核完成触发扣减
-                this.afterApprove(status, ids);
-                return update;
+                    AssertUtil.isTrue(update == ids.size(), "审核异常!");
+                    //审核完成触发扣减
+                    this.afterApprove(status, fssRefundRequests);
+                    return update;
+                }else if (refundReviewDTO.getReviewRemark().equals("系统自动审核")){
+                    //因为自动审核的原因，这个需要放在前面
+                    List<FssRefundRequest> fssRefundRequests = baseMapper.selectList(Wrappers.<FssRefundRequest>lambdaQuery().in(FssRefundRequest::getId, ids).eq(FssRefundRequest::getAuditStatus,1));
+
+                    int update = baseMapper.update(null, Wrappers.<FssRefundRequest>lambdaUpdate()
+                            .in(FssRefundRequest::getId, ids)
+                            .eq(FssRefundRequest::getAuditStatus, RefundStatusEnum.BRING_INTO_COURT.getStatus())
+
+                            .set(FssRefundRequest::getReviewRemark, reviewRemark)
+                            .set(FssRefundRequest::getAuditStatus, status.getStatus())
+                            .set(FssRefundRequest::getAuditTime, LocalDateTime.now())
+                            .set(FssRefundRequest::getReviewerId, 1)
+                            .set(FssRefundRequest::getReviewerCode, "admin")
+                            .set(FssRefundRequest::getReviewerName, "系统")
+                    );
+                    AssertUtil.isTrue(update == ids.size(), "审核异常!");
+                    //审核完成触发扣减
+                    this.afterApprove(status, fssRefundRequests);
+                    return update;
+                }
+
             } else {
                 log.error("退费业务处理超时,请稍候重试{}", JSONObject.toJSONString(refundReviewDTO));
                 throw new RuntimeException("退费业务处理超时,请稍候重试");
@@ -367,6 +473,7 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
             }
             log.info("【退费】RefundPayFactory --结束--");
         }
+        return 0;
     }
 
     /**
@@ -380,12 +487,13 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
      * @param idList 审核id集合
      */
     @Transactional(rollbackFor = Exception.class)
-    public void afterApprove(RefundStatusEnum status, List<String> idList) {
+    public void afterApprove(RefundStatusEnum status,  List<FssRefundRequest> fssRefundRequests) {
         if (RefundStatusEnum.COMPLETE != status){
             return;
         }
-        log.info("审核通过-进行相应的越扣减 {}", idList);
-        List<FssRefundRequest> fssRefundRequests = baseMapper.selectList(Wrappers.<FssRefundRequest>lambdaQuery().in(FssRefundRequest::getId, idList));
+        log.info("审核通过-进行相应的越扣减 {}");
+
+
         fssRefundRequests.forEach(x->{
           List<Map> list =baseMapper.selectOutbounds(x.getOrderNo());
           if (list.size()>0){
@@ -516,7 +624,6 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
         accountSerialBillList.add(accountSerialBillDTO);
         custPayDTO.setSerialBillInfoList(accountSerialBillList);
         custPayDTO.setRemark(x.getRemark());
-        custPayDTO.setSerialNumber(x.getProcessNo());
         return custPayDTO;
     }
 
@@ -576,7 +683,9 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, F
         }
 
         try {
-            this.afterApprove(RefundStatusEnum.COMPLETE, ids);
+            //因为自动审核的原因，这个需要放在前面
+            //List<FssRefundRequest> fssRefundRequests = baseMapper.selectList(Wrappers.<FssRefundRequest>lambdaQuery().in(FssRefundRequest::getId, ids).eq(FssRefundRequest::getAuditStatus,1));
+            this.afterApprove(RefundStatusEnum.COMPLETE, fssRefundRequests);
         }catch (Exception e){
             throw new RuntimeException("审核退费失败:"+e.getMessage());
         }
