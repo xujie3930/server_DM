@@ -1,0 +1,75 @@
+{
+    "job": {
+        "content": [
+            {
+                "reader": {
+                    "name": "mysqlreader",
+                    "parameter": {
+                        "username": "jie.xu",
+                        "password": "RSEULm4MD4kG",
+                        "column": [
+                            "id",
+                            "exchange_from_code",
+                            "exchange_to_code",
+                            "exchange_from",
+                            "exchange_to",
+                            "rate",
+                            "expire_time",
+                            "create_by_name",
+                            "create_time",
+                            "update_by_name",
+                            "update_time",
+                            "create_by",
+                            "update_by",
+                            "remark"
+                        ],
+                        "connection": [
+                            {
+                                "jdbcUrl": ["jdbc:mysql://121.201.18.41:3306/ck1_wms?useSSL=false&characterEncoding=utf-8"],
+                                "table": ["fss_exchange_rate"]
+                            }
+                        ],
+                        "where": ""
+                    }
+                },
+                "writer": {
+                    "name": "mysqlwriter",
+                    "parameter": {
+                        "username": "jie.xu",
+                        "password": "RSEULm4MD4kG",
+                        "writeMode": "replace",
+                        "column": [
+                            "id",
+                            "exchange_from_code",
+                            "exchange_to_code",
+                            "exchange_from",
+                            "exchange_to",
+                            "rate",
+                            "expire_time",
+                            "create_by_name",
+                            "create_time",
+                            "update_by_name",
+                            "update_time",
+                            "create_by",
+                            "update_by",
+                            "remark"
+                        ],
+                        "session": [],
+                        "preSql": [],
+                        "connection": [
+                            {
+                                "jdbcUrl": "jdbc:mysql://13.36.216.37:3306/ck1_wms?useSSL=false&characterEncoding=utf-8",
+                                "table": ["fss_exchange_rate"]
+                            }
+                        ]
+                    }
+                }
+            }
+        ],
+        "setting": {
+            "speed": {
+                "channel": 1
+            }
+        }
+    }
+}
