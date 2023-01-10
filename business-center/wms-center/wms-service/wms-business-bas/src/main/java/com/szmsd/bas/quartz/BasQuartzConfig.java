@@ -48,7 +48,7 @@ public class BasQuartzConfig {
         //0/3 * * * * ? 3秒测试 "0 0 12 * * ?"，"0 */50 * * * ?" 五十分钟一次
         return TriggerBuilder.newTrigger().forJob(InitRedisCacheJob())
                 .withIdentity("InitRedisCacheJob")
-                .withSchedule(CronScheduleBuilder.cronSchedule("0 */10 * * * ?"))
+                .withSchedule(CronScheduleBuilder.cronSchedule("0 */50 * * * ?"))
                 .build();
     }
 
