@@ -109,7 +109,7 @@ public class ThreadPoolExecutorConfiguration {
     public ThreadPoolExecutor threadPoolExecutorDelOutboundReviewed() {
         // 核心线程数量调大4倍，观察处理能力
         int corePoolSize = threadpoolexecutor * 4;
-        int maximumPoolSize = threadpoolexecutor * 4 * 2;
+        int maximumPoolSize = threadpoolexecutor * 4 * 4;
         // 队列
         LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>(2048);
         // 核心和最大一致
