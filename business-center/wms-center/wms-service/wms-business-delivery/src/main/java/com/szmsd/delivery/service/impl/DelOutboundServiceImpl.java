@@ -14,6 +14,10 @@ import com.baomidou.mybatisplus.core.toolkit.Constants;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.common.collect.Lists;
+import com.itextpdf.text.Document;
+import com.itextpdf.text.pdf.PdfCopy;
+import com.itextpdf.text.pdf.PdfImportedPage;
+import com.itextpdf.text.pdf.PdfReader;
 import com.szmsd.bas.api.client.BasSubClientService;
 import com.szmsd.bas.api.domain.BasAttachment;
 import com.szmsd.bas.api.domain.BasEmployees;
@@ -48,6 +52,7 @@ import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.common.core.utils.bean.BeanUtils;
 import com.szmsd.common.security.utils.SecurityUtils;
 import com.szmsd.delivery.config.AsyncThreadObject;
+import com.szmsd.delivery.convert.DelOutboundChargeConvert;
 import com.szmsd.delivery.domain.*;
 import com.szmsd.delivery.dto.*;
 import com.szmsd.delivery.enums.*;
@@ -211,6 +216,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
     @Autowired
     private BasTrackingPushMapper basTrackingPushMapper;
+
+    @Autowired
+    private OfflineDeliveryImportMapper offlineDeliveryImportMapper;
 
     @Autowired
     private RedissonClient redissonClient;
@@ -608,6 +616,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 queryDto.setCustomCode(cusCode);
             }
         }
+
+        logger.info("查询出库单模块列表条件：{}",JSON.toJSONString(queryDto));
+
         DelOutboundServiceImplUtil.handlerQueryWrapper(queryWrapper, queryDto);
 
         List<DelOutboundListVO> delOutboundListVOS = baseMapper.pageList(queryWrapper);
@@ -1028,6 +1039,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             && !DelOutboundOrderTypeEnum.BULK_ORDER.getCode().equals(delOutbound.getOrderType())
             ) {
                 AttachmentDTO attachmentDTO = AttachmentDTO.builder().businessNo(orderNo).businessItemNo(null).fileList(dto.getDocumentsFiles()).attachmentTypeEnum(AttachmentTypeEnum.DEL_OUTBOUND_DOCUMENT).build();
+
+                logger.info(">>>>>[创建出库单]3.7 保存附件信息参数:{}",JSON.toJSONString(attachmentDTO));
+
                 this.remoteAttachmentService.saveAndUpdate(attachmentDTO);
             }
             logger.info(">>>>>[创建出库单]3.7 保存附件信息，{}", timer.intervalRestart());
@@ -2554,6 +2568,99 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         return null;
     }
 
+    @Override
+    public R labelBatch(HttpServletResponse response, DelOutboundLabelDto dto) {
+
+        List<String> orderNos = dto.getOrderNos();
+
+        if(CollectionUtils.isEmpty(orderNos)){
+            return R.failed("订单号不允许为空");
+        }
+
+        if(orderNos.size() > 100){
+            return R.failed("批量不允许超过100条订单");
+        }
+
+        List<DelOutbound> delOutbounds = baseMapper.selectList(Wrappers.<DelOutbound>query().lambda().in(DelOutbound::getOrderNo,orderNos));
+        if (CollectionUtils.isEmpty(delOutbounds)) {
+            return R.failed("无法获取订单信息");
+        }
+
+        if(delOutbounds.size() == 1){
+
+            DelOutbound delOutbound = delOutbounds.get(0);
+            Long id = delOutbound.getId();
+            dto.setId(id);
+
+            return label(response,dto);
+        }
+
+        Document doc = new Document();
+
+        try {
+            response.setContentType("application/pdf;charset=utf-8");
+            response.setHeader("Content-Disposition", "attachment;filename=labelBatch.pdf");
+            ServletOutputStream outputStream = response.getOutputStream();
+            PdfCopy pdfCopy = new PdfCopy(doc, outputStream);
+            doc.open();
+            for(int i = 0;i<delOutbounds.size();i++) {
+
+                DelOutbound delOutbound = delOutbounds.get(i);
+
+                if("0".equals(dto.getType())) {
+                    String pathname = DelOutboundServiceImplUtil.getPackageTransferLabelFilePath(delOutbound) + "/" + delOutbound.getOrderNo() + ".pdf";
+                    File labelFile = new File(pathname);
+                    if (!labelFile.exists()) {
+                        String orderNo = delOutbound.getOrderNo();
+                        // 查询地址信息
+                        DelOutboundAddress delOutboundAddress = this.delOutboundAddressService.getByOrderNo(orderNo);
+
+                        List<DelOutboundDetail> delOutboundDetailList = this.delOutboundDetailService.list(Wrappers.<DelOutboundDetail>query().lambda().eq(DelOutboundDetail::getOrderNo, orderNo));
+                        boolean isTh = false;
+                        for (DelOutboundDetail detail : delOutboundDetailList) {
+                            String productAttribute = detail.getProductAttribute();
+                            if (!"GeneralCargo".equals(productAttribute)) {
+                                isTh = true;
+                            }
+                        }
+
+                        // 查询SKU信息
+                        List<String> nos = new ArrayList<>();
+                        nos.add(orderNo);
+                        Map<String, String> skuLabelMap = this.delOutboundDetailService.queryDetailsLabelByNos(nos);
+                        String skuLabel = skuLabelMap.get(orderNo);
+                        ByteArrayOutputStream byteArrayOutputStream = DelOutboundServiceImplUtil.renderPackageTransfer(isTh,delOutbound, delOutboundAddress, skuLabel);
+                        byte[] fb = null;
+                        FileUtils.writeByteArrayToFile(labelFile, fb = byteArrayOutputStream.toByteArray(), false);
+
+                        if(fb == null){
+                            continue;
+                        }
+
+                        PdfImportedPage impage = pdfCopy.getImportedPage(new PdfReader(fb),1);
+                        pdfCopy.addPage(impage);
+                    }else{
+
+                        byte[] fb = FileUtils.readFileToByteArray(labelFile);
+
+                        PdfImportedPage impage = pdfCopy.getImportedPage(new PdfReader(fb),1);
+                        pdfCopy.addPage(impage);
+
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            //throw new RuntimeException(e);
+            logger.error("labelBatch:{}",e.getMessage());
+            return R.failed(e.getMessage());
+        }finally {
+            doc.close();
+        }
+
+        return null;
+    }
+
 
     @Override
     public void labelSelfPick(HttpServletResponse response, DelOutboundLabelDto dto) {
@@ -3025,6 +3132,34 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         } finally {
         }
     }
+
+    @Override
+    public List<DelOutboundChargeData> findDelboundCharges(List<String> orderNoList) {
+
+        if(CollectionUtils.isEmpty(orderNoList)){
+            return new ArrayList<>();
+        }
+
+        List<DelOutbound> delOutbounds = baseMapper.selectList(Wrappers.<DelOutbound>query().lambda().in(DelOutbound::getOrderNo,orderNoList));
+
+        List<DelOutboundCharge> delOutboundCharges = delOutboundChargeService.list(Wrappers.<DelOutboundCharge>query().lambda().in(DelOutboundCharge::getOrderNo,orderNoList).eq(DelOutboundCharge::getDelFlag,0));
+
+        Map<String,List<DelOutboundCharge>> deloutboundChargeMap = delOutboundCharges.stream().collect(Collectors.groupingBy(DelOutboundCharge::getOrderNo));
+
+        List<DelOutboundChargeData> delOutboundChargeData = DelOutboundChargeConvert.INSTANCE.toDelOutboundChargeList(delOutbounds);
+
+        for(DelOutboundChargeData data : delOutboundChargeData){
+            String orderNo = data.getOrderNo();
+            List<DelOutboundCharge> delOutboundChargesList = deloutboundChargeMap.get(orderNo);
+            if(CollectionUtils.isNotEmpty(delOutboundChargesList)){
+                data.setDelOutboundCharges(delOutboundChargesList);
+            }
+        }
+
+        return delOutboundChargeData;
+    }
+
+
 
     public void bringThridPartyAsync(DelOutbound delOutbound) {
 
@@ -3769,6 +3904,17 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                             throw new CommonException("500", "[" + errorCode + "]" + errorMessage);
                         }
                     }
+
+                    if(StringUtils.isNotEmpty(trackingNo) && successNumber == 1) {
+
+                        offlineDeliveryImportMapper.update(null, Wrappers.<OfflineDeliveryImport>lambdaUpdate()
+                                .set(OfflineDeliveryImport::getDealStatus, OfflineDeliveryStateEnum.PUSH_TY.getCode())
+                                .set(OfflineDeliveryImport::getUpdateBy, SecurityUtils.getUsername())
+                                .set(OfflineDeliveryImport::getUpdateTime, new Date())
+                                .eq(OfflineDeliveryImport::getTrackingNo, trackingNo)
+                        );
+                    }
+
                 }
 
             } catch (Exception e) {

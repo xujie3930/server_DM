@@ -455,6 +455,7 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             updateDelOutbound.setPrcTerminalCarrier(delOutbound.getPrcTerminalCarrier());
             updateDelOutbound.setAmazonReferenceId(data.getAmazonLogisticsRouteId());
             updateDelOutbound.setGrade(data.getGrade());
+            updateDelOutbound.setZoneName(data.getZoneName());
 
             if(basProductServiceR != null && basProductServiceR.getCode() == 200){
 
@@ -929,6 +930,9 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
                 DelOutbound delOutboundUpd = new DelOutbound();
                 delOutboundUpd.setId(delOutbound.getId());
                 delOutboundUpd.setReferenceNumber(delOutbound.getReferenceNumber());
+                delOutboundUpd.setTrackingNo(delOutbound.getTrackingNo());
+                delOutboundUpd.setShipmentOrderNumber(delOutbound.getShipmentOrderNumber());
+                delOutboundUpd.setShipmentOrderLabelUrl(delOutbound.getShipmentOrderLabelUrl());
                 iDelOutboundService.updateById(delOutboundUpd);
 
                 logger.info(">>>>>[创建出库单{}]创建承运商 耗时{}", delOutbound.getOrderNo(), stopWatch.getLastTaskInfo().getTimeMillis());
@@ -1276,8 +1280,17 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
         public void handle(ApplicationContext context) {
             DelOutboundWrapperContext delOutboundWrapperContext = (DelOutboundWrapperContext) context;
             DelOutbound delOutbound = delOutboundWrapperContext.getDelOutbound();
+            IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
             String refOrderNo = "";
             logger.info("{}-推单到WMS：{}", delOutbound.getOrderNo(), JSONObject.toJSONString(delOutbound));
+
+            DelOutbound delOutboundCheck =delOutboundService.getByOrderNo(delOutbound.getOrderNo());
+
+            if(delOutboundCheck != null && DelOutboundStateEnum.CANCELLED.getCode().equals(delOutboundCheck.getState())){
+                logger.info("{}-推单到WMS：{}", delOutbound.getOrderNo(),"订单已取消，不推送");
+                return;
+            }
+
             // 推单到WMS
             // 重派出库单不扣库存
             if (!DelOutboundConstant.REASSIGN_TYPE_Y.equals(delOutbound.getReassignType())) {
@@ -1296,7 +1309,6 @@ public enum BringVerifyEnum implements ApplicationState, ApplicationRegister {
             }
 
             // 保存信息
-            IDelOutboundService delOutboundService = SpringUtils.getBean(IDelOutboundService.class);
             DelOutbound updateDelOutbound = new DelOutbound();
             updateDelOutbound.setId(delOutbound.getId());
             // 推单WMS

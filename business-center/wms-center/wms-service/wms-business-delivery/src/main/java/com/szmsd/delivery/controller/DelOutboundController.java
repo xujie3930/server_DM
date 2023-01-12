@@ -774,6 +774,14 @@ public class DelOutboundController extends BaseController {
         return this.delOutboundService.label(response, dto);
     }
 
+    @PreAuthorize("@ss.hasPermi('DelOutbound:DelOutbound:label')")
+    @PostMapping("/label-batch")
+    @ApiOperation(value = "出库管理 - 批量获取标签", position = 1300)
+    @ApiImplicitParam(name = "dto", value = "出库单", dataType = "DelOutboundLabelDto")
+    public R labelBatch(HttpServletResponse response, @RequestBody @Validated DelOutboundLabelDto dto) {
+        return this.delOutboundService.labelBatch(response, dto);
+    }
+
     @PreAuthorize("@ss.hasPermi('DelOutbound:DelOutbound:SelfPick')")
     @PostMapping("/labelSelfPick")
     @ApiOperation(value = "出库管理 - 获取自提标签", position = 1300)
@@ -1591,6 +1599,13 @@ public class DelOutboundController extends BaseController {
     @ApiImplicitParam(name = "dto", value = "出库单", dataType = "DelOutboundDto")
     public R<Integer> boxStatus(@RequestBody DelOutboundBoxStatusDto dto) {
         return R.ok(delOutboundService.boxStatus(dto));
+    }
+
+    @PostMapping("/findDelboundCharges")
+    @ApiOperation(value = "出库管理-查询订单和费用明细", position = 500)
+    public R findDelboundCharges(@RequestBody List<String> orderNoList) {
+        List<DelOutboundChargeData> delOutboundChargeData = delOutboundService.findDelboundCharges(orderNoList);
+        return R.ok(delOutboundChargeData);
     }
 
 }
