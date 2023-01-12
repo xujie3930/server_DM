@@ -19,6 +19,7 @@ import com.szmsd.finance.service.IAccountSerialBillService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -180,6 +181,7 @@ public class RefundPayFactory extends AbstractPayFactory {
             log.info("save accountSerialBill :{}", JSON.toJSONString(accountSerialBill));
             accountSerialBillService.save(accountSerialBill);
         });
+
     }
 
     private String createSerialNumber(){

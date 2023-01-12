@@ -125,6 +125,7 @@ public class DeliveryController {
             this.setAddressCountry(dto);
         }
         List<DelOutboundAddResponse> responseList = delOutboundClientService.add(dtoList);
+        log.info("responseList:{}",JSON.toJSONString(responseList));
         return R.ok(BeanMapperUtil.mapList(responseList, DelOutboundPackageTransferResponse.class));
     }
 
@@ -571,8 +572,9 @@ public class DeliveryController {
         requestList.forEach(x -> {
             if (StringUtils.isNotBlank(x.getFile())) {
                 byte[] bytes = Base64CheckUtils.checkAndConvert(x.getFile());
-                MultipartFile multipartFile = new MockMultipartFile("面单文件", "", "pdf", bytes);
+                MultipartFile multipartFile = new MockMultipartFile("面单文件", ".pdf", "pdf", bytes);
                 MultipartFile[] multipartFiles = new MultipartFile[]{multipartFile};
+                log.info("remoteAttachmentService.uploadAttachment 参数：{}",JSON.toJSONString(multipartFiles[0].getContentType()));
                 R<List<BasAttachmentDataDTO>> listR = this.remoteAttachmentService.uploadAttachment(multipartFiles, AttachmentTypeEnum.DEL_OUTBOUND_DOCUMENT, "", "");
                 List<BasAttachmentDataDTO> attachmentDataDTOList = R.getDataAndException(listR);
                 if (CollectionUtils.isNotEmpty(attachmentDataDTOList)) {
