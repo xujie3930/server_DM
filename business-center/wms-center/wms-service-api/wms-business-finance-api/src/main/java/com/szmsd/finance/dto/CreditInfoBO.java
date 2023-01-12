@@ -112,7 +112,7 @@ public class CreditInfoBO {
     protected boolean changeCreditAmount(BigDecimal amount, boolean updateCredit) {
         CreditConstant.CreditTypeEnum creditTypeEnum = CreditConstant.CreditTypeEnum.getThisByTypeCode(this.creditType);
         BigDecimal canUseAmount = this.creditLine.subtract(this.creditUseAmount);
-        log.info("creditTypeEnum:{}",creditTypeEnum);
+        log.info("creditTypeEnum:{},amount：{}，canUseAmount：{},creditLine:{},creditUseAmount:{}", creditTypeEnum, amount, canUseAmount, this.creditLine, this.creditUseAmount);
         switch (creditTypeEnum) {
             case QUOTA:
                 log.info("creditTypeEnum:canUseAmount:{},amount:{},updateCredit:{}",canUseAmount,amount,updateCredit);
