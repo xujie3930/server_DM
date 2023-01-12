@@ -123,7 +123,7 @@ public class OperationDTO implements Serializable {
                 int indexThis = index.getAndIncrement();
                 //判断是否相交
                 //  max(A.left,B.left)<=min(A.right,B.right)
-                AssertUtil.isTrue(x1.getMaximumWeight().min(x2.getMaximumWeight()).compareTo(x1.getMinimumWeight().max(x2.getMinimumWeight())) < 0, String.format("第%s条规则与第%s条规则冲突", indexThis, indexThis + 1));
+                AssertUtil.isTrue(x1.getMaximumWeight().min(x2.getMaximumWeight()).compareTo(x1.getMinimumWeight().max(x2.getMinimumWeight())) <= 0, String.format("第%s条规则与第%s条规则冲突", indexThis, indexThis + 1));
                 return x2;
             }).isPresent();
 
