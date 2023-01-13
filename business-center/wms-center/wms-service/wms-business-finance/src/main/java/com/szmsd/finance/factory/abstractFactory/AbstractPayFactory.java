@@ -183,10 +183,16 @@ public abstract class AbstractPayFactory {
                 .stream().map(value -> new AccountSerialBillDTO(dto, value)).collect(Collectors.toList());
 
         List<AccountSerialBillDTO> distanctList = collect.stream().filter(x -> StringUtils.isNotBlank(x.getChargeCategory()) && "物流基础费".equals(x.getChargeCategory()) && BillEnum.PayMethod.BALANCE_DEDUCTIONS.equals(x.getPayMethod())).collect(Collectors.toList());
-        if (CollectionUtils.isNotEmpty(distanctList) && distanctList.size() > 1) {
-            AccountSerialBillDTO accountSerialBillDTO = distanctList.get(0);
-            log.info("删除物流操作费{}", JSONObject.toJSONString(accountSerialBillDTO));
-            collect.remove(accountSerialBillDTO);
+        if (CollectionUtils.isNotEmpty(distanctList) /*&& distanctList.size() > 1*/) {
+//            AccountSerialBillDTO accountSerialBillDTO = distanctList.get(0);
+//            log.info("删除物流操作费{}", JSONObject.toJSONString(accountSerialBillDTO));
+//            collect.remove(accountSerialBillDTO);
+            //不用lambda，线上难排查问题（这块后续改成枚举）
+            for (AccountSerialBillDTO accountSerialBillDTO : collect) {
+                if ("物流基础费".equals(accountSerialBillDTO.getChargeCategory())){
+                    accountSerialBillDTO.setChargeCategory("运费");
+                }
+            }
         }
         log.info("扣减操作费删除物流操作费后保存{}", JSONObject.toJSONString(collect));
         accountSerialBillService.saveBatch(collect);
