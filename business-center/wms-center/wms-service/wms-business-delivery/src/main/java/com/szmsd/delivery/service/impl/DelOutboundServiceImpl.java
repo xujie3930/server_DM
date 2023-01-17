@@ -958,6 +958,8 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             String prefix = "CK";
             if (DelOutboundConstant.REASSIGN_TYPE_Y.equals(dto.getReassignType())) {
                 prefix = "RE" + prefix;
+                //重派单拿原先订单的重量和尺寸
+                updateField(dto, delOutbound);
             }
             long shettTime = System.currentTimeMillis();
 
@@ -1133,6 +1135,27 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
             // return response;
             // 返回错误，事务回滚
             throw e;
+        }
+    }
+
+    private void updateField(DelOutboundDto dto, DelOutbound delOutbound) {
+        List<DelOutbound> oldDels = baseMapper.selectorderNos(Arrays.asList(dto.getOldOrderNo()));
+        if (CollectionUtils.isNotEmpty(oldDels)){
+            DelOutbound oldDel = oldDels.get(0);
+            delOutbound.setLength(oldDel.getLength());
+            delOutbound.setWidth(oldDel.getWidth());
+            delOutbound.setHeight(oldDel.getHeight());
+            if (null != oldDel.getCalcWeight()) {
+                String calcWeightUnit = Optional.ofNullable(oldDel.getCalcWeightUnit()).orElse("g");
+                BigDecimal calcWeight = Optional.ofNullable(oldDel.getCalcWeight()).orElse(BigDecimal.ZERO);
+                // 统一转换成 g
+                if ("KG".equalsIgnoreCase(calcWeightUnit)) {
+                    calcWeight = calcWeight.multiply(new BigDecimal("1000"));
+                    delOutbound.setWeight(calcWeight.doubleValue());
+                } else {
+                    delOutbound.setWeight(calcWeight.doubleValue());
+                }
+            }
         }
     }
 
