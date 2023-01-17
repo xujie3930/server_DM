@@ -125,7 +125,9 @@ public class ReturnExpressAutoGeneratorDestoryFeeCmd extends BasicCommand<List<R
             String fee = "";
             for(CustPayDTO dto : dtos) {
 
+                logger.info("ReturnExpressAutoGeneratorDestoryFeeCmd feeDeductions参数:{}",JSON.toJSONString(dto));
                 R feeRs = rechargesFeignService.feeDeductions(dto);
+                logger.info("ReturnExpressAutoGeneratorDestoryFeeCmd feeDeductions返回:{}",JSON.toJSONString(feeRs));
 
                 if(feeRs == null){
                     String errorMsg = "单号："+orderNo+",扣费接口 异常";
@@ -134,7 +136,11 @@ public class ReturnExpressAutoGeneratorDestoryFeeCmd extends BasicCommand<List<R
                 }
 
                 if(feeRs.getCode() != Constants.SUCCESS){
-                    this.errorHandler(returnExpressDetail.getId(),feeRs.getMsg());
+
+                    logger.error("ReturnExpressAutoGeneratorDestoryFeeCmd 单号：{},扣费异常:{}",orderNo,feeRs.getMsg());
+
+                    String errorMsg = "单号："+orderNo+",扣费接口 异常";
+                    this.errorHandler(returnExpressDetail.getId(),errorMsg);
                     continue;
                 }
 
@@ -193,6 +199,8 @@ public class ReturnExpressAutoGeneratorDestoryFeeCmd extends BasicCommand<List<R
     }
 
     private void errorHandler(Integer id,String errorMsg){
+
+        logger.error("errorHandler:{},{}",id,errorMsg);
 
         ReturnExpressMapper expressMapper = SpringUtils.getBean(ReturnExpressMapper.class);
 
