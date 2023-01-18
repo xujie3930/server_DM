@@ -2249,7 +2249,7 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
         this.updateById(modifyDelOutbound);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @Override
     public int canceled(DelOutboundCanceledDto dto) {
         List<Long> ids = dto.getIds();
@@ -2299,6 +2299,12 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 // continue;
                 throw new CommonException("400", "操作失败，已完成的订单不能取消");
             }
+
+            if (DelOutboundStateEnum.REVIEWED_DOING.getCode().equals(outbound.getState())) {
+                // continue;
+                throw new CommonException("400", "操作失败，提神中的订单不能取消");
+            }
+
             if (DelOutboundStateEnum.CANCELLED.getCode().equals(outbound.getState())) {
                 throw new CommonException("400", "操作失败，已取消的订单不能取消");
             }
@@ -2353,9 +2359,11 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 .in(DelOutboundThirdParty::getOrderNo,orderNos)
         );
 
-        logger.info("通知WMS取消单据参数条数：{}",count);
+        logger.info("通知WMS取消单据条数：{}",count);
 
         if(count > 0) {
+
+            logger.info("WMS 已存在：{}",JSON.toJSONString(orderNos));
 
             // 通知WMS取消单据
             ShipmentCancelRequestDto shipmentCancelRequestDto = new ShipmentCancelRequestDto();
@@ -2372,7 +2380,9 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
 
                 String msg = responseVO.getMessage().trim();
 
+
                 if ("有部分单号不存在".equals(msg)) {
+
                     this.delOutboundCompletedService.add(orderNos, DelOutboundOperationTypeEnum.CANCELED.getCode());
                     // 修改单据状态为【仓库取消】
                     LambdaUpdateWrapper<DelOutbound> updateWrapper = Wrappers.lambdaUpdate();
@@ -2382,18 +2392,67 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 } else {
                     throw new CommonException("400", Utils.defaultValue(msg, "取消出库单失败2"));
                 }
+            }else{
+
+                boolean cacelFlag = this.cancellation(outboundList);
+
+                if(!cacelFlag){
+                    logger.info("取消承运商订单异常:{}",JSON.toJSONString(outboundList));
+                    return 0;
+                }
+
+                this.delOutboundCompletedService.add(orderNos, DelOutboundOperationTypeEnum.CANCELED.getCode());
+
+                // 修改单据状态为【取消】
+                LambdaUpdateWrapper<DelOutbound> updateWrapper = Wrappers.lambdaUpdate();
+                updateWrapper.set(DelOutbound::getState, DelOutboundStateEnum.CANCELLED.getCode());
+                updateWrapper.in(DelOutbound::getOrderNo, orderNos);
+                return this.baseMapper.update(null, updateWrapper);
             }
-            // 修改单据状态为【仓库取消中】
-            LambdaUpdateWrapper<DelOutbound> updateWrapper = Wrappers.lambdaUpdate();
-            updateWrapper.set(DelOutbound::getState, DelOutboundStateEnum.WHSE_CANCELING.getCode());
-            updateWrapper.in(DelOutbound::getOrderNo, orderNos);
-            return this.baseMapper.update(null, updateWrapper);
+
         }else {
-            // 修改单据状态为【取消】
+
+            logger.info("WMS 不存在：{}",JSON.toJSONString(orderNos));
+
+            boolean cacelFlag = this.cancellation(outboundList);
+
+            if(!cacelFlag){
+                logger.info("取消承运商订单异常:{}",JSON.toJSONString(outboundList));
+                return 0;
+            }
+
+            this.delOutboundCompletedService.add(orderNos, DelOutboundOperationTypeEnum.CANCELED.getCode());
+            // 修改单据状态为【仓库取消】
             LambdaUpdateWrapper<DelOutbound> updateWrapper = Wrappers.lambdaUpdate();
-            updateWrapper.set(DelOutbound::getState, DelOutboundStateEnum.WHSE_CANCELLED.getCode());
+            updateWrapper.set(DelOutbound::getState, DelOutboundStateEnum.CANCELLED.getCode());
             updateWrapper.in(DelOutbound::getOrderNo, orderNos);
             return this.baseMapper.update(null, updateWrapper);
+        }
+    }
+
+    /**
+     * 取消承运商物流订单
+     * @param outboundList
+     * @return
+     */
+    private boolean cancellation(List<DelOutbound> outboundList){
+
+        try {
+
+            for(DelOutbound delOutbound : outboundList) {
+
+                String shipmentOrderNumber = delOutbound.getShipmentOrderNumber();
+                String trackingNo = delOutbound.getTrackingNo();
+                if (StringUtils.isNotEmpty(shipmentOrderNumber) && StringUtils.isNotEmpty(trackingNo)) {
+                    String referenceNumber = delOutbound.getReferenceNumber();
+                    this.delOutboundBringVerifyService.cancellation(delOutbound.getWarehouseCode(), referenceNumber, shipmentOrderNumber, trackingNo);
+                }
+            }
+
+            return true;
+        }catch (Exception e){
+            e.printStackTrace();
+            return false;
         }
     }
 
@@ -3326,6 +3385,17 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                 responseList.add(response);
                 continue;
             }
+
+            if(DelOutboundStateEnum.AUDIT_FAILED.getCode().equals(outbound.getState())){
+
+                String exceptionMessage = outbound.getExceptionMessage();
+
+                if(StringUtils.isNotEmpty(exceptionMessage)){
+                    throw new CommonException("400", exceptionMessage);
+                }
+                throw new CommonException("400", "订单当前状态不允许获取");
+            }
+
             String pathname = null;
             byte[] fb = null;
             if(outbound.getEndTagState() != null && outbound.getEndTagState().equals(DelOutboundEndTagStateEnum.REVIEWED.getCode())){
@@ -3363,7 +3433,14 @@ public class DelOutboundServiceImpl extends ServiceImpl<DelOutboundMapper, DelOu
                         || DelOutboundStateEnum.WHSE_PROCESSING.getCode().equals(outbound.getState())
                         || DelOutboundStateEnum.WHSE_COMPLETED.getCode().equals(outbound.getState())
                         || DelOutboundStateEnum.NOTIFY_WHSE_PROCESSING.getCode().equals(outbound.getState())
+                        || DelOutboundStateEnum.AUDIT_FAILED.getCode().equals(outbound.getState())
                 )) {
+
+                    String exceptionMessage = outbound.getExceptionMessage();
+
+                    if(StringUtils.isNotEmpty(exceptionMessage)){
+                        throw new CommonException("400", exceptionMessage);
+                    }
                     throw new CommonException("400", "订单当前状态不允许获取");
                 }
 
