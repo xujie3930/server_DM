@@ -616,6 +616,8 @@ public class InboundReceiptServiceImpl extends ServiceImpl<InboundReceiptMapper,
     private BaseProductFeignService baseProductFeignService;
 
 
+
+    HttpRequestSyncDTO httpRequestDto = new HttpRequestSyncDTO();
     /**
      * #B3 接收完成入库
      *
@@ -638,6 +640,7 @@ public class InboundReceiptServiceImpl extends ServiceImpl<InboundReceiptMapper,
             if (loginUser!=null){
                 httpRequestDto.setUserName(loginUser.getUsername());
             }
+            log.info("#B3 接收完成入库inboundReceiptInfoVO参数：{}",inboundReceiptInfoVO);
             httpRequestDto.setHeaders(DomainInterceptorUtil.genSellerCodeHead(inboundReceiptInfoVO.getCusCode()));
             httpRequestDto.setUri(DomainEnum.Ck1OpenAPIDomain.wrapper(ckConfig.getIncomingOrderCompletedUrl(orderNo)));
             httpRequestDto.setRemoteTypeEnum(RemoteConstant.RemoteTypeEnum.WAREHOUSE_ORDER_COMPLETED);
