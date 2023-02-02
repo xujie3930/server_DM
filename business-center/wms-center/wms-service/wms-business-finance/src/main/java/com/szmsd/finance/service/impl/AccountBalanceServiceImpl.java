@@ -1164,7 +1164,8 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
                         // 更新限额也直接更新 但是未归还的也会查询出来，但是金额是0 需要更新授信类型
                         accountBalanceMapper.update(new AccountBalance(), Wrappers.<AccountBalance>lambdaUpdate()
                                 .set(AccountBalance::getCreditTimeFlag, true)
-                                .set(AccountBalance::getCreditType, CreditConstant.CreditTypeEnum.QUOTA.getValue()));
+                                .set(AccountBalance::getCreditType, CreditConstant.CreditTypeEnum.QUOTA.getValue())
+                                .eq(AccountBalance::getCusCode, cusCode);
                         this.updateCreditBatch(userCreditDetailList, cusCode);
                         return;
                     case TIME_LIMIT:
