@@ -1165,7 +1165,7 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
                         accountBalanceMapper.update(new AccountBalance(), Wrappers.<AccountBalance>lambdaUpdate()
                                 .set(AccountBalance::getCreditTimeFlag, true)
                                 .set(AccountBalance::getCreditType, CreditConstant.CreditTypeEnum.QUOTA.getValue())
-                                .eq(AccountBalance::getCusCode, cusCode);
+                                .eq(AccountBalance::getCusCode, cusCode));
                         this.updateCreditBatch(userCreditDetailList, cusCode);
                         return;
                     case TIME_LIMIT:
