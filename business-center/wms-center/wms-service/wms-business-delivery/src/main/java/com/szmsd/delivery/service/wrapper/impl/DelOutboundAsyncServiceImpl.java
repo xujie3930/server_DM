@@ -782,6 +782,9 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
         if (null == delOutbound) {
             return;
         }
+
+        logger.info("订单开始取消：{},{}",orderNo,delOutbound.getState());
+
         // 订单完成
         if (DelOutboundStateEnum.COMPLETED.getCode().equals(delOutbound.getState())) {
             return;
@@ -792,6 +795,9 @@ public class DelOutboundAsyncServiceImpl implements IDelOutboundAsyncService {
         }
         // 获取到处理状态
         String cancelledState = this.defaultValue(delOutbound.getCancelledState());
+
+        logger.info("订单开始取消：{},{}",orderNo,cancelledState);
+
         String originCancelledState = cancelledState;
         String key = applicationName + ":DelOutbound:cancelled:" + orderNo;
         RLock lock = this.redissonClient.getLock(key);
