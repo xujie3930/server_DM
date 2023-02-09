@@ -75,7 +75,7 @@ public class RedisConfig extends CachingConfigurerSupport {
         config.useSingleServer()
                 .setAddress("redis://" + redisProperties.getHost() + ":" + redisProperties.getPort())
                 .setPassword(redisProperties.getPassword())
-                .setDatabase(redisProperties.getDatabase());
+                .setDatabase(redisProperties.getDatabase()).setPingConnectionInterval(1000);
         return Redisson.create(config);
     }
 
