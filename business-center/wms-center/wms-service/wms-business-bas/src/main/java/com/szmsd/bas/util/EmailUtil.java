@@ -154,5 +154,19 @@ public class EmailUtil {
         }
     }
 
+    public void sendEmailError(String to, String subject, String content) throws Exception {
+        try {
+            MimeMessage message = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+            helper.setFrom(fromEmail);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(content, true);
+            javaMailSender.send(message);
+        } catch (MessagingException e) {
+            log.error("发送邮件时发生异常！", e);
+            throw e;
+        }
+    }
 }
 

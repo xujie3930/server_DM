@@ -64,8 +64,8 @@ public class FssAccountBalanceLogNewServiceImpl extends ServiceImpl<FssAccountBa
         Date startTime = DateUtils.lastdayBegin(date);
         Date endTime = DateUtils.lastdayEnd(date);
         LambdaQueryWrapper<FssAccountBalanceLogNewEntity> queryWrapper = Wrappers.lambdaQuery();
-        queryWrapper.ge(FssAccountBalanceLogNewEntity::getUpdateTime, startTime);
-        queryWrapper.le(FssAccountBalanceLogNewEntity::getUpdateTime, endTime);
+        queryWrapper.ge(FssAccountBalanceLogNewEntity::getGeneratorTime, startTime);
+        queryWrapper.le(FssAccountBalanceLogNewEntity::getGeneratorTime, endTime);
         List<FssAccountBalanceLogNewEntity> yestodayList = baseMapper.selectList(queryWrapper);
         if (CollectionUtils.isEmpty(yestodayList)) {
             return;
@@ -103,7 +103,7 @@ public class FssAccountBalanceLogNewServiceImpl extends ServiceImpl<FssAccountBa
         if(CollectionUtils.isNotEmpty(emailList)){
             EmailDto emailDto = new EmailDto();
             emailDto.setText(JSONObject.toJSONString(emailList));
-                emailFeingService.sendEmail(emailDto);
+                emailFeingService.sendEmailError(emailDto);
         }
     }
 }

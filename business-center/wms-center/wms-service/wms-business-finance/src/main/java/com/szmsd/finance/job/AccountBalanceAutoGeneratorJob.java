@@ -70,7 +70,7 @@ public class AccountBalanceAutoGeneratorJob {
             log.error("autoSyncBalance() execute error: ", e);
             EmailDto emailDto = new EmailDto();
             emailDto.setText(JSONObject.toJSONString(e));
-            emailFeingService.sendEmail(emailDto);
+            emailFeingService.sendEmailError(emailDto);
         }
         log.info("autoSyncBalance() end...");
     }
