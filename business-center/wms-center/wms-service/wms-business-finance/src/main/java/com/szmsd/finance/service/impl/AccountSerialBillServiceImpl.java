@@ -14,6 +14,7 @@ import com.szmsd.bas.constant.SerialNumberConstant;
 import com.szmsd.bas.domain.BasFile;
 import com.szmsd.common.core.constant.HttpStatus;
 import com.szmsd.common.core.domain.R;
+import com.szmsd.common.core.utils.BigDecimalUtil;
 import com.szmsd.common.core.utils.bean.BeanMapperUtil;
 import com.szmsd.common.core.utils.poi.ExcelUtil;
 import com.szmsd.common.core.web.page.TableDataInfo;
@@ -43,6 +44,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import javax.servlet.ServletOutputStream;
@@ -398,6 +400,12 @@ public class AccountSerialBillServiceImpl extends ServiceImpl<AccountSerialBillM
         this.generatorTime(dto);
 
         return accountSerialBillMapper.findBillCurrencyData(dto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AccountBalanceBillCusCurrencyVO> findBillCusCurrencyData(AccountSerialBillDTO dto) {
+        return accountSerialBillMapper.findBillCusCurrencyData(dto);
     }
 
     @Override

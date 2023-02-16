@@ -182,10 +182,14 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
                 BigDecimal totalBalance = x.getTotalBalance();
                 BigDecimal currentBalance = x.getCurrentBalance();
 
+                //若使用额度金额>0
                 if(creditUseAmount.compareTo(BigDecimal.ZERO) > 0){
                     BigDecimal newTotalBalance = totalBalance.subtract(creditUseAmount);
                     BigDecimal newCurrentBalance = currentBalance.subtract(creditUseAmount);
+                    //客户钱包=总余额totalBalance-使用额度金额creditUseAmount
                     x.setTotalBalance(newTotalBalance);
+                    //可用余额=可用余额currentBalance-使用额度金额creditUseAmount
+                    //冻结余额=freeze_balance
                     x.setCurrentBalance(newCurrentBalance);
                 }
             });
@@ -1328,5 +1332,13 @@ public class AccountBalanceServiceImpl implements IAccountBalanceService {
             this.reloadCreditTime(cusCodeList, currency);
         });
 
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AccountBalance> selectByDaily() {
+        Date date = new Date();
+        LambdaQueryWrapper<AccountBalance> queryWrapper = Wrappers.lambdaQuery();
+        return accountBalanceMapper.listPage(queryWrapper);
     }
 }
